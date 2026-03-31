@@ -124,8 +124,7 @@ export default function Index() {
     addLog('[API] Odosielam požiadavku na Enterprise Core...');
 
     try {
-      const data = await callAI(finalPrompt, ENTERPRISE_PROMPT);
-      const replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Žiadna odpoveď zo servera.';
+      const replyText = await callAI(finalPrompt);
       setMessages(prev => [...prev, { role: 'model', content: replyText }]);
       addLog('[API] Požiadavka úspešne vybavená.');
       extractCodeForPreview(replyText);
