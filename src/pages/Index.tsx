@@ -142,13 +142,13 @@ export default function Index() {
   const handleAnalyzeLogs = async (rawLogs: string): Promise<string> => {
     addLog('[API] Spúšťam analýzu zraniteľností...');
     try {
-      const data = await callAI(
+      const result = await callAI(
         `Analyzuj tieto logy a identifikuj hrozby:\n\n${rawLogs}`,
-        ENTERPRISE_PROMPT + '\nFOCUS: Log Analysis. Identify anomalies, penetration attempts, and suspicious IPs. Format output in Markdown.'
+        'FOCUS: Log Analysis. Identify anomalies, penetration attempts, and suspicious IPs. Format output in Markdown.'
       );
       addLog('[API] Analýza úspešne dokončená (200 OK).');
       showToast('Analýza hrozieb hotová', 'success');
-      return data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Neboli nájdené žiadne kritické udalosti.';
+      return result;
     } catch {
       addLog('[ERROR] Analýza zlyhala: Cloud API nedostupné.');
       showToast('Chyba pripojenia', 'error');
