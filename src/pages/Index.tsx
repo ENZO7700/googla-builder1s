@@ -159,11 +159,10 @@ export default function Index() {
   const handleGenerateSkill = async (desc: string): Promise<string> => {
     addLog('[API] Generujem Cloud funkciu...');
     try {
-      const data = await callAI(
+      const text = await callAI(
         `Napíš skript pre nasledujúcu úlohu: ${desc}`,
-        ENTERPRISE_PROMPT + '\nFOCUS: Script Generation. Write clean, secure, production-ready code. Return ONLY the code wrapped in a markdown block.'
+        'FOCUS: Script Generation. Write clean, secure, production-ready code. Return ONLY the code wrapped in a markdown block.'
       );
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Chyba generovania kódu.';
       addLog('[API] Zdrojový kód úspešne vygenerovaný.');
       showToast('Nástroj vygenerovaný', 'success');
       extractCodeForPreview(text);
