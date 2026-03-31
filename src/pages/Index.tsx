@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import LoginScreen from '@/components/LoginScreen';
 import SidebarNav, { Session } from '@/components/workspace/SidebarNav';
 import SystemMonitor from '@/components/workspace/SystemMonitor';
@@ -8,12 +9,6 @@ import GeneratorView from '@/components/workspace/GeneratorView';
 import PreviewView from '@/components/workspace/PreviewView';
 import ConnectorsView from '@/components/workspace/ConnectorsView';
 import ToastContainer, { Toast } from '@/components/workspace/ToastContainer';
-
-const ENTERPRISE_PROMPT = `You are H4CK3D Enterprise, a highly advanced, autonomous Cyber Security & DevOps Intelligence integrated into the Cloud Workspace. Your operational matrix covers Red Teaming, SOC Analysis, Zero-Trust Architecture, modern Web Development, and advanced WordPress engineering.
-SPECIALIZATION: You are an absolute expert in WordPress Full Site Editing (FSE), theme.json dimensions and formatting, block.json configurations, and WP REST API JSON structures.
-TONE & PERSONA: Professional, helpful, highly technical, concise. Speak like an elite enterprise cloud assistant.
-Language: Respond in Slovak (Slovenčina), but keep all technical terms, code, and CLI commands in English.
-OUTPUT FORMAT: Always use highly structured Markdown. Use code blocks with correct syntax highlighting for any CLI commands, scripts, config files, or payloads.`;
 
 interface Message {
   role: string;
@@ -25,18 +20,18 @@ interface Attachment {
   size: string;
 }
 
-const fetchWithBackoff = async (url: string, options: RequestInit, retries = 5) => {
-  const delays = [1000, 2000, 4000, 8000, 16000];
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const response = await fetch(url, options);
-      if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-      return await response.json();
-    } catch (error) {
-      if (i === retries) throw error;
-      await new Promise(res => setTimeout(res, delays[i]));
-    }
+const callAI = async (prompt: string, systemOverride?: string): Promise<string> => {
+  const { data, error } = await supabase.functions.invoke('chat', {
+    body: { prompt, systemOverride },
+  });
+
+  if (error) throw error;
+
+  if (data?.error) {
+    throw new Error(data.error);
   }
+
+  return data?.text || 'Žiadna odpoveď zo servera.';
 };
 
 export default function Index() {
@@ -90,18 +85,6 @@ export default function Index() {
     return () => clearInterval(interval);
   }, [isLoading, isLoggedIn, addLog]);
 
-  const callAI = async (prompt: string, systemText: string) => {
-    const apiKey = '';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-    return await fetchWithBackoff(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        systemInstruction: { parts: [{ text: systemText }] },
-      }),
-    });
-  };
 
   const extractCodeForPreview = (text: string) => {
     if (!text) return;
@@ -138,8 +121,7 @@ export default function Index() {
     addLog('[API] Odosielam požiadavku na Enterprise Core...');
 
     try {
-      const data = await callAI(finalPrompt, ENTERPRISE_PROMPT);
-      const replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Žiadna odpoveď zo servera.';
+      const replyText = await callAI(finalPrompt);
       setMessages(prev => [...prev, { role: 'model', content: replyText }]);
       addLog('[API] Požiadavka úspešne vybavená.');
       extractCodeForPreview(replyText);
@@ -157,13 +139,13 @@ export default function Index() {
   const handleAnalyzeLogs = async (rawLogs: string): Promise<string> => {
     addLog('[API] Spúšťam analýzu zraniteľností...');
     try {
-      const data = await callAI(
+      const result = await callAI(
         `Analyzuj tieto logy a identifikuj hrozby:\n\n${rawLogs}`,
-        ENTERPRISE_PROMPT + '\nFOCUS: Log Analysis. Identify anomalies, penetration attempts, and suspicious IPs. Format output in Markdown.'
+        'FOCUS: Log Analysis. Identify anomalies, penetration attempts, and suspicious IPs. Format output in Markdown.'
       );
       addLog('[API] Analýza úspešne dokončená (200 OK).');
       showToast('Analýza hrozieb hotová', 'success');
-      return data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Neboli nájdené žiadne kritické udalosti.';
+      return result;
     } catch {
       addLog('[ERROR] Analýza zlyhala: Cloud API nedostupné.');
       showToast('Chyba pripojenia', 'error');
@@ -174,11 +156,10 @@ export default function Index() {
   const handleGenerateSkill = async (desc: string): Promise<string> => {
     addLog('[API] Generujem Cloud funkciu...');
     try {
-      const data = await callAI(
+      const text = await callAI(
         `Napíš skript pre nasledujúcu úlohu: ${desc}`,
-        ENTERPRISE_PROMPT + '\nFOCUS: Script Generation. Write clean, secure, production-ready code. Return ONLY the code wrapped in a markdown block.'
+        'FOCUS: Script Generation. Write clean, secure, production-ready code. Return ONLY the code wrapped in a markdown block.'
       );
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Chyba generovania kódu.';
       addLog('[API] Zdrojový kód úspešne vygenerovaný.');
       showToast('Nástroj vygenerovaný', 'success');
       extractCodeForPreview(text);
