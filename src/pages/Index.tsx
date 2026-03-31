@@ -85,17 +85,8 @@ export default function Index() {
     return () => clearInterval(interval);
   }, [isLoading, isLoggedIn, addLog]);
 
-  const callAI = async (prompt: string, systemText: string) => {
-    const apiKey = '';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-    return await fetchWithBackoff(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        systemInstruction: { parts: [{ text: systemText }] },
-      }),
-    });
+  const callAILocal = async (prompt: string, systemOverride?: string): Promise<string> => {
+    return await callAI(prompt, systemOverride);
   };
 
   const extractCodeForPreview = (text: string) => {
