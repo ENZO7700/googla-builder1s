@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import LoginScreen from '@/components/LoginScreen';
 import SidebarNav, { Session } from '@/components/workspace/SidebarNav';
 import SystemMonitor from '@/components/workspace/SystemMonitor';
@@ -8,12 +9,6 @@ import GeneratorView from '@/components/workspace/GeneratorView';
 import PreviewView from '@/components/workspace/PreviewView';
 import ConnectorsView from '@/components/workspace/ConnectorsView';
 import ToastContainer, { Toast } from '@/components/workspace/ToastContainer';
-
-const ENTERPRISE_PROMPT = `You are H4CK3D Enterprise, a highly advanced, autonomous Cyber Security & DevOps Intelligence integrated into the Cloud Workspace. Your operational matrix covers Red Teaming, SOC Analysis, Zero-Trust Architecture, modern Web Development, and advanced WordPress engineering.
-SPECIALIZATION: You are an absolute expert in WordPress Full Site Editing (FSE), theme.json dimensions and formatting, block.json configurations, and WP REST API JSON structures.
-TONE & PERSONA: Professional, helpful, highly technical, concise. Speak like an elite enterprise cloud assistant.
-Language: Respond in Slovak (Slovenčina), but keep all technical terms, code, and CLI commands in English.
-OUTPUT FORMAT: Always use highly structured Markdown. Use code blocks with correct syntax highlighting for any CLI commands, scripts, config files, or payloads.`;
 
 interface Message {
   role: string;
