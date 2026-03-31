@@ -20,18 +20,18 @@ interface Attachment {
   size: string;
 }
 
-const fetchWithBackoff = async (url: string, options: RequestInit, retries = 5) => {
-  const delays = [1000, 2000, 4000, 8000, 16000];
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const response = await fetch(url, options);
-      if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-      return await response.json();
-    } catch (error) {
-      if (i === retries) throw error;
-      await new Promise(res => setTimeout(res, delays[i]));
-    }
+const callAI = async (prompt: string, systemOverride?: string): Promise<string> => {
+  const { data, error } = await supabase.functions.invoke('chat', {
+    body: { prompt, systemOverride },
+  });
+
+  if (error) throw error;
+
+  if (data?.error) {
+    throw new Error(data.error);
   }
+
+  return data?.text || 'Žiadna odpoveď zo servera.';
 };
 
 export default function Index() {
