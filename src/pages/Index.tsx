@@ -85,9 +85,6 @@ export default function Index() {
     return () => clearInterval(interval);
   }, [isLoading, isLoggedIn, addLog]);
 
-  const callAILocal = async (prompt: string, systemOverride?: string): Promise<string> => {
-    return await callAI(prompt, systemOverride);
-  };
 
   const extractCodeForPreview = (text: string) => {
     if (!text) return;
