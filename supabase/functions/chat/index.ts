@@ -17,10 +17,21 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, systemOverride } = await req.json();
+    const body = await req.json();
+    const { messages, prompt, systemOverride } = body;
 
-    if (!prompt || typeof prompt !== "string") {
-      return new Response(JSON.stringify({ error: "Missing or invalid prompt" }), {
+    // Support both old {prompt} and new {messages} format
+    let conversationMessages: Array<{role: string; content: string}>;
+
+    if (messages && Array.isArray(messages)) {
+      conversationMessages = messages.map((m: any) => ({
+        role: m.role === 'model' ? 'assistant' : m.role,
+        content: m.content,
+      }));
+    } else if (prompt && typeof prompt === "string") {
+      conversationMessages = [{ role: "user", content: prompt }];
+    } else {
+      return new Response(JSON.stringify({ error: "Missing prompt or messages" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -43,9 +54,10 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
+        stream: true,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: prompt },
+          ...conversationMessages,
         ],
       }),
     });
@@ -58,7 +70,7 @@ serve(async (req) => {
         });
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Nedostatok kreditov. Doplňte kredity v Settings → Workspace → Usage." }), {
+        return new Response(JSON.stringify({ error: "Nedostatok kreditov." }), {
           status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -71,11 +83,14 @@ serve(async (req) => {
       });
     }
 
-    const data = await response.json();
-    const text = data.choices?.[0]?.message?.content || "Žiadna odpoveď.";
-
-    return new Response(JSON.stringify({ text }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // Stream the response through
+    return new Response(response.body, {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
     });
   } catch (e) {
     console.error("chat error:", e);
