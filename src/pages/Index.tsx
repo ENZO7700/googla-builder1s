@@ -419,7 +419,7 @@ export default function Index() {
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setMobileMenuOpen(false)}>
           <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
-          <div className="relative w-[280px] h-full" onClick={e => e.stopPropagation()}>
+          <div className="relative w-[280px] h-full [&>aside]:flex [&>aside]:w-full" onClick={e => e.stopPropagation()}>
             <SidebarNav
               currentView={currentView}
               onViewChange={(v) => { setCurrentView(v); setMobileMenuOpen(false); }}
