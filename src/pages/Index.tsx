@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { User } from '@supabase/supabase-js';
 import LoginScreen from '@/components/LoginScreen';
 import SidebarNav, { Session } from '@/components/workspace/SidebarNav';
 import SystemMonitor from '@/components/workspace/SystemMonitor';
@@ -20,25 +21,13 @@ interface Attachment {
   size: string;
 }
 
-const callAI = async (prompt: string, systemOverride?: string): Promise<string> => {
-  const { data, error } = await supabase.functions.invoke('chat', {
-    body: { prompt, systemOverride },
-  });
-
-  if (error) throw error;
-
-  if (data?.error) {
-    throw new Error(data.error);
-  }
-
-  return data?.text || 'Žiadna odpoveď zo servera.';
-};
-
 export default function Index() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [currentView, setCurrentView] = useState('tasks');
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -46,17 +35,61 @@ export default function Index() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [latestGeneratedCode, setLatestGeneratedCode] = useState('');
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
-  const [sessions, setSessions] = useState<Session[]>([
-    { id: 1, title: 'Analýza Nginx Logov', date: 'Dnes, 10:42', messages: [] },
-    { id: 2, title: 'Docker Compose Setup', date: 'Včera, 15:20', messages: [] },
-  ]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [logs, setLogs] = useState([
     '[SYSTEM] Inicializácia inštancie H4CK3D Enterprise...',
     '[AUTH] IAM politiky úspešne overené.',
     '[NET] Pripojenie k VPC nadviazané.',
     '[AGENT] Cloud AI agent pripravený.',
   ]);
+
+  // Auth listener
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Load sessions from DB
+  useEffect(() => {
+    if (!user) return;
+    const loadSessions = async () => {
+      const { data } = await supabase
+        .from('chat_sessions')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(20);
+      if (data) {
+        setSessions(data.map(s => ({
+          id: s.id,
+          title: s.title,
+          date: new Date(s.created_at).toLocaleDateString('sk'),
+          messages: [],
+        })));
+      }
+    };
+    loadSessions();
+  }, [user]);
+
+  // Keyboard shortcut: Ctrl+K = new session
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        handleNewSession();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const showToast = useCallback((message: string, type: Toast['type'] = 'info') => {
     const id = Date.now();
@@ -70,7 +103,7 @@ export default function Index() {
 
   // Background log simulation
   useEffect(() => {
-    if (!isLoggedIn) return;
+    if (!user) return;
     const interval = setInterval(() => {
       if (!isLoading && Math.random() > 0.85) {
         const fakeLogs = [
@@ -83,8 +116,7 @@ export default function Index() {
       }
     }, 4000);
     return () => clearInterval(interval);
-  }, [isLoading, isLoggedIn, addLog]);
-
+  }, [isLoading, user, addLog]);
 
   const extractCodeForPreview = (text: string) => {
     if (!text) return;
@@ -105,6 +137,89 @@ export default function Index() {
     }
   };
 
+  // Save message to DB
+  const saveMessageToDB = async (sessionId: string, role: string, content: string) => {
+    if (!user) return;
+    await supabase.from('chat_messages').insert({
+      session_id: sessionId,
+      user_id: user.id,
+      role,
+      content,
+    });
+  };
+
+  // Create session in DB
+  const createSessionInDB = async (title: string): Promise<string | null> => {
+    if (!user) return null;
+    const { data } = await supabase.from('chat_sessions').insert({
+      user_id: user.id,
+      title: title.substring(0, 30),
+    }).select('id').single();
+    return data?.id ?? null;
+  };
+
+  // Streaming AI call
+  const callAIStreaming = async (msgs: Message[], systemOverride?: string): Promise<string> => {
+    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+    const url = `https://${projectId}.supabase.co/functions/v1/chat`;
+    const { data: { session } } = await supabase.auth.getSession();
+    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token || anonKey}`,
+        'apikey': anonKey,
+      },
+      body: JSON.stringify({ messages: msgs, systemOverride }),
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || 'AI gateway error');
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No stream');
+    const decoder = new TextDecoder();
+    let fullText = '';
+    setIsStreaming(true);
+
+    // Add empty model message
+    setMessages(prev => [...prev, { role: 'model', content: '' }]);
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6);
+          if (data === '[DONE]') continue;
+          try {
+            const parsed = JSON.parse(data);
+            const delta = parsed.choices?.[0]?.delta?.content;
+            if (delta) {
+              fullText += delta;
+              setMessages(prev => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { role: 'model', content: fullText };
+                return updated;
+              });
+            }
+          } catch {}
+        }
+      }
+    } finally {
+      setIsStreaming(false);
+    }
+
+    return fullText;
+  };
+
   const handleSendMessage = async (textToProcess: string = inputValue) => {
     if (!textToProcess.trim() && attachments.length === 0) return;
 
@@ -114,19 +229,41 @@ export default function Index() {
       finalPrompt = `[Zahrnuté súbory: ${fileNames}]\n${textToProcess}`;
     }
 
-    setMessages(prev => [...prev, { role: 'user', content: finalPrompt }]);
+    const newUserMsg: Message = { role: 'user', content: finalPrompt };
+    const updatedMessages = [...messages, newUserMsg];
+    setMessages(updatedMessages);
     setInputValue('');
     setAttachments([]);
     setIsLoading(true);
     addLog('[API] Odosielam požiadavku na Enterprise Core...');
 
+    // Create session if needed
+    let sessionId = activeSessionId;
+    if (!sessionId) {
+      const newId = await createSessionInDB(finalPrompt);
+      if (newId) {
+        sessionId = newId;
+        setActiveSessionId(newId);
+        setSessions(prev => [
+          { id: newId, title: finalPrompt.substring(0, 30), date: 'Práve teraz', messages: [] },
+          ...prev,
+        ]);
+      }
+    }
+
+    if (sessionId) {
+      saveMessageToDB(sessionId, 'user', finalPrompt);
+    }
+
     try {
-      const replyText = await callAI(finalPrompt);
-      setMessages(prev => [...prev, { role: 'model', content: replyText }]);
+      const replyText = await callAIStreaming(updatedMessages);
       addLog('[API] Požiadavka úspešne vybavená.');
       extractCodeForPreview(replyText);
-    } catch {
-      addLog('[ERROR] Spojenie prerušené (504 Gateway Timeout).');
+      if (sessionId) {
+        saveMessageToDB(sessionId, 'model', replyText);
+      }
+    } catch (err: any) {
+      addLog(`[ERROR] ${err.message || 'Spojenie prerušené.'}`);
       setMessages(prev => [
         ...prev,
         { role: 'model', content: '⚠️ **Chyba servera:** Nepodarilo sa nadviazať spojenie s jadrom. Skontrolujte pripojenie a skúste to znova.' },
@@ -139,10 +276,8 @@ export default function Index() {
   const handleAnalyzeLogs = async (rawLogs: string): Promise<string> => {
     addLog('[API] Spúšťam analýzu zraniteľností...');
     try {
-      const result = await callAI(
-        `Analyzuj tieto logy a identifikuj hrozby:\n\n${rawLogs}`,
-        'FOCUS: Log Analysis. Identify anomalies, penetration attempts, and suspicious IPs. Format output in Markdown.'
-      );
+      const msgs: Message[] = [{ role: 'user', content: `Analyzuj tieto logy a identifikuj hrozby:\n\n${rawLogs}` }];
+      const result = await callAIStreaming(msgs, 'FOCUS: Log Analysis. Identify anomalies, penetration attempts, and suspicious IPs. Format output in Markdown.');
       addLog('[API] Analýza úspešne dokončená (200 OK).');
       showToast('Analýza hrozieb hotová', 'success');
       return result;
@@ -156,10 +291,8 @@ export default function Index() {
   const handleGenerateSkill = async (desc: string): Promise<string> => {
     addLog('[API] Generujem Cloud funkciu...');
     try {
-      const text = await callAI(
-        `Napíš skript pre nasledujúcu úlohu: ${desc}`,
-        'FOCUS: Script Generation. Write clean, secure, production-ready code. Return ONLY the code wrapped in a markdown block.'
-      );
+      const msgs: Message[] = [{ role: 'user', content: `Napíš skript pre nasledujúcu úlohu: ${desc}` }];
+      const text = await callAIStreaming(msgs, 'FOCUS: Script Generation. Write clean, secure, production-ready code. Return ONLY the code wrapped in a markdown block.');
       addLog('[API] Zdrojový kód úspešne vygenerovaný.');
       showToast('Nástroj vygenerovaný', 'success');
       extractCodeForPreview(text);
@@ -172,15 +305,6 @@ export default function Index() {
   };
 
   const handleNewSession = () => {
-    if (messages.length > 0 && activeSessionId) {
-      setSessions(prev => prev.map(s => (s.id === activeSessionId ? { ...s, messages: [...messages] } : s)));
-    } else if (messages.length > 0) {
-      const newId = Date.now();
-      setSessions(prev => [
-        { id: newId, title: messages[0].content.substring(0, 20) + '...', date: 'Práve teraz', messages: [...messages] },
-        ...prev,
-      ]);
-    }
     setMessages([]);
     setAttachments([]);
     setInputValue('');
@@ -190,12 +314,38 @@ export default function Index() {
     showToast('Nová relácia spustená', 'success');
   };
 
-  const loadSession = (session: Session) => {
-    setMessages(session.messages || []);
+  const loadSession = async (session: Session) => {
     setActiveSessionId(session.id);
     setCurrentView('tasks');
-    addLog(`[SYSTEM] Relácia ${session.id} načítaná.`);
+    addLog(`[SYSTEM] Načítavam reláciu...`);
+
+    const { data } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('session_id', session.id)
+      .order('created_at', { ascending: true });
+
+    if (data) {
+      setMessages(data.map(m => ({ role: m.role, content: m.content })));
+    }
     showToast('Relácia obnovená', 'info');
+  };
+
+  const deleteSession = async (sessionId: string) => {
+    await supabase.from('chat_sessions').delete().eq('id', sessionId);
+    setSessions(prev => prev.filter(s => s.id !== sessionId));
+    if (activeSessionId === sessionId) {
+      setMessages([]);
+      setActiveSessionId(null);
+    }
+    showToast('Relácia vymazaná', 'info');
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setMessages([]);
+    setSessions([]);
+    setActiveSessionId(null);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -242,8 +392,16 @@ export default function Index() {
     }
   };
 
-  if (!isLoggedIn) {
-    return <LoginScreen onLogin={() => setIsLoggedIn(true)} />;
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
   }
 
   const tokenCount = messages.length > 0 ? (8.1 + messages.length * 0.3).toFixed(1) : '8.1';
@@ -257,6 +415,29 @@ export default function Index() {
     >
       <ToastContainer toasts={toasts} />
 
+      {/* Mobile sidebar overlay */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setMobileMenuOpen(false)}>
+          <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
+          <div className="relative w-[280px] h-full [&>aside]:flex [&>aside]:w-full" onClick={e => e.stopPropagation()}>
+            <SidebarNav
+              currentView={currentView}
+              onViewChange={(v) => { setCurrentView(v); setMobileMenuOpen(false); }}
+              onNewSession={() => { handleNewSession(); setMobileMenuOpen(false); }}
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              onLoadSession={(s) => { loadSession(s); setMobileMenuOpen(false); }}
+              onDeleteSession={deleteSession}
+              hasPreviewCode={!!latestGeneratedCode}
+              onOpenSettings={() => setShowSettings(!showSettings)}
+              userEmail={user.email}
+              onLogout={handleLogout}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Desktop sidebar */}
       <SidebarNav
         currentView={currentView}
         onViewChange={setCurrentView}
@@ -264,15 +445,22 @@ export default function Index() {
         sessions={sessions}
         activeSessionId={activeSessionId}
         onLoadSession={loadSession}
+        onDeleteSession={deleteSession}
         hasPreviewCode={!!latestGeneratedCode}
         onOpenSettings={() => setShowSettings(!showSettings)}
+        userEmail={user.email}
+        onLogout={handleLogout}
       />
 
       <main className="flex-1 flex flex-col relative overflow-hidden">
         {currentView === 'files' ? (
-          <AnalyzerView onAnalyze={handleAnalyzeLogs} />
+          <div className="animate-fade-in flex-1 flex flex-col">
+            <AnalyzerView onAnalyze={handleAnalyzeLogs} />
+          </div>
         ) : currentView === 'skills' ? (
-          <GeneratorView onGenerate={handleGenerateSkill} />
+          <div className="animate-fade-in flex-1 flex flex-col">
+            <GeneratorView onGenerate={handleGenerateSkill} />
+          </div>
         ) : currentView === 'preview' ? (
           <PreviewView
             latestCode={latestGeneratedCode}
@@ -285,11 +473,14 @@ export default function Index() {
             onGenerateDemo={() => handleSendMessage('Vytvor moderný login formulár v HTML a Tailwind CSS. Použi Google Material Design štýl (biela, modrá, zaoblené rohy).')}
           />
         ) : currentView === 'connectors' ? (
-          <ConnectorsView onBack={() => setCurrentView('tasks')} />
+          <div className="animate-fade-in flex-1 flex flex-col">
+            <ConnectorsView onBack={() => setCurrentView('tasks')} />
+          </div>
         ) : (
           <ChatView
             messages={messages}
             isLoading={isLoading}
+            isStreaming={isStreaming}
             inputValue={inputValue}
             onInputChange={setInputValue}
             onSend={handleSendMessage}
@@ -301,6 +492,7 @@ export default function Index() {
             isDragging={isDragging}
             tokenCount={tokenCount}
             onCopyCode={() => { addLog('[SYSTEM] Kód skopírovaný do schránky.'); showToast('Skopírované', 'success'); }}
+            onToggleMobileMenu={() => setMobileMenuOpen(true)}
           />
         )}
       </main>

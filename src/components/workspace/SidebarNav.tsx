@@ -1,7 +1,7 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import {
   Plus, LayoutGrid, ShieldAlert, Code2, Plug, Layout,
-  MessageSquare, Settings, History
+  Settings, History, LogOut, Sun, Moon, Trash2
 } from 'lucide-react';
 
 interface SidebarItemProps {
@@ -32,7 +32,7 @@ function SidebarItem({ icon, label, active, onClick, status, indicator }: Sideba
 }
 
 export interface Session {
-  id: number;
+  id: string;
   title: string;
   date: string;
   messages: Array<{ role: string; content: string }>;
@@ -43,17 +43,27 @@ interface SidebarNavProps {
   onViewChange: (view: string) => void;
   onNewSession: () => void;
   sessions: Session[];
-  activeSessionId: number | null;
+  activeSessionId: string | null;
   onLoadSession: (session: Session) => void;
+  onDeleteSession?: (sessionId: string) => void;
   hasPreviewCode: boolean;
   onOpenSettings: () => void;
+  userEmail?: string;
+  onLogout?: () => void;
 }
 
 export default function SidebarNav({
   currentView, onViewChange, onNewSession,
-  sessions, activeSessionId, onLoadSession,
-  hasPreviewCode, onOpenSettings
+  sessions, activeSessionId, onLoadSession, onDeleteSession,
+  hasPreviewCode, onOpenSettings, userEmail, onLogout
 }: SidebarNavProps) {
+  const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark);
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+  }, [dark]);
+
   return (
     <aside className="w-[280px] bg-sidebar border-r border-sidebar-border flex flex-col shrink-0 z-20 hidden lg:flex">
       {/* Logo */}
@@ -92,34 +102,65 @@ export default function SidebarNav({
         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pt-6 pb-1">Nedávne</p>
         <div className="space-y-0.5">
           {sessions.map(session => (
-            <button
-              key={session.id}
-              onClick={() => onLoadSession(session)}
-              className={`w-full flex flex-col items-start px-3 py-2.5 rounded-xl transition-all duration-200 text-left text-sm ${
-                activeSessionId === session.id
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
-                  : 'text-sidebar-foreground hover:bg-accent hover:text-foreground'
-              }`}
-            >
-              <span className="flex items-center gap-2 w-full">
-                <History size={14} className="shrink-0 opacity-60" />
-                <span className="truncate">{session.title}</span>
-              </span>
-            </button>
+            <div key={session.id} className="group relative">
+              <button
+                onClick={() => onLoadSession(session)}
+                className={`w-full flex flex-col items-start px-3 py-2.5 rounded-xl transition-all duration-200 text-left text-sm ${
+                  activeSessionId === session.id
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+                    : 'text-sidebar-foreground hover:bg-accent hover:text-foreground'
+                }`}
+              >
+                <span className="flex items-center gap-2 w-full">
+                  <History size={14} className="shrink-0 opacity-60" />
+                  <span className="truncate pr-6">{session.title}</span>
+                </span>
+              </button>
+              {onDeleteSession && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDeleteSession(session.id); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
           ))}
         </div>
       </div>
 
       {/* User */}
-      <div className="p-4 border-t border-sidebar-border">
+      <div className="p-4 border-t border-sidebar-border space-y-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setDark(!dark)}
+            className="p-2 rounded-xl hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+            title={dark ? 'Svetlý režim' : 'Tmavý režim'}
+          >
+            {dark ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="p-2 rounded-xl hover:bg-accent transition-colors text-muted-foreground hover:text-destructive"
+              title="Odhlásiť sa"
+            >
+              <LogOut size={16} />
+            </button>
+          )}
+        </div>
         <button
           onClick={onOpenSettings}
           className="flex items-center justify-between p-2 rounded-xl hover:bg-accent transition-colors cursor-pointer w-full"
         >
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">R</div>
+            <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+              {userEmail ? userEmail[0].toUpperCase() : 'U'}
+            </div>
             <div className="text-left">
-              <div className="text-sm font-medium text-foreground">root_admin</div>
+              <div className="text-sm font-medium text-foreground truncate max-w-[160px]">
+                {userEmail || 'Používateľ'}
+              </div>
               <div className="text-[11px] text-success">Online</div>
             </div>
           </div>

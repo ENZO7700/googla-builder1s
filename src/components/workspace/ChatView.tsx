@@ -1,9 +1,9 @@
 import { useRef, useEffect, useState } from 'react';
 import {
   Sparkles, Loader2, Send, Paperclip, Mic,
-  FileText, X, Search
+  FileText, X, Search, Menu
 } from 'lucide-react';
-import { formatMarkdown } from '@/lib/formatMarkdown';
+import { MarkdownRenderer } from '@/lib/formatMarkdown';
 
 interface Message {
   role: string;
@@ -71,6 +71,7 @@ const promptData: Record<string, string[]> = {
 interface ChatViewProps {
   messages: Message[];
   isLoading: boolean;
+  isStreaming?: boolean;
   inputValue: string;
   onInputChange: (val: string) => void;
   onSend: (text?: string) => void;
@@ -82,12 +83,13 @@ interface ChatViewProps {
   isDragging: boolean;
   tokenCount: string;
   onCopyCode: () => void;
+  onToggleMobileMenu?: () => void;
 }
 
 export default function ChatView({
-  messages, isLoading, inputValue, onInputChange, onSend,
+  messages, isLoading, isStreaming, inputValue, onInputChange, onSend,
   attachments, onFileUpload, onRemoveAttachment,
-  isRecording, onMicClick, isDragging, tokenCount, onCopyCode
+  isRecording, onMicClick, isDragging, tokenCount, onCopyCode, onToggleMobileMenu
 }: ChatViewProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,13 +100,32 @@ export default function ChatView({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        inputAreaRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   return (
     <>
       {/* Header */}
-      <header className="h-14 border-b border-border bg-card flex items-center justify-between px-6 shrink-0 z-30">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Search size={16} />
-          <span className="text-sm">Vyhľadať v projekte</span>
+      <header className="h-14 border-b border-border bg-card flex items-center justify-between px-4 lg:px-6 shrink-0 z-30">
+        <div className="flex items-center gap-3">
+          {onToggleMobileMenu && (
+            <button onClick={onToggleMobileMenu} className="lg:hidden p-1.5 text-muted-foreground hover:text-foreground">
+              <Menu size={20} />
+            </button>
+          )}
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Search size={16} />
+            <span className="text-sm hidden sm:inline">Vyhľadať v projekte</span>
+          </div>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
@@ -129,7 +150,7 @@ export default function ChatView({
       <div className="flex-1 overflow-y-auto px-4 lg:px-24 pt-10 pb-48 scrollbar-hide relative flex flex-col">
         <div className="max-w-3xl mx-auto w-full flex-1">
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full min-h-[50vh]">
+            <div className="flex flex-col items-center justify-center h-full min-h-[50vh] animate-fade-in">
               <div className="text-center mb-10 space-y-4">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-card border border-border shadow-sm mb-2">
                   <Sparkles size={28} className="text-primary" />
@@ -155,7 +176,7 @@ export default function ChatView({
           ) : (
             <div className="space-y-8 pb-10 pt-4">
               {messages.map((msg, idx) => (
-                <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
                   {msg.role === 'model' && (
                     <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center shrink-0 mt-1">
                       <Sparkles size={16} className="text-primary" />
@@ -169,13 +190,18 @@ export default function ChatView({
                     {msg.role === 'user' ? (
                       <div className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.content}</div>
                     ) : (
-                      <div className="text-[15px]">{formatMarkdown(msg.content, onCopyCode)}</div>
+                      <div className="text-[15px]">
+                        <MarkdownRenderer content={msg.content} onCopy={onCopyCode} />
+                        {isStreaming && idx === messages.length - 1 && (
+                          <span className="inline-block w-2 h-4 bg-primary ml-1 animate-blink" />
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
               ))}
 
-              {isLoading && (
+              {isLoading && !isStreaming && (
                 <div className="flex gap-4 justify-start pt-2">
                   <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
                     <Loader2 size={16} className="text-primary animate-spin" />
@@ -192,7 +218,7 @@ export default function ChatView({
       </div>
 
       {/* Input area */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 lg:px-24 lg:pb-8 bg-gradient-to-t from-background via-background to-transparent z-40">
+      <div className="absolute bottom-0 left-0 right-0 p-3 lg:px-24 lg:pb-8 bg-gradient-to-t from-background via-background to-transparent z-40">
         <div className="max-w-3xl mx-auto w-full relative">
           {attachments.length > 0 && (
             <div className="absolute -top-12 left-0 flex gap-2 w-full overflow-x-auto pb-2 scrollbar-hide z-30">

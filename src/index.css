@@ -63,6 +63,62 @@
     --google-red: 4 90% 58%;
     --google-yellow: 43 96% 56%;
   }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+
+    --card: 217 33% 17%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 217 33% 17%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217 87% 51%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 217 33% 22%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 52% 46%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 43 96% 56%;
+    --warning-foreground: 220 13% 13%;
+
+    --border: 215 28% 25%;
+    --input: 215 28% 25%;
+    --ring: 217 87% 51%;
+
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 215 20% 65%;
+    --sidebar-primary: 217 87% 51%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 217 87% 70%;
+    --sidebar-border: 215 28% 25%;
+    --sidebar-ring: 217 87% 51%;
+
+    --console-bg: 222 47% 7%;
+    --console-header: 222 47% 10%;
+    --console-border: 215 28% 18%;
+    --console-text: 215 20% 65%;
+
+    --google-blue: 217 87% 51%;
+    --google-blue-hover: 211 79% 45%;
+    --google-green: 142 52% 46%;
+    --google-red: 4 90% 58%;
+    --google-yellow: 43 96% 56%;
+  }
 }
 
 @layer base {
@@ -91,5 +147,21 @@
 
   .font-mono {
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in {
+    animation: fade-in 0.25s ease-out;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+  .animate-blink {
+    animation: blink 1s step-end infinite;
   }
 }
