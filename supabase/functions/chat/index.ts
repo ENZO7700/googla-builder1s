@@ -18,9 +18,8 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { messages, prompt, systemOverride } = body;
+    const { messages, prompt, systemOverride, model } = body;
 
-    // Support both old {prompt} and new {messages} format
     let conversationMessages: Array<{role: string; content: string}>;
 
     if (messages && Array.isArray(messages)) {
@@ -46,6 +45,9 @@ serve(async (req) => {
       ? ENTERPRISE_PROMPT + "\n" + systemOverride
       : ENTERPRISE_PROMPT;
 
+    // Use model from request or default
+    const selectedModel = model || "google/gemini-3-flash-preview";
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -53,7 +55,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: selectedModel,
         stream: true,
         messages: [
           { role: "system", content: systemPrompt },
@@ -83,7 +85,6 @@ serve(async (req) => {
       });
     }
 
-    // Stream the response through
     return new Response(response.body, {
       headers: {
         ...corsHeaders,
