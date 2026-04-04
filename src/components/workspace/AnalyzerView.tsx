@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ShieldAlert, Loader2, CheckCircle2 } from 'lucide-react';
-import { formatMarkdown } from '@/lib/formatMarkdown';
+import { ShieldAlert, Loader2, CheckCircle2, Shield } from 'lucide-react';
+import { MarkdownRenderer } from '@/lib/formatMarkdown';
 
 interface AnalyzerViewProps {
   onAnalyze: (logs: string) => Promise<string>;
@@ -31,6 +31,18 @@ export default function AnalyzerView({ onAnalyze }: AnalyzerViewProps) {
           <p className="text-muted-foreground text-sm mt-1">Nahrajte systémové logy pre automatickú analýzu hrozieb.</p>
         </div>
 
+        {!rawLogs && !logAnalysis && !isAnalyzing && (
+          <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
+            <div className="w-20 h-20 rounded-2xl bg-accent border border-border flex items-center justify-center mb-6">
+              <Shield size={36} className="text-primary" />
+            </div>
+            <h3 className="text-lg font-medium text-foreground mb-2">Žiadne logy na analýzu</h3>
+            <p className="text-sm text-muted-foreground max-w-md">
+              Vložte systémové logy, prístupové záznamy alebo bezpečnostné udalosti do textového poľa nižšie. AI identifikuje potenciálne hrozby a anomálie.
+            </p>
+          </div>
+        )}
+
         <div className="flex flex-col gap-6">
           <textarea
             value={rawLogs}
@@ -53,7 +65,9 @@ export default function AnalyzerView({ onAnalyze }: AnalyzerViewProps) {
               <h3 className="text-foreground font-medium mb-4 flex items-center gap-2 text-lg">
                 <CheckCircle2 size={20} className="text-success" /> Výsledok analýzy
               </h3>
-              <div className="text-foreground space-y-4 text-sm">{formatMarkdown(logAnalysis)}</div>
+              <div className="text-foreground text-sm">
+                <MarkdownRenderer content={logAnalysis} />
+              </div>
             </div>
           )}
         </div>

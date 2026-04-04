@@ -1,8 +1,9 @@
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect, useMemo } from 'react';
 import {
   Plus, LayoutGrid, ShieldAlert, Code2, Plug, Layout,
-  Settings, History, LogOut, Sun, Moon, Trash2
+  Settings, History, LogOut, Sun, Moon, Trash2, Search, Pencil, Check, X
 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface SidebarItemProps {
   icon: ReactNode;
@@ -46,26 +47,77 @@ interface SidebarNavProps {
   activeSessionId: string | null;
   onLoadSession: (session: Session) => void;
   onDeleteSession?: (sessionId: string) => void;
+  onRenameSession?: (sessionId: string, newTitle: string) => void;
   hasPreviewCode: boolean;
   onOpenSettings: () => void;
   userEmail?: string;
   onLogout?: () => void;
+  sessionsLoading?: boolean;
+}
+
+function groupByDate(sessions: Session[]): Record<string, Session[]> {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const yesterday = today - 86400000;
+  const weekAgo = today - 7 * 86400000;
+
+  const groups: Record<string, Session[]> = {};
+  for (const s of sessions) {
+    const parts = s.date.split(/[.\-/]/);
+    let d: number;
+    if (parts.length === 3) {
+      // Try sk format dd.mm.yyyy or yyyy-mm-dd
+      const parsed = new Date(s.date).getTime();
+      d = isNaN(parsed) ? 0 : parsed;
+    } else {
+      d = 0;
+    }
+    if (s.date === 'Práve teraz' || d >= today) {
+      (groups['Dnes'] ??= []).push(s);
+    } else if (d >= yesterday) {
+      (groups['Včera'] ??= []).push(s);
+    } else if (d >= weekAgo) {
+      (groups['Tento týždeň'] ??= []).push(s);
+    } else {
+      (groups['Staršie'] ??= []).push(s);
+    }
+  }
+  return groups;
 }
 
 export default function SidebarNav({
   currentView, onViewChange, onNewSession,
-  sessions, activeSessionId, onLoadSession, onDeleteSession,
-  hasPreviewCode, onOpenSettings, userEmail, onLogout
+  sessions, activeSessionId, onLoadSession, onDeleteSession, onRenameSession,
+  hasPreviewCode, onOpenSettings, userEmail, onLogout, sessionsLoading
 }: SidebarNavProps) {
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
     localStorage.setItem('theme', dark ? 'dark' : 'light');
   }, [dark]);
 
+  const filteredSessions = useMemo(() => {
+    if (!searchQuery.trim()) return sessions;
+    const q = searchQuery.toLowerCase();
+    return sessions.filter(s => s.title.toLowerCase().includes(q));
+  }, [sessions, searchQuery]);
+
+  const grouped = useMemo(() => groupByDate(filteredSessions), [filteredSessions]);
+  const groupOrder = ['Dnes', 'Včera', 'Tento týždeň', 'Staršie'];
+
+  const handleRenameSubmit = (sessionId: string) => {
+    if (editTitle.trim() && onRenameSession) {
+      onRenameSession(sessionId, editTitle.trim());
+    }
+    setEditingId(null);
+  };
+
   return (
-    <aside className="w-[280px] bg-sidebar border-r border-sidebar-border flex flex-col shrink-0 z-20 hidden lg:flex">
+    <aside className="w-[280px] bg-sidebar border-r border-sidebar-border flex flex-col shrink-0 z-20">
       {/* Logo */}
       <div className="p-5 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
@@ -98,35 +150,93 @@ export default function SidebarNav({
         <SidebarItem icon={<Code2 size={18} />} label="Generátor" active={currentView === 'skills'} onClick={() => onViewChange('skills')} />
         <SidebarItem icon={<Layout size={18} />} label="Náhľad" active={currentView === 'preview'} indicator={hasPreviewCode} onClick={() => onViewChange('preview')} />
 
-        {/* Sessions */}
-        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pt-6 pb-1">Nedávne</p>
-        <div className="space-y-0.5">
-          {sessions.map(session => (
-            <div key={session.id} className="group relative">
-              <button
-                onClick={() => onLoadSession(session)}
-                className={`w-full flex flex-col items-start px-3 py-2.5 rounded-xl transition-all duration-200 text-left text-sm ${
-                  activeSessionId === session.id
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
-                    : 'text-sidebar-foreground hover:bg-accent hover:text-foreground'
-                }`}
-              >
-                <span className="flex items-center gap-2 w-full">
-                  <History size={14} className="shrink-0 opacity-60" />
-                  <span className="truncate pr-6">{session.title}</span>
-                </span>
-              </button>
-              {onDeleteSession && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDeleteSession(session.id); }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
-                >
-                  <Trash2 size={14} />
-                </button>
-              )}
-            </div>
-          ))}
+        {/* Session search */}
+        <div className="pt-6 pb-2 px-1">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Hľadať relácie..."
+              className="w-full bg-accent border border-border rounded-lg py-2 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-primary"
+            />
+          </div>
         </div>
+
+        {/* Sessions grouped */}
+        {sessionsLoading ? (
+          <div className="space-y-2 px-3 pt-2">
+            {[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full rounded-xl" />)}
+          </div>
+        ) : (
+          groupOrder.map(group => {
+            const items = grouped[group];
+            if (!items?.length) return null;
+            return (
+              <div key={group}>
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pt-4 pb-1">{group}</p>
+                <div className="space-y-0.5">
+                  {items.map(session => (
+                    <div key={session.id} className="group relative">
+                      {editingId === session.id ? (
+                        <div className="flex items-center gap-1 px-2 py-1.5">
+                          <input
+                            autoFocus
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleRenameSubmit(session.id);
+                              if (e.key === 'Escape') setEditingId(null);
+                            }}
+                            className="flex-1 bg-accent border border-primary rounded-lg px-2 py-1.5 text-xs text-foreground outline-none"
+                          />
+                          <button onClick={() => handleRenameSubmit(session.id)} className="p-1 text-success"><Check size={14} /></button>
+                          <button onClick={() => setEditingId(null)} className="p-1 text-muted-foreground"><X size={14} /></button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => onLoadSession(session)}
+                          onDoubleClick={() => { setEditingId(session.id); setEditTitle(session.title); }}
+                          className={`w-full flex flex-col items-start px-3 py-2.5 rounded-xl transition-all duration-200 text-left text-sm ${
+                            activeSessionId === session.id
+                              ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+                              : 'text-sidebar-foreground hover:bg-accent hover:text-foreground'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2 w-full">
+                            <History size={14} className="shrink-0 opacity-60" />
+                            <span className="truncate pr-12">{session.title}</span>
+                          </span>
+                        </button>
+                      )}
+                      {editingId !== session.id && (
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex gap-0.5 transition-all">
+                          {onRenameSession && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditingId(session.id); setEditTitle(session.title); }}
+                              className="p-1 text-muted-foreground hover:text-foreground"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                          )}
+                          {onDeleteSession && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onDeleteSession(session.id); }}
+                              className="p-1 text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* User */}
