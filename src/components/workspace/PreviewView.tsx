@@ -1,4 +1,5 @@
 import { Layout, X, Loader2, Terminal, Send } from 'lucide-react';
+import { MarkdownRenderer } from '@/lib/formatMarkdown';
 
 interface Message {
   role: string;
@@ -36,7 +37,13 @@ export default function PreviewView({
                   ? 'bg-primary text-primary-foreground rounded-tr-sm'
                   : 'bg-accent text-foreground border border-border rounded-tl-sm'
               }`}>
-                {msg.role === 'user' ? msg.content : 'Zmeny aplikované v náhľade.'}
+                {msg.role === 'user' ? (
+                  <span className="line-clamp-3">{msg.content}</span>
+                ) : (
+                  <div className="text-xs max-h-24 overflow-hidden">
+                    <MarkdownRenderer content={msg.content.substring(0, 200) + (msg.content.length > 200 ? '...' : '')} />
+                  </div>
+                )}
               </div>
             </div>
           ))}

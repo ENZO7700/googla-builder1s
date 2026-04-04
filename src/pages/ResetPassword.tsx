@@ -14,21 +14,20 @@ export default function ResetPassword() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    // Check for recovery session from URL hash
     const hash = window.location.hash;
     if (hash.includes('type=recovery')) {
       setValidSession(true);
     }
 
-    // Also check if there's an active session (user clicked the recovery link)
-    supabase.auth.onAuthStateChange((event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setValidSession(true);
       }
     });
 
-    // Give it a moment to process the hash
     setTimeout(() => setChecking(false), 1000);
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -90,10 +89,7 @@ export default function ResetPassword() {
             <div className="py-6 flex flex-col items-center gap-3">
               <AlertCircle className="text-destructive" size={40} />
               <p className="text-sm text-foreground">Neplatný alebo expirovaný odkaz na obnovenie hesla.</p>
-              <button
-                onClick={() => navigate('/')}
-                className="mt-4 text-sm text-primary hover:underline font-medium"
-              >
+              <button onClick={() => navigate('/')} className="mt-4 text-sm text-primary hover:underline font-medium">
                 Späť na prihlásenie
               </button>
             </div>
@@ -101,44 +97,24 @@ export default function ResetPassword() {
             <form onSubmit={handleSubmit} className="space-y-4 text-left">
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5 ml-1">Nové heslo</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={loading}
+                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={loading}
                   className="w-full bg-card border border-border rounded-lg px-4 py-3.5 text-[15px] text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground disabled:opacity-50"
-                  placeholder="Minimálne 6 znakov"
-                  required
-                  minLength={6}
-                />
+                  placeholder="Minimálne 6 znakov" required minLength={6} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5 ml-1">Potvrdiť heslo</label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={loading}
+                <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={loading}
                   className="w-full bg-card border border-border rounded-lg px-4 py-3.5 text-[15px] text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground disabled:opacity-50"
-                  placeholder="Zopakujte heslo"
-                  required
-                  minLength={6}
-                />
+                  placeholder="Zopakujte heslo" required minLength={6} />
               </div>
-
               {error && (
                 <div className="flex items-center gap-2 text-destructive text-sm px-1">
-                  <AlertCircle size={16} />
-                  {error}
+                  <AlertCircle size={16} /> {error}
                 </div>
               )}
-
               <div className="pt-4 flex justify-end">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-8 py-2.5 bg-primary text-primary-foreground rounded-full hover:bg-google-blue-hover transition-colors font-medium disabled:opacity-50 shadow-sm"
-                >
+                <button type="submit" disabled={loading}
+                  className="px-8 py-2.5 bg-primary text-primary-foreground rounded-full hover:bg-google-blue-hover transition-colors font-medium disabled:opacity-50 shadow-sm">
                   {loading ? <Loader2 size={18} className="animate-spin" /> : 'Zmeniť heslo'}
                 </button>
               </div>
