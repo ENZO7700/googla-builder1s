@@ -1,6 +1,6 @@
 import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import React from 'react';
+import DynamicSyntax from './dynamic-syntax';
 
 interface MarkdownRendererProps {
   content: string;
@@ -30,14 +30,9 @@ export function MarkdownRenderer({ content, onCopy }: MarkdownRendererProps) {
                     Kopírovať
                   </button>
                 </div>
-                <SyntaxHighlighter
-                  style={oneDark}
-                  language={match[1]}
-                  PreTag="div"
-                  customStyle={{ margin: 0, borderRadius: 0, fontSize: '13px' }}
-                >
+                <DynamicSyntax language={match[1]} PreTag="div" customStyle={{ margin: 0, borderRadius: 0, fontSize: '13px' }}>
                   {codeStr}
-                </SyntaxHighlighter>
+                </DynamicSyntax>
               </div>
             );
           }
