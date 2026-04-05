@@ -1,6 +1,6 @@
 import ReactMarkdown from 'react-markdown';
-import React from 'react';
-import DynamicSyntax from './dynamic-syntax';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface MarkdownRendererProps {
   content: string;
@@ -30,9 +30,14 @@ export function MarkdownRenderer({ content, onCopy }: MarkdownRendererProps) {
                     Kopírovať
                   </button>
                 </div>
-                <DynamicSyntax language={match[1]} PreTag="div" customStyle={{ margin: 0, borderRadius: 0, fontSize: '13px' }}>
+                <SyntaxHighlighter
+                  style={oneDark}
+                  language={match[1]}
+                  PreTag="div"
+                  customStyle={{ margin: 0, borderRadius: 0, fontSize: '13px' }}
+                >
                   {codeStr}
-                </DynamicSyntax>
+                </SyntaxHighlighter>
               </div>
             );
           }
@@ -72,5 +77,7 @@ export function MarkdownRenderer({ content, onCopy }: MarkdownRendererProps) {
 }
 
 // Keep backward compat
-// Legacy helper removed from this module to keep the file exporting only React components.
-// If needed elsewhere, import `MarkdownRenderer` and wrap it accordingly.
+export function formatMarkdown(text: string, onCopy?: () => void) {
+  if (!text) return [];
+  return [<MarkdownRenderer key="md" content={text} onCopy={onCopy} />];
+}

@@ -45,9 +45,8 @@ export default function LoginScreen() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg || 'Nastala chyba.');
+    } catch (err: any) {
+      setError(err.message || 'Nastala chyba.');
     } finally {
       setLoading(false);
     }
@@ -66,9 +65,8 @@ export default function LoginScreen() {
       if (result.redirected) {
         return;
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg || 'Google prihlásenie zlyhalo.');
+    } catch (err: any) {
+      setError(err.message || 'Google prihlásenie zlyhalo.');
     } finally {
       setGoogleLoading(false);
     }
