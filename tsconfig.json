@@ -4,12 +4,14 @@
     "noImplicitAny": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
+    "ignoreDeprecations": "6.0",
     "paths": {
       "@/*": [
         "./src/*"
       ]
     },
     "skipLibCheck": true,
+    "ignoreDeprecations": "6.0",
     "strictNullChecks": false
   },
   "files": [],

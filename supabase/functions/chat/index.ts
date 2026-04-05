@@ -23,7 +23,7 @@ serve(async (req) => {
     let conversationMessages: Array<{role: string; content: string}>;
 
     if (messages && Array.isArray(messages)) {
-      conversationMessages = messages.map((m: any) => ({
+      conversationMessages = messages.map((m: { role: string; content: string }) => ({
         role: m.role === 'model' ? 'assistant' : m.role,
         content: m.content,
       }));

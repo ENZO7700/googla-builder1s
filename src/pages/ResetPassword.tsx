@@ -50,8 +50,9 @@ export default function ResetPassword() {
       if (error) throw error;
       setSuccess(true);
       setTimeout(() => navigate('/'), 3000);
-    } catch (err: any) {
-      setError(err.message || 'Nastala chyba pri zmene hesla.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg || 'Nastala chyba pri zmene hesla.');
     } finally {
       setLoading(false);
     }

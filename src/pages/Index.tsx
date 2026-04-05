@@ -45,7 +45,7 @@ export default function Index() {
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const [logs, setLogs] = useState([
     '[SYSTEM] Inicializácia inštancie H4CK3D Enterprise...',
     '[AUTH] IAM politiky úspešne overené.',
@@ -64,7 +64,7 @@ export default function Index() {
       setAuthLoading(false);
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [handleNewSession]);
 
   // Load sessions from DB
   useEffect(() => {
@@ -99,7 +99,7 @@ export default function Index() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [handleNewSession]);
 
   const showToast = useCallback((message: string, type: Toast['type'] = 'info') => {
     const id = Date.now();
@@ -283,7 +283,7 @@ export default function Index() {
                 return updated;
               });
             }
-          } catch {}
+          } catch (e) { void e; }
         }
       }
     } catch (streamErr) {
@@ -350,8 +350,9 @@ export default function Index() {
         // Update session title and timestamp
         await supabase.from('chat_sessions').update({ updated_at: new Date().toISOString() }).eq('id', sessionId);
       }
-    } catch (err: any) {
-      addLog(`[ERROR] ${err.message || 'Spojenie prerušené.'}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addLog(`[ERROR] ${msg || 'Spojenie prerušené.'}`);
       // Only add error message if streaming didn't already add one
       setMessages(prev => {
         const last = prev[prev.length - 1];
@@ -405,7 +406,7 @@ export default function Index() {
     }
   };
 
-  const handleNewSession = () => {
+  const handleNewSession = useCallback(() => {
     setMessages([]);
     setAttachments([]);
     setInputValue('');
@@ -413,7 +414,7 @@ export default function Index() {
     setCurrentView('tasks');
     addLog('[SYSTEM] Nový pracovný priestor alokovaný.');
     showToast('Nová relácia spustená', 'success');
-  };
+  }, [addLog, showToast]);
 
   const loadSession = async (session: Session) => {
     setActiveSessionId(session.id);
@@ -469,7 +470,8 @@ export default function Index() {
 
   // Real Web Speech API
   const handleMicClick = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const win = window as unknown as { SpeechRecognition?: new () => SpeechRecognition; webkitSpeechRecognition?: new () => SpeechRecognition };
+    const SpeechRecognition = win.SpeechRecognition || win.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       showToast('Rozpoznávanie reči nie je podporované v tomto prehliadači.', 'error');
       return;
@@ -493,13 +495,14 @@ export default function Index() {
       addLog('[AUDIO] Počúvam...');
     };
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
       let interim = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
+        const res = event.results[i] as unknown as { isFinal: boolean; 0: { transcript: string } };
+        if (res.isFinal) {
+          finalTranscript += res[0].transcript;
         } else {
-          interim += event.results[i][0].transcript;
+          interim += res[0].transcript;
         }
       }
       setInputValue(finalTranscript + interim);
@@ -513,11 +516,12 @@ export default function Index() {
       }
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event: Event) => {
       setIsRecording(false);
       recognitionRef.current = null;
-      if (event.error !== 'no-speech') {
-        showToast(`Chyba rozpoznávania: ${event.error}`, 'error');
+      const ev = event as unknown as { error?: string };
+      if (ev.error && ev.error !== 'no-speech') {
+        showToast(`Chyba rozpoznávania: ${ev.error}`, 'error');
       }
     };
 

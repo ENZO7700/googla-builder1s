@@ -77,7 +77,5 @@ export function MarkdownRenderer({ content, onCopy }: MarkdownRendererProps) {
 }
 
 // Keep backward compat
-export function formatMarkdown(text: string, onCopy?: () => void) {
-  if (!text) return [];
-  return [<MarkdownRenderer key="md" content={text} onCopy={onCopy} />];
-}
+// Legacy helper removed from this module to keep the file exporting only React components.
+// If needed elsewhere, import `MarkdownRenderer` and wrap it accordingly.
