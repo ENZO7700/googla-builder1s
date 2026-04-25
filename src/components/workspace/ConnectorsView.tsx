@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plug, ExternalLink, X, Zap } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plug, ExternalLink, X, Zap, LayoutDashboard } from 'lucide-react';
 
 interface Integration {
   id: string;
@@ -24,6 +25,7 @@ interface ConnectorsViewProps {
 }
 
 export default function ConnectorsView({ onBack }: ConnectorsViewProps) {
+  const navigate = useNavigate();
   const [selected, setSelected] = useState<Integration | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState('');
 
@@ -95,6 +97,15 @@ export default function ConnectorsView({ onBack }: ConnectorsViewProps) {
               </button>
             </div>
             <p className="text-muted-foreground text-sm mb-4">{selected.description}</p>
+
+            {selected.id === 'github' && (
+              <button
+                onClick={() => { setSelected(null); navigate('/dashboard/github'); }}
+                className="w-full mb-4 flex items-center justify-center gap-2 px-4 py-2.5 bg-foreground text-background rounded-full text-sm font-medium hover:opacity-90 transition-colors"
+              >
+                <LayoutDashboard size={14} /> Otvoriť GitHub dashboard
+              </button>
+            )}
 
             {selected.available ? (
               <>

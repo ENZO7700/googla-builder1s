@@ -1,9 +1,11 @@
 import { ReactNode, useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Plus, LayoutGrid, ShieldAlert, Code2, Plug, Layout,
-  Settings, History, LogOut, Sun, Moon, Trash2, Search, Pencil, Check, X
+  Settings, History, LogOut, Sun, Moon, Trash2, Search, Pencil, Check, X, Github
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { isAdminEmail } from '@/lib/admin';
 
 interface SidebarItemProps {
   icon: ReactNode;
@@ -90,6 +92,7 @@ export default function SidebarNav({
   sessions, activeSessionId, onLoadSession, onDeleteSession, onRenameSession,
   hasPreviewCode, onOpenSettings, userEmail, onLogout, sessionsLoading
 }: SidebarNavProps) {
+  const navigate = useNavigate();
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -149,6 +152,14 @@ export default function SidebarNav({
         <SidebarItem icon={<Plug size={18} />} label="Integrácie" active={currentView === 'connectors'} status="online" onClick={() => onViewChange('connectors')} />
         <SidebarItem icon={<Code2 size={18} />} label="Generátor" active={currentView === 'skills'} onClick={() => onViewChange('skills')} />
         <SidebarItem icon={<Layout size={18} />} label="Náhľad" active={currentView === 'preview'} indicator={hasPreviewCode} onClick={() => onViewChange('preview')} />
+        {isAdminEmail(userEmail) && (
+          <SidebarItem
+            icon={<Github size={18} />}
+            label="GitHub"
+            active={false}
+            onClick={() => navigate('/dashboard/github')}
+          />
+        )}
 
         {/* Session search */}
         <div className="pt-6 pb-2 px-1">
