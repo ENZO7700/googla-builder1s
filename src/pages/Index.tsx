@@ -225,41 +225,54 @@ export default function Index() {
 
   const getSelectedModel = () => localStorage.getItem('ai-model') || 'google/gemini-3-flash-preview';
 
-  // Streaming AI call with error recovery
+  // Streaming AI call with error recovery + diagnostics
   const callAIStreaming = async (msgs: Message[], systemOverride?: string): Promise<string> => {
     const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
     const url = `https://${projectId}.supabase.co/functions/v1/chat`;
     const { data: { session } } = await supabase.auth.getSession();
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const model = getSelectedModel();
+    const startTime = performance.now();
+    let firstTokenTime = 0;
+    let chunks = 0;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session?.access_token || anonKey}`,
-        'apikey': anonKey,
-      },
-      body: JSON.stringify({ messages: msgs, systemOverride, model: getSelectedModel() }),
-    });
+    setDiagnostics(null);
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey,
+        },
+        body: JSON.stringify({ messages: msgs, systemOverride, model }),
+      });
+    } catch (netErr: any) {
+      setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: netErr.message || 'Network error', timestamp: new Date() });
+      throw netErr;
+    }
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      if (response.status === 429) {
-        toast.error('Rate limit – skúste to o chvíľu.');
-      } else if (response.status === 402) {
-        toast.error('Nedostatok kreditov.');
-      }
-      throw new Error(errData.error || 'AI gateway error');
+      if (response.status === 429) toast.error('Rate limit – skúste to o chvíľu.');
+      else if (response.status === 402) toast.error('Nedostatok kreditov.');
+      const msg = errData.error || `HTTP ${response.status}`;
+      setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: msg, timestamp: new Date() });
+      throw new Error(msg);
     }
 
     const reader = response.body?.getReader();
-    if (!reader) throw new Error('No stream');
+    if (!reader) {
+      setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: 'No stream', timestamp: new Date() });
+      throw new Error('No stream');
+    }
     const decoder = new TextDecoder();
     let fullText = '';
     let textBuffer = '';
     setIsStreaming(true);
 
-    // Add empty model message
     setMessages(prev => [...prev, { role: 'model', content: '' }]);
 
     try {
@@ -281,6 +294,8 @@ export default function Index() {
             const parsed = JSON.parse(jsonStr);
             const delta = parsed.choices?.[0]?.delta?.content;
             if (delta) {
+              if (!firstTokenTime) firstTokenTime = performance.now();
+              chunks++;
               fullText += delta;
               setMessages(prev => {
                 const updated = [...prev];
@@ -289,14 +304,12 @@ export default function Index() {
               });
             }
           } catch {
-            // partial JSON, put back
             textBuffer = line + '\n' + textBuffer;
             break;
           }
         }
       }
 
-      // Final flush
       if (textBuffer.trim()) {
         for (let raw of textBuffer.split('\n')) {
           if (!raw) continue;
@@ -308,6 +321,8 @@ export default function Index() {
             const parsed = JSON.parse(jsonStr);
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) {
+              if (!firstTokenTime) firstTokenTime = performance.now();
+              chunks++;
               fullText += content;
               setMessages(prev => {
                 const updated = [...prev];
@@ -318,15 +333,26 @@ export default function Index() {
           } catch {}
         }
       }
-    } catch (streamErr) {
-      // Error recovery: if stream fails mid-way, remove empty model message or show error
-      if (!fullText) {
-        setMessages(prev => prev.slice(0, -1));
-      }
+    } catch (streamErr: any) {
+      if (!fullText) setMessages(prev => prev.slice(0, -1));
+      setDiagnostics({
+        ttft: firstTokenTime ? firstTokenTime - startTime : 0,
+        total: performance.now() - startTime,
+        chunks, model,
+        error: streamErr.message || 'Stream interrupted',
+        timestamp: new Date(),
+      });
       throw streamErr;
     } finally {
       setIsStreaming(false);
     }
+
+    setDiagnostics({
+      ttft: firstTokenTime ? firstTokenTime - startTime : 0,
+      total: performance.now() - startTime,
+      chunks, model,
+      timestamp: new Date(),
+    });
 
     return fullText;
   };
@@ -334,17 +360,22 @@ export default function Index() {
   const handleSendMessage = async (textToProcess: string = inputValue) => {
     if (!textToProcess.trim() && attachments.length === 0) return;
 
+    // Wait for any in-flight uploads to finish
+    if (attachments.some(a => a.uploading)) {
+      toast.info('Čakám na dokončenie nahrávania súborov...');
+      return;
+    }
+
     let finalPrompt = textToProcess;
 
-    // Upload real files
-    if (attachments.length > 0) {
-      const fileUrls = await uploadAttachments(attachments);
-      if (fileUrls.length > 0) {
-        finalPrompt = `${fileUrls.join('\n')}\n\n${textToProcess}`;
-      } else {
-        const fileNames = attachments.map(a => a.name).join(', ');
-        finalPrompt = `[Zahrnuté súbory: ${fileNames}]\n${textToProcess}`;
-      }
+    // Use already-uploaded URLs
+    const ready = attachments.filter(a => a.url);
+    if (ready.length > 0) {
+      const lines = ready.map(a => `[Súbor: ${a.name}](${a.url})`);
+      finalPrompt = `${lines.join('\n')}\n\n${textToProcess}`;
+    } else if (attachments.length > 0) {
+      const fileNames = attachments.map(a => a.name).join(', ');
+      finalPrompt = `[Zahrnuté súbory: ${fileNames}]\n${textToProcess}`;
     }
 
     const newUserMsg: Message = { role: 'user', content: finalPrompt };
