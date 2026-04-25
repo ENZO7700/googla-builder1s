@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 import LoginScreen from '@/components/LoginScreen';
 import SidebarNav, { Session } from '@/components/workspace/SidebarNav';
-import SystemMonitor from '@/components/workspace/SystemMonitor';
+import SystemMonitor, { StreamDiagnostics } from '@/components/workspace/SystemMonitor';
 import ChatView from '@/components/workspace/ChatView';
 import ToastContainer, { Toast } from '@/components/workspace/ToastContainer';
 import SettingsPanel from '@/components/workspace/SettingsPanel';
@@ -24,7 +24,16 @@ interface Attachment {
   name: string;
   size: string;
   file?: File;
+  progress?: number;       // 0-100
+  uploading?: boolean;
+  url?: string;            // public URL once uploaded
+  path?: string;           // storage path (for cleanup)
+  error?: string;
 }
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
+const MAX_FILES = 10;
+const ALLOWED_EXT = /\.(txt|md|json|csv|js|ts|tsx|jsx|py|html|css|xml|yml|yaml|log|pdf|png|jpg|jpeg|webp|gif|svg)$/i;
 
 export default function Index() {
   const [user, setUser] = useState<User | null>(null);
@@ -45,6 +54,7 @@ export default function Index() {
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [diagnostics, setDiagnostics] = useState<StreamDiagnostics | null>(null);
   const recognitionRef = useRef<any>(null);
   const [logs, setLogs] = useState([
     '[SYSTEM] Inicializácia inštancie H4CK3D Enterprise...',
