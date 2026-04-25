@@ -225,16 +225,44 @@ export default function ChatView({
       <div className="absolute bottom-0 left-0 right-0 p-3 lg:px-24 lg:pb-8 bg-gradient-to-t from-background via-background to-transparent z-40">
         <div className="max-w-3xl mx-auto w-full relative">
           {attachments.length > 0 && (
-            <div className="absolute -top-12 left-0 flex gap-2 w-full overflow-x-auto pb-2 scrollbar-hide z-30">
-              {attachments.map((file, i) => (
-                <div key={i} className="flex items-center gap-2 bg-card border border-border px-3 py-1.5 rounded-full text-xs font-medium text-foreground shadow-sm">
-                  <FileText size={14} className="text-primary" />
-                  <span className="truncate max-w-[150px]">{file.name}</span>
-                  <button onClick={() => onRemoveAttachment(i)} className="ml-1 text-muted-foreground hover:text-foreground">
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
+            <div className="absolute -top-16 left-0 flex gap-2 w-full overflow-x-auto pb-2 scrollbar-hide z-30">
+              {attachments.map((file, i) => {
+                const isErr = !!file.error;
+                const isUp = !!file.uploading;
+                const isDone = !!file.url && !isUp;
+                return (
+                  <div
+                    key={i}
+                    className={`relative flex flex-col gap-1 bg-card border px-3 py-1.5 rounded-2xl text-xs font-medium shadow-sm min-w-[160px] ${
+                      isErr ? 'border-destructive/50' : isDone ? 'border-success/40' : 'border-border'
+                    }`}
+                    title={file.error || (isUp ? 'Nahrávam...' : isDone ? 'Nahrané' : '')}
+                  >
+                    <div className="flex items-center gap-2 text-foreground">
+                      {isErr ? <AlertCircle size={14} className="text-destructive shrink-0" /> :
+                       isDone ? <CheckCircle2 size={14} className="text-success shrink-0" /> :
+                       isUp ? <Loader2 size={14} className="text-primary shrink-0 animate-spin" /> :
+                       <FileText size={14} className="text-primary shrink-0" />}
+                      <span className="truncate max-w-[120px]">{file.name}</span>
+                      <span className="text-muted-foreground text-[10px]">{file.size}</span>
+                      <button onClick={() => onRemoveAttachment(i)} className="ml-1 text-muted-foreground hover:text-foreground">
+                        <X size={14} />
+                      </button>
+                    </div>
+                    {isUp && (
+                      <div className="h-0.5 w-full bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all duration-200"
+                          style={{ width: `${file.progress ?? 0}%` }}
+                        />
+                      </div>
+                    )}
+                    {isErr && (
+                      <div className="text-[10px] text-destructive truncate max-w-[180px]">{file.error}</div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
