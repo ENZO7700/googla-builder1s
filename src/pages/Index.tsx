@@ -182,23 +182,45 @@ export default function Index() {
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: trimmed } : s));
   };
 
-  // Upload files to storage
-  const uploadAttachments = async (files: Attachment[]): Promise<string[]> => {
-    if (!user) return [];
-    const urls: string[] = [];
-    for (const att of files) {
-      if (!att.file) continue;
-      const path = `${user.id}/${Date.now()}_${att.name}`;
-      const { error } = await supabase.storage.from('chat-attachments').upload(path, att.file);
-      if (!error) {
-        const { data } = supabase.storage.from('chat-attachments').getPublicUrl(path);
-        urls.push(`[Súbor: ${att.name}](${data.publicUrl})`);
-        addLog(`[FS] Súbor nahraný: ${att.name}`);
-      } else {
-        addLog(`[ERROR] Upload zlyhalo: ${att.name}`);
-      }
+  // Validate single file before accepting
+  const validateFile = (f: File): string | null => {
+    if (f.size > MAX_FILE_SIZE) return `Súbor "${f.name}" je príliš veľký (max 20 MB).`;
+    if (!ALLOWED_EXT.test(f.name) && !f.type.startsWith('text/') && !f.type.startsWith('image/')) {
+      return `Súbor "${f.name}" má nepovolený typ.`;
     }
-    return urls;
+    return null;
+  };
+
+  // Upload one file immediately, updating progress in state
+  const uploadOne = async (att: Attachment, index: number) => {
+    if (!user || !att.file) return;
+    const path = `${user.id}/pending/${Date.now()}_${att.name}`;
+    // simulate progress while supabase SDK does the upload
+    const progressInterval = setInterval(() => {
+      setAttachments(prev => prev.map((a, i) =>
+        i === index && a.uploading && (a.progress ?? 0) < 90
+          ? { ...a, progress: Math.min(90, (a.progress ?? 0) + 15) }
+          : a
+      ));
+    }, 200);
+
+    const { error } = await supabase.storage.from('chat-attachments').upload(path, att.file);
+    clearInterval(progressInterval);
+
+    if (error) {
+      setAttachments(prev => prev.map((a, i) =>
+        i === index ? { ...a, uploading: false, error: error.message } : a
+      ));
+      addLog(`[ERROR] Upload zlyhalo: ${att.name}`);
+      toast.error(`Upload zlyhal: ${att.name}`, { description: error.message });
+      return;
+    }
+
+    const { data } = supabase.storage.from('chat-attachments').getPublicUrl(path);
+    setAttachments(prev => prev.map((a, i) =>
+      i === index ? { ...a, uploading: false, progress: 100, url: data.publicUrl, path } : a
+    ));
+    addLog(`[FS] Súbor nahraný: ${att.name}`);
   };
 
   const getSelectedModel = () => localStorage.getItem('ai-model') || 'google/gemini-3-flash-preview';
