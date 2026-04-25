@@ -517,17 +517,51 @@ export default function Index() {
     setActiveSessionId(null);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length > 0) {
-      const newAttachments = files.map(f => ({
+  // Accept files: validate, add as uploading, then upload immediately
+  const acceptFiles = (files: File[]) => {
+    if (!files.length) return;
+    if (attachments.length + files.length > MAX_FILES) {
+      toast.error(`Max ${MAX_FILES} súborov naraz.`);
+      return;
+    }
+    const valid: Attachment[] = [];
+    for (const f of files) {
+      const err = validateFile(f);
+      if (err) { toast.error(err); continue; }
+      valid.push({
         name: f.name,
         size: (f.size / 1024).toFixed(1) + ' KB',
         file: f,
-      }));
-      setAttachments(prev => [...prev, ...newAttachments]);
-      addLog(`[FS] Súbor pripravený: ${files[0].name}`);
+        progress: 0,
+        uploading: true,
+      });
     }
+    if (!valid.length) return;
+    setAttachments(prev => {
+      const next = [...prev, ...valid];
+      // start uploads after state update (using their indices in `next`)
+      valid.forEach((att, i) => {
+        const indexInNext = prev.length + i;
+        uploadOne(att, indexInNext);
+      });
+      return next;
+    });
+    addLog(`[FS] Pripojených ${valid.length} súbor(ov), nahrávam...`);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    acceptFiles(files);
+    e.target.value = ''; // allow re-selecting same file
+  };
+
+  const removeAttachment = async (i: number) => {
+    const att = attachments[i];
+    if (att?.path) {
+      // best-effort cleanup of the storage object
+      supabase.storage.from('chat-attachments').remove([att.path]).catch(() => {});
+    }
+    setAttachments(prev => prev.filter((_, idx) => idx !== i));
   };
 
   // Real Web Speech API
@@ -602,15 +636,7 @@ export default function Index() {
     setIsDragging(false);
     if (currentView !== 'tasks') return;
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const droppedFiles = Array.from(e.dataTransfer.files);
-      const newAttachments = droppedFiles.map(f => ({
-        name: f.name,
-        size: (f.size / 1024).toFixed(1) + ' KB',
-        file: f,
-      }));
-      setAttachments(prev => [...prev, ...newAttachments]);
-      addLog(`[FS] Súbory nahrané: ${droppedFiles.length}`);
-      showToast(`${droppedFiles.length} súbor(ov) pripojených`, 'success');
+      acceptFiles(Array.from(e.dataTransfer.files));
     }
   };
 
