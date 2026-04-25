@@ -700,7 +700,7 @@ export default function Index() {
             onSend={handleSendMessage}
             attachments={attachments}
             onFileUpload={handleFileUpload}
-            onRemoveAttachment={(i) => setAttachments(prev => prev.filter((_, idx) => idx !== i))}
+            onRemoveAttachment={removeAttachment}
             isRecording={isRecording}
             onMicClick={handleMicClick}
             isDragging={isDragging}
@@ -790,7 +790,9 @@ export default function Index() {
         messageCount={messages.length}
         attachmentCount={attachments.length}
         logs={logs}
+        diagnostics={diagnostics}
       />
     </div>
   );
+}
 }
