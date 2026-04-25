@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import {
   Sparkles, Loader2, Send, Paperclip, Mic,
-  FileText, X, Search, Menu
+  FileText, X, Search, Menu, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import { MarkdownRenderer } from '@/lib/formatMarkdown';
 
@@ -13,6 +13,10 @@ interface Message {
 interface Attachment {
   name: string;
   size: string;
+  progress?: number;
+  uploading?: boolean;
+  url?: string;
+  error?: string;
 }
 
 interface PromptCategoryProps {
