@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 import LoginScreen from '@/components/LoginScreen';
 import SidebarNav, { Session } from '@/components/workspace/SidebarNav';
-import SystemMonitor from '@/components/workspace/SystemMonitor';
+import SystemMonitor, { StreamDiagnostics } from '@/components/workspace/SystemMonitor';
 import ChatView from '@/components/workspace/ChatView';
 import ToastContainer, { Toast } from '@/components/workspace/ToastContainer';
 import SettingsPanel from '@/components/workspace/SettingsPanel';
@@ -24,7 +24,16 @@ interface Attachment {
   name: string;
   size: string;
   file?: File;
+  progress?: number;       // 0-100
+  uploading?: boolean;
+  url?: string;            // public URL once uploaded
+  path?: string;           // storage path (for cleanup)
+  error?: string;
 }
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
+const MAX_FILES = 10;
+const ALLOWED_EXT = /\.(txt|md|json|csv|js|ts|tsx|jsx|py|html|css|xml|yml|yaml|log|pdf|png|jpg|jpeg|webp|gif|svg)$/i;
 
 export default function Index() {
   const [user, setUser] = useState<User | null>(null);
@@ -45,6 +54,7 @@ export default function Index() {
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [diagnostics, setDiagnostics] = useState<StreamDiagnostics | null>(null);
   const recognitionRef = useRef<any>(null);
   const [logs, setLogs] = useState([
     '[SYSTEM] Inicializácia inštancie H4CK3D Enterprise...',
@@ -172,62 +182,97 @@ export default function Index() {
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: trimmed } : s));
   };
 
-  // Upload files to storage
-  const uploadAttachments = async (files: Attachment[]): Promise<string[]> => {
-    if (!user) return [];
-    const urls: string[] = [];
-    for (const att of files) {
-      if (!att.file) continue;
-      const path = `${user.id}/${Date.now()}_${att.name}`;
-      const { error } = await supabase.storage.from('chat-attachments').upload(path, att.file);
-      if (!error) {
-        const { data } = supabase.storage.from('chat-attachments').getPublicUrl(path);
-        urls.push(`[Súbor: ${att.name}](${data.publicUrl})`);
-        addLog(`[FS] Súbor nahraný: ${att.name}`);
-      } else {
-        addLog(`[ERROR] Upload zlyhalo: ${att.name}`);
-      }
+  // Validate single file before accepting
+  const validateFile = (f: File): string | null => {
+    if (f.size > MAX_FILE_SIZE) return `Súbor "${f.name}" je príliš veľký (max 20 MB).`;
+    if (!ALLOWED_EXT.test(f.name) && !f.type.startsWith('text/') && !f.type.startsWith('image/')) {
+      return `Súbor "${f.name}" má nepovolený typ.`;
     }
-    return urls;
+    return null;
+  };
+
+  // Upload one file immediately, updating progress in state
+  const uploadOne = async (att: Attachment, index: number) => {
+    if (!user || !att.file) return;
+    const path = `${user.id}/pending/${Date.now()}_${att.name}`;
+    // simulate progress while supabase SDK does the upload
+    const progressInterval = setInterval(() => {
+      setAttachments(prev => prev.map((a, i) =>
+        i === index && a.uploading && (a.progress ?? 0) < 90
+          ? { ...a, progress: Math.min(90, (a.progress ?? 0) + 15) }
+          : a
+      ));
+    }, 200);
+
+    const { error } = await supabase.storage.from('chat-attachments').upload(path, att.file);
+    clearInterval(progressInterval);
+
+    if (error) {
+      setAttachments(prev => prev.map((a, i) =>
+        i === index ? { ...a, uploading: false, error: error.message } : a
+      ));
+      addLog(`[ERROR] Upload zlyhalo: ${att.name}`);
+      toast.error(`Upload zlyhal: ${att.name}`, { description: error.message });
+      return;
+    }
+
+    const { data } = supabase.storage.from('chat-attachments').getPublicUrl(path);
+    setAttachments(prev => prev.map((a, i) =>
+      i === index ? { ...a, uploading: false, progress: 100, url: data.publicUrl, path } : a
+    ));
+    addLog(`[FS] Súbor nahraný: ${att.name}`);
   };
 
   const getSelectedModel = () => localStorage.getItem('ai-model') || 'google/gemini-3-flash-preview';
 
-  // Streaming AI call with error recovery
+  // Streaming AI call with error recovery + diagnostics
   const callAIStreaming = async (msgs: Message[], systemOverride?: string): Promise<string> => {
     const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
     const url = `https://${projectId}.supabase.co/functions/v1/chat`;
     const { data: { session } } = await supabase.auth.getSession();
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const model = getSelectedModel();
+    const startTime = performance.now();
+    let firstTokenTime = 0;
+    let chunks = 0;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session?.access_token || anonKey}`,
-        'apikey': anonKey,
-      },
-      body: JSON.stringify({ messages: msgs, systemOverride, model: getSelectedModel() }),
-    });
+    setDiagnostics(null);
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey,
+        },
+        body: JSON.stringify({ messages: msgs, systemOverride, model }),
+      });
+    } catch (netErr: any) {
+      setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: netErr.message || 'Network error', timestamp: new Date() });
+      throw netErr;
+    }
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      if (response.status === 429) {
-        toast.error('Rate limit – skúste to o chvíľu.');
-      } else if (response.status === 402) {
-        toast.error('Nedostatok kreditov.');
-      }
-      throw new Error(errData.error || 'AI gateway error');
+      if (response.status === 429) toast.error('Rate limit – skúste to o chvíľu.');
+      else if (response.status === 402) toast.error('Nedostatok kreditov.');
+      const msg = errData.error || `HTTP ${response.status}`;
+      setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: msg, timestamp: new Date() });
+      throw new Error(msg);
     }
 
     const reader = response.body?.getReader();
-    if (!reader) throw new Error('No stream');
+    if (!reader) {
+      setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: 'No stream', timestamp: new Date() });
+      throw new Error('No stream');
+    }
     const decoder = new TextDecoder();
     let fullText = '';
     let textBuffer = '';
     setIsStreaming(true);
 
-    // Add empty model message
     setMessages(prev => [...prev, { role: 'model', content: '' }]);
 
     try {
@@ -249,6 +294,8 @@ export default function Index() {
             const parsed = JSON.parse(jsonStr);
             const delta = parsed.choices?.[0]?.delta?.content;
             if (delta) {
+              if (!firstTokenTime) firstTokenTime = performance.now();
+              chunks++;
               fullText += delta;
               setMessages(prev => {
                 const updated = [...prev];
@@ -257,14 +304,12 @@ export default function Index() {
               });
             }
           } catch {
-            // partial JSON, put back
             textBuffer = line + '\n' + textBuffer;
             break;
           }
         }
       }
 
-      // Final flush
       if (textBuffer.trim()) {
         for (let raw of textBuffer.split('\n')) {
           if (!raw) continue;
@@ -276,6 +321,8 @@ export default function Index() {
             const parsed = JSON.parse(jsonStr);
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) {
+              if (!firstTokenTime) firstTokenTime = performance.now();
+              chunks++;
               fullText += content;
               setMessages(prev => {
                 const updated = [...prev];
@@ -286,15 +333,26 @@ export default function Index() {
           } catch {}
         }
       }
-    } catch (streamErr) {
-      // Error recovery: if stream fails mid-way, remove empty model message or show error
-      if (!fullText) {
-        setMessages(prev => prev.slice(0, -1));
-      }
+    } catch (streamErr: any) {
+      if (!fullText) setMessages(prev => prev.slice(0, -1));
+      setDiagnostics({
+        ttft: firstTokenTime ? firstTokenTime - startTime : 0,
+        total: performance.now() - startTime,
+        chunks, model,
+        error: streamErr.message || 'Stream interrupted',
+        timestamp: new Date(),
+      });
       throw streamErr;
     } finally {
       setIsStreaming(false);
     }
+
+    setDiagnostics({
+      ttft: firstTokenTime ? firstTokenTime - startTime : 0,
+      total: performance.now() - startTime,
+      chunks, model,
+      timestamp: new Date(),
+    });
 
     return fullText;
   };
@@ -302,17 +360,22 @@ export default function Index() {
   const handleSendMessage = async (textToProcess: string = inputValue) => {
     if (!textToProcess.trim() && attachments.length === 0) return;
 
+    // Wait for any in-flight uploads to finish
+    if (attachments.some(a => a.uploading)) {
+      toast.info('Čakám na dokončenie nahrávania súborov...');
+      return;
+    }
+
     let finalPrompt = textToProcess;
 
-    // Upload real files
-    if (attachments.length > 0) {
-      const fileUrls = await uploadAttachments(attachments);
-      if (fileUrls.length > 0) {
-        finalPrompt = `${fileUrls.join('\n')}\n\n${textToProcess}`;
-      } else {
-        const fileNames = attachments.map(a => a.name).join(', ');
-        finalPrompt = `[Zahrnuté súbory: ${fileNames}]\n${textToProcess}`;
-      }
+    // Use already-uploaded URLs
+    const ready = attachments.filter(a => a.url);
+    if (ready.length > 0) {
+      const lines = ready.map(a => `[Súbor: ${a.name}](${a.url})`);
+      finalPrompt = `${lines.join('\n')}\n\n${textToProcess}`;
+    } else if (attachments.length > 0) {
+      const fileNames = attachments.map(a => a.name).join(', ');
+      finalPrompt = `[Zahrnuté súbory: ${fileNames}]\n${textToProcess}`;
     }
 
     const newUserMsg: Message = { role: 'user', content: finalPrompt };
@@ -454,17 +517,51 @@ export default function Index() {
     setActiveSessionId(null);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length > 0) {
-      const newAttachments = files.map(f => ({
+  // Accept files: validate, add as uploading, then upload immediately
+  const acceptFiles = (files: File[]) => {
+    if (!files.length) return;
+    if (attachments.length + files.length > MAX_FILES) {
+      toast.error(`Max ${MAX_FILES} súborov naraz.`);
+      return;
+    }
+    const valid: Attachment[] = [];
+    for (const f of files) {
+      const err = validateFile(f);
+      if (err) { toast.error(err); continue; }
+      valid.push({
         name: f.name,
         size: (f.size / 1024).toFixed(1) + ' KB',
         file: f,
-      }));
-      setAttachments(prev => [...prev, ...newAttachments]);
-      addLog(`[FS] Súbor pripravený: ${files[0].name}`);
+        progress: 0,
+        uploading: true,
+      });
     }
+    if (!valid.length) return;
+    setAttachments(prev => {
+      const next = [...prev, ...valid];
+      // start uploads after state update (using their indices in `next`)
+      valid.forEach((att, i) => {
+        const indexInNext = prev.length + i;
+        uploadOne(att, indexInNext);
+      });
+      return next;
+    });
+    addLog(`[FS] Pripojených ${valid.length} súbor(ov), nahrávam...`);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    acceptFiles(files);
+    e.target.value = ''; // allow re-selecting same file
+  };
+
+  const removeAttachment = async (i: number) => {
+    const att = attachments[i];
+    if (att?.path) {
+      // best-effort cleanup of the storage object
+      supabase.storage.from('chat-attachments').remove([att.path]).catch(() => {});
+    }
+    setAttachments(prev => prev.filter((_, idx) => idx !== i));
   };
 
   // Real Web Speech API
@@ -539,15 +636,7 @@ export default function Index() {
     setIsDragging(false);
     if (currentView !== 'tasks') return;
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const droppedFiles = Array.from(e.dataTransfer.files);
-      const newAttachments = droppedFiles.map(f => ({
-        name: f.name,
-        size: (f.size / 1024).toFixed(1) + ' KB',
-        file: f,
-      }));
-      setAttachments(prev => [...prev, ...newAttachments]);
-      addLog(`[FS] Súbory nahrané: ${droppedFiles.length}`);
-      showToast(`${droppedFiles.length} súbor(ov) pripojených`, 'success');
+      acceptFiles(Array.from(e.dataTransfer.files));
     }
   };
 
@@ -611,7 +700,7 @@ export default function Index() {
             onSend={handleSendMessage}
             attachments={attachments}
             onFileUpload={handleFileUpload}
-            onRemoveAttachment={(i) => setAttachments(prev => prev.filter((_, idx) => idx !== i))}
+            onRemoveAttachment={removeAttachment}
             isRecording={isRecording}
             onMicClick={handleMicClick}
             isDragging={isDragging}
@@ -701,6 +790,7 @@ export default function Index() {
         messageCount={messages.length}
         attachmentCount={attachments.length}
         logs={logs}
+        diagnostics={diagnostics}
       />
     </div>
   );

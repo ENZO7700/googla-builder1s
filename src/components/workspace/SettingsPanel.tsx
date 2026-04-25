@@ -1,6 +1,7 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Sun, Moon, Cpu } from 'lucide-react';
+import { Sun, Moon, Cpu, Stethoscope, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { runE2ETest } from '@/lib/e2eTest';
 
 const AI_MODELS = [
   { id: 'google/gemini-3-flash-preview', label: 'Gemini 3 Flash (rýchly)', desc: 'Vyvážená rýchlosť a kvalita' },
@@ -19,19 +20,29 @@ interface SettingsPanelProps {
 
 export default function SettingsPanel({ open, onOpenChange, dark, onToggleDark }: SettingsPanelProps) {
   const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('ai-model') || 'google/gemini-3-flash-preview');
+  const [running, setRunning] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('ai-model', selectedModel);
   }, [selectedModel]);
 
+  const handleRunTest = async () => {
+    setRunning(true);
+    try {
+      await runE2ETest();
+    } finally {
+      setRunning(false);
+    }
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[360px] sm:w-[400px] bg-card border-border">
+      <SheetContent className="w-[360px] sm:w-[400px] bg-card border-border overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="text-foreground">Nastavenia</SheetTitle>
         </SheetHeader>
 
-        <div className="mt-6 space-y-8">
+        <div className="mt-6 space-y-8 pb-10">
           {/* Theme */}
           <div>
             <h3 className="text-sm font-semibold text-foreground mb-3">Vzhľad</h3>
@@ -72,6 +83,23 @@ export default function SettingsPanel({ open, onOpenChange, dark, onToggleDark }
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Diagnostics */}
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Stethoscope size={16} /> Diagnostika
+            </h3>
+            <button
+              onClick={handleRunTest}
+              disabled={running}
+              className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-border bg-card hover:bg-accent text-sm font-medium text-foreground transition-all disabled:opacity-50"
+            >
+              {running ? <><Loader2 size={16} className="animate-spin" /> Spúšťam test...</> : 'Spustiť E2E test'}
+            </button>
+            <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+              Overí auth, databázu, AI streaming, storage a voice API. Výsledky uvidíte v konzole prehliadača (F12).
+            </p>
           </div>
 
           {/* Keyboard shortcuts */}
