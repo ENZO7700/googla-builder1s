@@ -1,14 +1,24 @@
-import { Activity } from 'lucide-react';
+import { Activity, Zap } from 'lucide-react';
 import { useRef, useEffect } from 'react';
+
+export interface StreamDiagnostics {
+  ttft: number;
+  total: number;
+  chunks: number;
+  model: string;
+  error?: string;
+  timestamp: Date;
+}
 
 interface SystemMonitorProps {
   isLoading: boolean;
   messageCount: number;
   attachmentCount: number;
   logs: string[];
+  diagnostics?: StreamDiagnostics | null;
 }
 
-export default function SystemMonitor({ isLoading, messageCount, attachmentCount, logs }: SystemMonitorProps) {
+export default function SystemMonitor({ isLoading, messageCount, attachmentCount, logs, diagnostics }: SystemMonitorProps) {
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,6 +58,31 @@ export default function SystemMonitor({ isLoading, messageCount, attachmentCount
         </div>
       </div>
 
+      {/* Streaming diagnostics */}
+      <div className="px-6 py-5 border-b border-border">
+        <h4 className="text-xs font-semibold text-foreground mb-3 flex items-center gap-2 uppercase tracking-wide">
+          <Zap size={12} className="text-primary" /> Streaming diagnostika
+        </h4>
+        {diagnostics ? (
+          <div className="space-y-1.5 text-xs">
+            <DiagRow label="Čas do 1. tokenu" value={`${diagnostics.ttft.toFixed(0)} ms`} />
+            <DiagRow label="Celkový čas" value={`${(diagnostics.total / 1000).toFixed(2)} s`} />
+            <DiagRow label="Chunkov" value={String(diagnostics.chunks)} />
+            <DiagRow label="Model" value={diagnostics.model.split('/').pop() || diagnostics.model} mono />
+            <div className="flex justify-between pt-1.5 mt-1.5 border-t border-border">
+              <span className="text-muted-foreground">Status</span>
+              {diagnostics.error ? (
+                <span className="text-destructive font-medium">❌ {diagnostics.error.substring(0, 30)}</span>
+              ) : (
+                <span className="text-success font-medium">✅ OK</span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground italic">Žiadne dáta — pošlite správu.</p>
+        )}
+      </div>
+
       {/* Console */}
       <div className="flex-1 flex flex-col bg-console m-4 rounded-xl shadow-inner overflow-hidden border border-console-border">
         <div className="px-4 py-2 bg-console-header border-b border-console-border flex items-center">
@@ -74,5 +109,14 @@ export default function SystemMonitor({ isLoading, messageCount, attachmentCount
         </div>
       </div>
     </aside>
+  );
+}
+
+function DiagRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={`text-foreground ${mono ? 'font-mono text-[11px]' : ''}`}>{value}</span>
+    </div>
   );
 }
