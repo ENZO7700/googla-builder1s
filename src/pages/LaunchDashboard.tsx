@@ -118,7 +118,7 @@ function OverviewView({ projects, onCreate, onOpen }: {
     return (
       <DashboardCard title="Projekty" description="Spravuj audit-readiness pre svoje appky" icon={<Sparkles size={16} />}>
         <div className="p-8">
-          <EmptyState title="Žiadne projekty" message="Vytvor prvý projekt a spusti audit." actionLabel="Pridať projekt" onAction={onCreate} />
+          <EmptyState title="Žiadne projekty" description="Vytvor prvý projekt a spusti audit." action={<button onClick={onCreate} className="inline-flex items-center gap-1.5 rounded-full bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:opacity-90 transition-opacity">Pridať projekt</button>} />
         </div>
       </DashboardCard>
     );
@@ -285,13 +285,13 @@ function ProjectView({ projectId, onBack, onChanged }: {
   }
 
   if (!project) {
-    return <ErrorState title="Projekt sa nenašiel" message="Vráť sa späť na zoznam." />;
+    return <ErrorState message="Projekt sa nenašiel. Vráť sa späť na zoznam." />;
   }
   if (!active) {
     return (
       <DashboardCard title={project.name}>
         <div className="p-8">
-          <EmptyState title="Žiadne skeny" message="Spusti prvý audit pre tento projekt." actionLabel="Spustiť audit" onAction={rescan} />
+          <EmptyState title="Žiadne skeny" description="Spusti prvý audit pre tento projekt." action={<button onClick={rescan} className="inline-flex items-center gap-1.5 rounded-full bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:opacity-90 transition-opacity">Spustiť audit</button>} />
         </div>
       </DashboardCard>
     );
@@ -342,7 +342,7 @@ function ProjectView({ projectId, onBack, onChanged }: {
         <DashboardCard title="Nálezy" description={active.summary}>
           <div className="p-6 space-y-3">
             {active.findings.length === 0 ? (
-              <EmptyState title="Žiadne nálezy" message="Tento sken je čistý — môžeš launchnúť. 🚀" />
+              <EmptyState title="Žiadne nálezy" description="Tento sken je čistý — môžeš launchnúť. 🚀" />
             ) : (
               active.findings.map((f, i) => <FindingCard key={f.id} finding={f} defaultOpen={i === 0} />)
             )}
