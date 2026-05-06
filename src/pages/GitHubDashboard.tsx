@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import {
   Github, ArrowLeft, Plug, Unplug, RefreshCw, ExternalLink, Search,
   GitPullRequest, GitBranch, Activity, Shield, Sparkles, ScrollText,
-  CheckCircle2, XCircle, Clock, PlayCircle, FileWarning,
+  CheckCircle2, XCircle, Clock, PlayCircle, FileWarning, Webhook, Copy, Bot,
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAdminAuth } from '@/lib/admin';
 import { githubService } from '@/lib/github/githubService';
@@ -570,6 +571,10 @@ export default function GitHubDashboard() {
           )}
         </DashboardCard>
 
+
+        {/* 4b. AI PR Review – Webhook setup */}
+        <PRReviewWebhookCard />
+
         {/* 5. Security & Audit */}
         <DashboardCard
           title="Security & Audit"
@@ -649,5 +654,118 @@ function SummaryTile({ label, value, tone, hint }: { label: string; value: strin
       <div className="text-lg font-semibold text-foreground mt-1">{value}</div>
       {hint && <div className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{hint}</div>}
     </div>
+  );
+}
+
+function PRReviewWebhookCard() {
+  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/github-pr-review`;
+  const [copied, setCopied] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(webhookUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const runTest = async () => {
+    setTesting(true);
+    setPreview(null);
+    try {
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-dry-run': 'true',
+        },
+        body: JSON.stringify({
+          repo: 'h4ck3d-ent/web-dashboard',
+          prNumber: 999,
+          prTitle: 'Test PR – dry run',
+          author: 'tester',
+          diff: `diff --git a/src/lib/admin.ts b/src/lib/admin.ts
+@@ -10,3 +10,4 @@
+-export const ADMIN_EMAILS: readonly string[] = [];
++export const ADMIN_EMAILS: readonly string[] = [];
++console.log('admin emails loaded');`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
+      setPreview(data.review ?? '(empty response)');
+      toast.success('AI review vygenerované');
+    } catch (e: any) {
+      toast.error('Test zlyhal', { description: e?.message });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <DashboardCard
+      title="AI PR Review – Webhook"
+      description="Automatický AI review pre každý nový/aktualizovaný Pull Request."
+      icon={<Bot size={16} />}
+      actions={
+        <button
+          onClick={runTest}
+          disabled={testing}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full text-xs font-medium hover:bg-primary/15 disabled:opacity-50 transition"
+        >
+          <Sparkles size={12} /> {testing ? 'Generujem...' : 'Otestovať review'}
+        </button>
+      }
+    >
+      <div className="px-6 py-5 space-y-5">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2">
+            <Webhook size={12} /> Webhook URL
+          </div>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 min-w-0 truncate font-mono text-xs bg-muted text-foreground px-3 py-2 rounded-lg border border-border">
+              {webhookUrl}
+            </code>
+            <button
+              onClick={copy}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-card border border-border rounded-lg text-xs font-medium text-foreground hover:bg-accent transition shrink-0"
+            >
+              <Copy size={12} /> {copied ? 'Skopírované' : 'Kopírovať'}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2">
+            <div className="font-semibold text-foreground">Setup v GitHub</div>
+            <ol className="list-decimal pl-4 space-y-1 text-muted-foreground leading-relaxed">
+              <li>Repo → <span className="font-mono">Settings → Webhooks → Add webhook</span></li>
+              <li>Payload URL: vložte URL vyššie</li>
+              <li>Content type: <span className="font-mono">application/json</span></li>
+              <li>Secret: zhodný s <span className="font-mono">GITHUB_WEBHOOK_SECRET</span></li>
+              <li>Events: <span className="font-mono">Pull requests</span> (opened / synchronize / reopened)</li>
+            </ol>
+          </div>
+          <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2">
+            <div className="font-semibold text-foreground">Bezpečnosť</div>
+            <ul className="list-disc pl-4 space-y-1 text-muted-foreground leading-relaxed">
+              <li>HMAC SHA-256 podpis je <strong>povinný</strong> (fail-closed).</li>
+              <li>Tokeny žijú iba v secrets backendu, nie v klientovi.</li>
+              <li>Diff je orezaný na 120 KB pre AI kontext.</li>
+              <li>Spracujú sa iba akcie: <span className="font-mono">opened</span>, <span className="font-mono">synchronize</span>, <span className="font-mono">reopened</span>.</li>
+            </ul>
+          </div>
+        </div>
+
+        {preview && (
+          <div>
+            <div className="text-xs font-medium text-muted-foreground mb-2">Náhľad AI review (dry run)</div>
+            <pre className="text-[11px] font-mono whitespace-pre-wrap bg-muted text-foreground p-4 rounded-xl border border-border max-h-80 overflow-auto">
+              {preview}
+            </pre>
+          </div>
+        )}
+      </div>
+    </DashboardCard>
   );
 }
