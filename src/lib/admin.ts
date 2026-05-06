@@ -18,11 +18,9 @@ export const ADMIN_EMAILS: readonly string[] = [
 
 export function isAdminEmail(email?: string | null): boolean {
   if (!email) return false;
-  if (ADMIN_EMAILS.length === 0) {
-    // Fail-open during development when no admins are configured.
-    // Switch to `return false` once you've populated ADMIN_EMAILS.
-    return true;
-  }
+  // Fail-closed: if no admins configured, no one is admin.
+  // NOTE: This is a client-side gate for UX only. Any sensitive admin
+  // operation MUST be enforced server-side (edge function + user_roles table).
   return ADMIN_EMAILS.includes(email.toLowerCase());
 }
 
