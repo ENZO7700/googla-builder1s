@@ -1,56 +1,53 @@
-# Vylepšenia: E2E test, Upload UX, Streaming diagnostika
+# GitHub PR AI Code Review – Implementation Plan
 
-## 1. E2E testovací skript
+Pridám automatický AI code review pre Pull Requesty cez GitHub Webhook → Supabase Edge Function → Lovable AI Gateway → komentár späť do PR.
 
-**Súbor:** `src/lib/e2eTest.ts` (nový) + tlačidlo „Spustiť E2E test" v `SettingsPanel.tsx`
+## Čo sa postaví
 
-Skript v console spustí postupne:
-- **Auth check** – overí `supabase.auth.getSession()` (či je user prihlásený)
-- **DB write** – vytvorí testovaciu session v `chat_sessions`, vloží správu do `chat_messages`, prečíta späť, vymaže
-- **Streaming chat** – zavolá edge function `chat` s krátkou správou, meria čas do prvého tokenu (TTFT) a celkový čas, počíta prijaté tokeny
-- **Storage upload** – nahrá malý in-memory `Blob` do `chat-attachments`, overí že existuje, vymaže
-- **Voice API check** – overí dostupnosť `webkitSpeechRecognition` (bez aktivácie)
+### 1. Edge Function: `supabase/functions/github-pr-review/index.ts`
+Verejný endpoint (public webhook, **`verify_jwt = false`** v `supabase/config.toml`), ktorý:
 
-Každý krok logne `✅ PASS` alebo `❌ FAIL: <error>` do `console.log` a tiež zobrazí súhrnný `sonner` toast (X/5 prešlo). Skript nikdy nepoškodí používateľove dáta — používa vlastnú test session a vždy upratuje.
+1. **Overí HMAC podpis** z GitHub headeru `X-Hub-Signature-256` pomocou `GITHUB_WEBHOOK_SECRET` (ochrana pred spoofingom).
+2. Validuje payload – spracuje len eventy `pull_request` s akciou `opened | synchronize | reopened`. Inak vráti 200 `{ignored:true}`.
+3. Stiahne **PR diff** z GitHub API (`Accept: application/vnd.github.v3.diff`) cez `GITHUB_TOKEN`.
+4. Oreže diff (limit ~120 KB) aby sa zmestil do AI kontextu, s poznámkou "diff truncated".
+5. Pošle prompt na **Lovable AI Gateway** (`google/gemini-3-flash-preview`, non-streaming, `temperature: 0.2`) s vloženým systémovým promptom v slovenčine podľa zadania (🔴 Kritické / 🟡 Varovania / 🟢 Návrhy, tabuľky, max 10 riadkov / kategória, ignoruje formátovanie, NEXIFY pravidlá).
+6. Odpoveď postne ako komentár do PR cez `POST /repos/{owner}/{repo}/issues/{number}/comments`.
+7. Loguje výsledok, vracia `{ ok: true, commentId }` alebo error JSON s CORS headers.
 
-## 2. Upload s progresom + validáciou + auto-attach
+### 2. Konfigurácia
+- `supabase/config.toml`: pridá blok pre `github-pr-review` s `verify_jwt = false`.
+- **Secrets** (cez `add_secret`, po potvrdení):
+  - `GITHUB_TOKEN` – PAT s `repo` scope (komentovanie + čítanie diffov).
+  - `GITHUB_WEBHOOK_SECRET` – pre HMAC overenie.
+  - `LOVABLE_API_KEY` – už existuje, nepýtam.
+- Voliteľné (zatiaľ vynechané, ľahko doplniteľné): `SLACK_WEBHOOK_URL`.
 
-**Súbor:** `src/pages/Index.tsx` – upraviť `handleFileUpload`, `handleDrop` a `uploadAttachments`
+### 3. UI – sekcia v `GitHubDashboard.tsx`
+Nová karta **"AI PR Review – Webhook setup"** v existujúcom dashboarde s:
+- Webhook URL (`https://lmuervovjnpadapfwwmh.supabase.co/functions/v1/github-pr-review`) + tlačidlo Kopírovať.
+- Krok-za-krokom inštrukcie (Repo → Settings → Webhooks → Add webhook, Content type `application/json`, event `Pull requests`).
+- Status badge: "Connected / Not configured" na základe posledného audit eventu (mock).
+- Tlačidlo **"Otestovať review"** ktoré zavolá edge function s mock PR payloadom (dry-run mód, bez postnutia komentáru).
 
-Zmeny:
-- **Validácia pred prijatím:** max 20 MB / súbor, max 10 súborov naraz, povolené typy (text/*, image/*, application/pdf, application/json, .ts, .js, .py, .md, .csv). Pri zlyhaní – `toast.error` s konkrétnym dôvodom, súbor sa neuloží.
-- **Okamžitý upload pri pripojení (auto-attach):** namiesto držania `File` v stave a uploadu až pri Send, súbor sa nahrá hneď do `chat-attachments` v `${user.id}/pending/`. Attachment chip zobrazí progres (0–100%).
-- **Progres state:** rozšíriť `Attachment` interface o `progress?: number`, `url?: string`, `uploading?: boolean`, `error?: string`. Použiť XHR `onprogress` (Supabase JS SDK nemá natívny progress callback, ale pre malé súbory zobrazíme indeterminate spinner; pre veľké použijeme `fetch` na signed upload URL s ReadableStream pokiaľ to bude jednoduché — inak fallback na spinner + final 100%).
-- **Send používa už-nahrané URL:** `handleSendMessage` nemusí znova uploadovať, len pripojí existujúce `att.url` do promptu.
-- **Chip UI v `ChatView.tsx`:** pridať `<div className="h-0.5 bg-primary" style={{width: progress+'%'}}/>` pod meno súboru počas uploadu; ikonka error pri zlyhaní.
+### 4. Audit log integrácia
+Po každom volaní edge function pridá záznam typu `pr_review` do GitHub audit feedu (mock service zatiaľ – TODO komentár pre neskoršie napojenie na DB tabuľku `github_audit_events` ak bude treba).
 
-## 3. Streaming diagnostika v SystemMonitore
+## Bezpečnostné invarianty
+- Tokeny **iba na serveri** (Deno.env), nikdy v klientovi.
+- HMAC overenie podpisu webhooku **fail-closed** – bez podpisu vráti 401.
+- Whitelist eventov a akcií, ostatné ignoruje.
+- Diff veľkosť limitovaná, aby sa predišlo abusu AI kvóty.
+- CORS pre OPTIONS, ale endpoint je primárne server-to-server (GitHub).
 
-**Súbory:** `src/pages/Index.tsx` + `src/components/workspace/SystemMonitor.tsx`
+## Súbory
+**Nové:**
+- `supabase/functions/github-pr-review/index.ts`
 
-Zmeny:
-- V `callAIStreaming` zaznamenať `startTime`, `firstTokenTime`, `endTime`, počet prijatých chunks, použitý model, error message ak nastane.
-- Uložiť do nového state `streamDiagnostics: { ttft: number, total: number, chunks: number, model: string, error?: string, timestamp: Date } | null`.
-- Pri každom novom volaní reset.
-- `SystemMonitor` dostane novú prop `diagnostics` a pridá sekciu **„Streaming diagnostika"** nad logmi:
-  ```
-  Posledná požiadavka:
-  • Čas do 1. tokenu: 320 ms
-  • Celkový čas: 2.4 s
-  • Chunkov: 47
-  • Model: gemini-3-flash-preview
-  • Status: ✅ OK   (alebo ❌ chybová správa)
-  ```
-- Ak žiadne dáta, zobraziť `Žiadne dáta — pošlite správu`.
+**Upravené:**
+- `supabase/config.toml` – function block s `verify_jwt = false`
+- `src/pages/GitHubDashboard.tsx` – nová sekcia "AI PR Review"
+- `src/lib/github/githubService.ts` – pridá `triggerTestPRReview()` (volá edge function)
 
-## Technické detaily
-
-| Súbor | Akcia |
-|------|------|
-| `src/lib/e2eTest.ts` | nový — exportuje `runE2ETest()` |
-| `src/components/workspace/SettingsPanel.tsx` | pridať tlačidlo „Diagnostika → Spustiť E2E test" |
-| `src/pages/Index.tsx` | rozšíriť `Attachment`, validácia, auto-upload, diagnostika v `callAIStreaming` |
-| `src/components/workspace/ChatView.tsx` | progres bar + error stav v attachment chipe |
-| `src/components/workspace/SystemMonitor.tsx` | nová sekcia „Streaming diagnostika" |
-
-Bez nových závislostí, bez DB migrácií. Bucket `chat-attachments` už existuje s RLS.
+## Otvorené otázky
+Nepotrebujem – zadanie je jasné. Pred implementáciou ťa cez `add_secret` poprosím o `GITHUB_TOKEN` a `GITHUB_WEBHOOK_SECRET`.
