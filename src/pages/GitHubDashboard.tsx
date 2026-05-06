@@ -571,6 +571,10 @@ export default function GitHubDashboard() {
           )}
         </DashboardCard>
 
+
+        {/* 4b. AI PR Review – Webhook setup */}
+        <PRReviewWebhookCard />
+
         {/* 5. Security & Audit */}
         <DashboardCard
           title="Security & Audit"
