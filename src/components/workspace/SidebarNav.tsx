@@ -153,12 +153,20 @@ export default function SidebarNav({
         <SidebarItem icon={<Code2 size={18} />} label="Generátor" active={currentView === 'skills'} onClick={() => onViewChange('skills')} />
         <SidebarItem icon={<Layout size={18} />} label="Náhľad" active={currentView === 'preview'} indicator={hasPreviewCode} onClick={() => onViewChange('preview')} />
         {isAdminEmail(userEmail) && (
-          <SidebarItem
-            icon={<Github size={18} />}
-            label="GitHub"
-            active={false}
-            onClick={() => navigate('/dashboard/github')}
-          />
+          <>
+            <SidebarItem
+              icon={<Github size={18} />}
+              label="GitHub"
+              active={false}
+              onClick={() => navigate('/dashboard/github')}
+            />
+            <SidebarItem
+              icon={<Rocket size={18} />}
+              label="Launch Audit"
+              active={false}
+              onClick={() => navigate('/dashboard/launch')}
+            />
+          </>
         )}
 
         {/* Session search */}
