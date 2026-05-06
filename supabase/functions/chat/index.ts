@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,12 +12,44 @@ TONE & PERSONA: Professional, helpful, highly technical, concise. Speak like an 
 Language: Respond in Slovak (Slovenčina), but keep all technical terms, code, and CLI commands in English.
 OUTPUT FORMAT: Always use highly structured Markdown. Use code blocks with correct syntax highlighting for any CLI commands, scripts, config files, or payloads.`;
 
+const ALLOWED_MODELS = new Set([
+  "google/gemini-3-flash-preview",
+  "google/gemini-2.5-flash",
+  "google/gemini-2.5-flash-lite",
+  "google/gemini-2.5-pro",
+  "openai/gpt-5",
+  "openai/gpt-5-mini",
+  "openai/gpt-5-nano",
+]);
+const DEFAULT_MODEL = "google/gemini-3-flash-preview";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Require authentication
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+    );
+    const token = authHeader.replace("Bearer ", "");
+    const { data: userData, error: userErr } = await supabase.auth.getUser(token);
+    if (userErr || !userData?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const body = await req.json();
     const { messages, prompt, systemOverride, model } = body;
 
@@ -41,12 +74,12 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt = systemOverride
+    const systemPrompt = typeof systemOverride === "string" && systemOverride.length > 0 && systemOverride.length < 4000
       ? ENTERPRISE_PROMPT + "\n" + systemOverride
       : ENTERPRISE_PROMPT;
 
-    // Use model from request or default
-    const selectedModel = model || "google/gemini-3-flash-preview";
+    // Whitelist model selection
+    const selectedModel = (typeof model === "string" && ALLOWED_MODELS.has(model)) ? model : DEFAULT_MODEL;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
