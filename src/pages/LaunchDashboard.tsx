@@ -56,10 +56,7 @@ export default function LaunchDashboard() {
   if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-background">
-        <ErrorState
-          title="Prístup zamietnutý"
-          message="Launch Readiness dashboard je dostupný len pre adminov. Pridaj svoj email do whitelistu v src/lib/admin.ts."
-        />
+        <ErrorState message="Launch Readiness dashboard je dostupný len pre adminov. Pridaj svoj email do whitelistu v src/lib/admin.ts." />
       </div>
     );
   }
