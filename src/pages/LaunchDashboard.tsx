@@ -84,7 +84,7 @@ export default function LaunchDashboard() {
             </h1>
             <p className="text-xs text-muted-foreground">Audituj security, performance, a11y, PWA &amp; privacy pred launchom.</p>
           </div>
-          <StatusBadge status="success">Admin</StatusBadge>
+          <StatusBadge tone="success" label="Admin" />
         </div>
       </header>
 
@@ -153,7 +153,7 @@ function OverviewView({ projects, onCreate, onOpen }: {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-semibold text-foreground truncate">{p.name}</h3>
-                    {p.isDemo && <StatusBadge status="info">Demo</StatusBadge>}
+                    {p.isDemo && <StatusBadge tone="info" label="Demo" />}
                   </div>
                   <p className="text-xs text-muted-foreground truncate">{p.url}</p>
                 </div>
