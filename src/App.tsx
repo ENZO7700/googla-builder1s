@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
 import GitHubDashboard from "./pages/GitHubDashboard.tsx";
+import LaunchDashboard from "./pages/LaunchDashboard.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -20,6 +21,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/dashboard/github" element={<GitHubDashboard />} />
+          <Route path="/dashboard/launch" element={<LaunchDashboard />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
