@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import {
   Github, ArrowLeft, Plug, Unplug, RefreshCw, ExternalLink, Search,
   GitPullRequest, GitBranch, Activity, Shield, Sparkles, ScrollText,
-  CheckCircle2, XCircle, Clock, PlayCircle, FileWarning,
+  CheckCircle2, XCircle, Clock, PlayCircle, FileWarning, Webhook, Copy, Bot,
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAdminAuth } from '@/lib/admin';
 import { githubService } from '@/lib/github/githubService';
