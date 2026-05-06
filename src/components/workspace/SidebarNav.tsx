@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, LayoutGrid, ShieldAlert, Code2, Plug, Layout,
-  Settings, History, LogOut, Sun, Moon, Trash2, Search, Pencil, Check, X, Github
+  Settings, History, LogOut, Sun, Moon, Trash2, Search, Pencil, Check, X, Github, Rocket
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isAdminEmail } from '@/lib/admin';
