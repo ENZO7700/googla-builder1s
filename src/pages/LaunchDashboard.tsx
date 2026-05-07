@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Plus, ShieldCheck, Zap, Eye, Smartphone, Lock, Trash2,
-  ExternalLink, Play, Sparkles, Loader2,
+  ExternalLink, Play, Sparkles, Loader2, Download,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { EmptyState, ErrorState, LoadingState } from '@/components/dashboard/States';
@@ -12,7 +13,8 @@ import { FindingCard } from '@/components/launch/FindingCard';
 import { ScanTimeline } from '@/components/launch/ScanTimeline';
 import { SeverityChart } from '@/components/launch/SeverityChart';
 import { useAdminAuth } from '@/lib/admin';
-import { runMockAudit } from '@/lib/launch/audit';
+import { runMockAudit, runRealAudit } from '@/lib/launch/audit';
+import { exportScanPdf } from '@/lib/launch/pdfReport';
 import {
   deleteProject, getProject, listProjects, listScans, saveProject, saveScan,
 } from '@/lib/launch/storage';
