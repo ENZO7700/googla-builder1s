@@ -334,11 +334,25 @@ function ProjectView({ projectId, onBack, onChanged }: {
         description={project.url}
         icon={<Sparkles size={16} />}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <div className="inline-flex rounded-full border border-border p-0.5 text-[11px]">
+              <button onClick={() => setScanMode('real')}
+                className={`px-2.5 py-1 rounded-full transition-colors ${scanMode === 'real' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                Real
+              </button>
+              <button onClick={() => setScanMode('demo')}
+                className={`px-2.5 py-1 rounded-full transition-colors ${scanMode === 'demo' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                Demo
+              </button>
+            </div>
             <a href={project.url} target="_blank" rel="noreferrer"
               className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs hover:bg-accent transition-colors">
               <ExternalLink size={12} /> Otvoriť
             </a>
+            <button onClick={downloadPdf} disabled={exporting}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-50 transition-colors">
+              {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} Export PDF
+            </button>
             <button onClick={rescan} disabled={running}
               className="inline-flex items-center gap-1.5 rounded-full bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
               {running ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />} Re-scan
