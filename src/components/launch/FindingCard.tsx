@@ -4,8 +4,6 @@ import { Copy, Check, AlertCircle, Wand2 } from 'lucide-react';
 import type { Finding } from '@/lib/launch/types';
 import { DIMENSION_LABEL } from '@/lib/launch/types';
 import { severityClasses } from '@/lib/launch/utils';
-import { DIMENSION_LABEL } from '@/lib/launch/types';
-import { severityClasses } from '@/lib/launch/utils';
 
 export function CopyPromptButton({ text }: { text: string }) {
   const [state, setState] = useState<'idle' | 'copied' | 'error'>('idle');
