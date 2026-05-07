@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Plus, ShieldCheck, Zap, Eye, Smartphone, Lock, Trash2,
-  ExternalLink, Play, Sparkles, Loader2,
+  ExternalLink, Play, Sparkles, Loader2, Download,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { EmptyState, ErrorState, LoadingState } from '@/components/dashboard/States';
@@ -12,7 +13,8 @@ import { FindingCard } from '@/components/launch/FindingCard';
 import { ScanTimeline } from '@/components/launch/ScanTimeline';
 import { SeverityChart } from '@/components/launch/SeverityChart';
 import { useAdminAuth } from '@/lib/admin';
-import { runMockAudit } from '@/lib/launch/audit';
+import { runMockAudit, runRealAudit } from '@/lib/launch/audit';
+import { exportScanPdf } from '@/lib/launch/pdfReport';
 import {
   deleteProject, getProject, listProjects, listScans, saveProject, saveScan,
 } from '@/lib/launch/storage';
@@ -182,7 +184,7 @@ function CreateView({ onCreated, onCancel }: { onCreated: (p: LaunchProject) => 
     try { const u = new URL(v); return u.protocol === 'http:' || u.protocol === 'https:'; } catch { return false; }
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (name.trim().length < 2) return setError('Zadaj názov projektu (min. 2 znaky).');
@@ -195,7 +197,15 @@ function CreateView({ onCreated, onCancel }: { onCreated: (p: LaunchProject) => 
         createdAt: new Date().toISOString(),
       };
       saveProject(project);
-      saveScan(runMockAudit(project));
+      let scan: Scan;
+      try {
+        scan = await runRealAudit(project);
+        toast.success('Real audit dokončený');
+      } catch (err) {
+        toast.warning('Real scan zlyhal — používam demo audit', { description: (err as Error).message });
+        scan = runMockAudit(project);
+      }
+      saveScan(scan);
       onCreated(project);
     } catch (err) {
       setError((err as Error).message);
@@ -260,20 +270,40 @@ function ProjectView({ projectId, onBack, onChanged }: {
   const [activeScanId, setActiveScanId] = useState<string | undefined>(() => listScans(projectId).slice(-1)[0]?.id);
   const [running, setRunning] = useState(false);
 
+  const [scanMode, setScanMode] = useState<'real' | 'demo'>('real');
+  const [exporting, setExporting] = useState(false);
+
   const active = useMemo(() => scans.find(s => s.id === activeScanId) ?? scans[scans.length - 1], [scans, activeScanId]);
 
-  function rescan() {
+  async function rescan() {
     if (!project) return;
     setRunning(true);
-    // Tiny delay so UI shows the running state.
-    setTimeout(() => {
-      const fresh = runMockAudit(project);
+    try {
+      let fresh: Scan;
+      if (scanMode === 'real') {
+        try { fresh = await runRealAudit(project); }
+        catch (err) {
+          toast.warning('Real scan zlyhal — fallback na demo', { description: (err as Error).message });
+          fresh = runMockAudit(project);
+        }
+      } else {
+        fresh = runMockAudit(project);
+      }
       saveScan(fresh);
       const updated = listScans(projectId);
       setScans(updated);
       setActiveScanId(fresh.id);
+    } finally {
       setRunning(false);
-    }, 600);
+    }
+  }
+
+  async function downloadPdf() {
+    if (!project || !active) return;
+    setExporting(true);
+    try { exportScanPdf(project, active, scans); toast.success('PDF report stiahnutý'); }
+    catch (err) { toast.error('PDF export zlyhal', { description: (err as Error).message }); }
+    finally { setExporting(false); }
   }
 
   function remove() {
@@ -304,11 +334,25 @@ function ProjectView({ projectId, onBack, onChanged }: {
         description={project.url}
         icon={<Sparkles size={16} />}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <div className="inline-flex rounded-full border border-border p-0.5 text-[11px]">
+              <button onClick={() => setScanMode('real')}
+                className={`px-2.5 py-1 rounded-full transition-colors ${scanMode === 'real' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                Real
+              </button>
+              <button onClick={() => setScanMode('demo')}
+                className={`px-2.5 py-1 rounded-full transition-colors ${scanMode === 'demo' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                Demo
+              </button>
+            </div>
             <a href={project.url} target="_blank" rel="noreferrer"
               className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs hover:bg-accent transition-colors">
               <ExternalLink size={12} /> Otvoriť
             </a>
+            <button onClick={downloadPdf} disabled={exporting}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-50 transition-colors">
+              {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} Export PDF
+            </button>
             <button onClick={rescan} disabled={running}
               className="inline-flex items-center gap-1.5 rounded-full bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
               {running ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />} Re-scan

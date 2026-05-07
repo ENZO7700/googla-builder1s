@@ -111,6 +111,24 @@ export default function Index() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  // Pickup builder prompt handed off from Launch Audit dashboard.
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const stored = sessionStorage.getItem('builderPrompt');
+      const src = sessionStorage.getItem('builderPromptSource');
+      if (stored) {
+        setCurrentView('tasks');
+        setInputValue(stored);
+        sessionStorage.removeItem('builderPrompt');
+        sessionStorage.removeItem('builderPromptSource');
+        toast.success('Prompt loaded from Launch Audit', {
+          description: src ?? 'Skontroluj ho a stlač Send.',
+        });
+      }
+    } catch { /* ignore */ }
+  }, [user]);
+
   const showToast = useCallback((message: string, type: Toast['type'] = 'info') => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);

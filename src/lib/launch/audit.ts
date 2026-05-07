@@ -67,3 +67,21 @@ export function runMockAudit(project: LaunchProject, opts?: { jitter?: number })
       : `Generated ${findings.length} findings across ${new Set(findings.map(x => x.dimension)).size} dimensions.`,
   };
 }
+
+import { supabase } from '@/integrations/supabase/client';
+import type { LaunchProject as _LaunchProject } from './types';
+
+/**
+ * Real audit: calls the `launch-audit` edge function which performs server-side
+ * probes (security headers, HTTPS redirect, manifest, HTML heuristics).
+ * Throws on transport errors so the caller can fall back to mock.
+ */
+export async function runRealAudit(project: _LaunchProject): Promise<Scan> {
+  const { data, error } = await supabase.functions.invoke('launch-audit', {
+    body: { url: project.url, projectId: project.id },
+  });
+  if (error) throw new Error(error.message ?? 'launch-audit failed');
+  if (!data?.scan) throw new Error(data?.error ?? 'No scan returned');
+  // Normalize: server returns its own ids/timestamp; keep as-is but ensure projectId.
+  return { ...data.scan, projectId: project.id } as Scan;
+}
