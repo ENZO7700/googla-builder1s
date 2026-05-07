@@ -31,6 +31,15 @@ export function CopyPromptButton({ text }: { text: string }) {
 export function FindingCard({ finding, defaultOpen }: { finding: Finding; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen ?? false);
   const sev = severityClasses(finding.severity);
+  const navigate = useNavigate();
+
+  function openInBuilder() {
+    try {
+      sessionStorage.setItem('builderPrompt', finding.builderPrompt);
+      sessionStorage.setItem('builderPromptSource', `Launch Audit · ${finding.title}`);
+    } catch { /* storage may be disabled */ }
+    navigate('/?from=launch');
+  }
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
       <button onClick={() => setOpen(o => !o)} aria-expanded={open}
@@ -52,11 +61,17 @@ export function FindingCard({ finding, defaultOpen }: { finding: Finding; defaul
           <Section title="Prečo to záleží">{finding.whyItMatters}</Section>
           <Section title="Odporúčaná oprava">{finding.recommendedFix}</Section>
           <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2 flex items-center justify-between gap-2">
               <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Builder fix prompt
               </div>
-              <CopyPromptButton text={finding.builderPrompt} />
+              <div className="flex items-center gap-2">
+                <CopyPromptButton text={finding.builderPrompt} />
+                <button onClick={openInBuilder}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:opacity-90 transition-opacity">
+                  <Wand2 size={14} /> Open in Builder
+                </button>
+              </div>
             </div>
             <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-accent p-3 font-mono text-xs leading-relaxed text-foreground">
 {finding.builderPrompt}
