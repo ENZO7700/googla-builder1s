@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import { Copy, Check, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Copy, Check, AlertCircle, Wand2 } from 'lucide-react';
 import type { Finding } from '@/lib/launch/types';
+import { DIMENSION_LABEL } from '@/lib/launch/types';
+import { severityClasses } from '@/lib/launch/utils';
 import { DIMENSION_LABEL } from '@/lib/launch/types';
 import { severityClasses } from '@/lib/launch/utils';
 
