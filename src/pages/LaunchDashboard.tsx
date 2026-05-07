@@ -184,7 +184,7 @@ function CreateView({ onCreated, onCancel }: { onCreated: (p: LaunchProject) => 
     try { const u = new URL(v); return u.protocol === 'http:' || u.protocol === 'https:'; } catch { return false; }
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (name.trim().length < 2) return setError('Zadaj názov projektu (min. 2 znaky).');
@@ -197,7 +197,15 @@ function CreateView({ onCreated, onCancel }: { onCreated: (p: LaunchProject) => 
         createdAt: new Date().toISOString(),
       };
       saveProject(project);
-      saveScan(runMockAudit(project));
+      let scan: Scan;
+      try {
+        scan = await runRealAudit(project);
+        toast.success('Real audit dokončený');
+      } catch (err) {
+        toast.warning('Real scan zlyhal — používam demo audit', { description: (err as Error).message });
+        scan = runMockAudit(project);
+      }
+      saveScan(scan);
       onCreated(project);
     } catch (err) {
       setError((err as Error).message);
@@ -262,20 +270,40 @@ function ProjectView({ projectId, onBack, onChanged }: {
   const [activeScanId, setActiveScanId] = useState<string | undefined>(() => listScans(projectId).slice(-1)[0]?.id);
   const [running, setRunning] = useState(false);
 
+  const [scanMode, setScanMode] = useState<'real' | 'demo'>('real');
+  const [exporting, setExporting] = useState(false);
+
   const active = useMemo(() => scans.find(s => s.id === activeScanId) ?? scans[scans.length - 1], [scans, activeScanId]);
 
-  function rescan() {
+  async function rescan() {
     if (!project) return;
     setRunning(true);
-    // Tiny delay so UI shows the running state.
-    setTimeout(() => {
-      const fresh = runMockAudit(project);
+    try {
+      let fresh: Scan;
+      if (scanMode === 'real') {
+        try { fresh = await runRealAudit(project); }
+        catch (err) {
+          toast.warning('Real scan zlyhal — fallback na demo', { description: (err as Error).message });
+          fresh = runMockAudit(project);
+        }
+      } else {
+        fresh = runMockAudit(project);
+      }
       saveScan(fresh);
       const updated = listScans(projectId);
       setScans(updated);
       setActiveScanId(fresh.id);
+    } finally {
       setRunning(false);
-    }, 600);
+    }
+  }
+
+  async function downloadPdf() {
+    if (!project || !active) return;
+    setExporting(true);
+    try { exportScanPdf(project, active, scans); toast.success('PDF report stiahnutý'); }
+    catch (err) { toast.error('PDF export zlyhal', { description: (err as Error).message }); }
+    finally { setExporting(false); }
   }
 
   function remove() {
