@@ -17,6 +17,7 @@ const integrations: Integration[] = [
   { id: 'docker', name: 'Docker Hub', description: 'Registry pre kontajnerové obrazy a automatické buildy.', icon: '🐳', connected: false, available: true },
   { id: 'aws', name: 'AWS', description: 'Cloud infraštruktúra, S3, Lambda a EC2 inštancie.', icon: '☁️', connected: false, available: false },
   { id: 'grafana', name: 'Grafana', description: 'Monitoring dashboardy a vizualizácia metrík.', icon: '📊', connected: false, available: false },
+  { id: 'wordpress', name: 'WordPress', description: 'Správa WordPress.com a self-hosted stránok cez REST API.', icon: '📘', connected: false, available: true },
   { id: 'jira', name: 'Jira', description: 'Projektový manažment a sledovanie úloh.', icon: '📋', connected: false, available: true },
 ];
 
@@ -104,6 +105,15 @@ export default function ConnectorsView({ onBack }: ConnectorsViewProps) {
                 className="w-full mb-4 flex items-center justify-center gap-2 px-4 py-2.5 bg-foreground text-background rounded-full text-sm font-medium hover:opacity-90 transition-colors"
               >
                 <LayoutDashboard size={14} /> Otvoriť GitHub dashboard
+              </button>
+            )}
+
+            {selected.id === 'wordpress' && (
+              <button
+                onClick={() => { setSelected(null); navigate('/dashboard/wordpress'); }}
+                className="w-full mb-4 flex items-center justify-center gap-2 px-4 py-2.5 bg-foreground text-background rounded-full text-sm font-medium hover:opacity-90 transition-colors"
+              >
+                <LayoutDashboard size={14} /> Otvoriť WordPress dashboard
               </button>
             )}
 

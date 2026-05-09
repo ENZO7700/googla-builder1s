@@ -73,6 +73,89 @@ export type Database = {
         }
         Relationships: []
       }
+      wp_audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          error_message: string | null
+          id: string
+          resource_id: string | null
+          resource_type: string | null
+          site_id: string
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          error_message?: string | null
+          id?: string
+          resource_id?: string | null
+          resource_type?: string | null
+          site_id: string
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          error_message?: string | null
+          id?: string
+          resource_id?: string | null
+          resource_type?: string | null
+          site_id?: string
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_audit_log_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "wp_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wp_sites: {
+        Row: {
+          app_password_encrypted: string | null
+          base_url: string
+          created_at: string
+          id: string
+          label: string
+          last_sync_at: string | null
+          site_type: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          app_password_encrypted?: string | null
+          base_url: string
+          created_at?: string
+          id?: string
+          label: string
+          last_sync_at?: string | null
+          site_type: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          app_password_encrypted?: string | null
+          base_url?: string
+          created_at?: string
+          id?: string
+          label?: string
+          last_sync_at?: string | null
+          site_type?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

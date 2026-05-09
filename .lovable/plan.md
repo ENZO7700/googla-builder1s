@@ -1,69 +1,86 @@
 
-## Plan: Real audit engine + PDF report + Open in Builder
+## Plán: WordPress Manager integrácia
 
-### 1. Real audit engine (edge function)
+Spracujem 10 nahraných súborov a zapojím ich do projektu ako kompletný WordPress dashboard (multi-site, posts/pages/comments/users/plugins/settings + audit log).
 
-Browsers can't fetch arbitrary cross-origin URLs (CORS), so the audit must run server-side.
+### 1. Databáza (migrácia)
 
-**New edge function:** `supabase/functions/launch-audit/index.ts` (`verify_jwt = false`, public — input is just a URL)
+Vytvorím tabuľky podľa `supabase_migrations_20260508_wordpress_manager.sql`:
+- **`wp_sites`** — `user_id`, `label`, `base_url`, `site_type` ('com'|'self'), `username`, `app_password_encrypted`, `last_sync_at`, UNIQUE(user_id, base_url)
+- **`wp_audit_log`** — `site_id`, `user_id`, `action`, `resource_type`, `resource_id`, `details` (jsonb), `status`, `error_message`
 
-Checks performed against the user's URL:
-- **Security headers** — fetch HEAD/GET, inspect: `content-security-policy`, `strict-transport-security`, `x-content-type-options`, `referrer-policy`, `permissions-policy`, `x-frame-options`. Each missing → finding.
-- **HTTPS enforcement** — try `http://<host>`, follow redirects=manual, expect 30x to https.
-- **PWA signals** — fetch `/manifest.webmanifest` and `/manifest.json`; parse `theme_color`, `icons`, `start_url`, `display`. Check HTML `<head>` for `<link rel="manifest">`, `<meta name="theme-color">`.
-- **Performance hints** — measure response time, gzip/brotli (`content-encoding`), HTML size, count `<img>` without `width/height`/`loading="lazy"`, count `<script>` blocking tags.
-- **Accessibility hints** (cheap regex over HTML) — `<html lang>` present, `<title>`, `<img>` without `alt`, form `<input>` without `id`/label.
-- **Privacy** — search HTML for "privacy" link in footer area, presence of cookie banner keywords.
+RLS: každý user vidí/spravuje len svoje sites a audit logy svojich sites.
+Pridám indexy. WP-CLI tabuľku `wp_ssh_credentials` nebudem pridávať (CLI funkcia je v tejto fáze mimo scope — viď nižšie).
 
-Returns `Scan` JSON (matching existing types) with `source: 'real'` per dimension where the check actually ran, `'demo'` fallback when network failed.
+### 2. Frontend — knižnica `src/lib/wordpress/`
 
-**Client wiring:** `src/lib/launch/audit.ts` adds `runRealAudit(project)` calling `supabase.functions.invoke('launch-audit', { body: { url, project } })`. Keeps `runMockAudit` as fallback. `LaunchDashboard` gets a toggle "Real scan / Demo" — defaults to **Real**, falls back to mock on error with a toast.
+- `types.ts` — Zod schémy + TS typy (Post, Page, Comment, User, Plugin, Media, Settings, error map, retry/rate-limit konfig)
+- `wordpressService.ts` — trieda `WordPressService` s rate limiterom, retry logikou, volaniami cez `wordpress-proxy` edge funkciu
+- `useWordPressService.ts` — React Query hooky (queries + mutácie pre posts, pages, comments, users, plugins, settings, media upload)
 
-### 2. PDF report
+### 3. Frontend — komponenty `src/components/wordpress/`
 
-Use **jsPDF + jspdf-autotable** (pure client, no server). Add `bun add jspdf jspdf-autotable`.
+- `WordPressSiteSelector.tsx` — výber site + dropdown na zmazanie + "Add new"
+- `AddSiteDialog.tsx` — dialóg na pridanie siteu (com / self-hosted s app password)
+- `WordPressOverview.tsx` — overview kartičky (posty, drafty, komentáre, používatelia, pluginy, WP verzia)
 
-`src/lib/launch/pdfReport.ts` → `exportScanPdf(project, scan, allScans)`:
-- **Cover** — project name, URL, date, big overall score.
-- **Scorecard table** — 5 dimensions × score, source (real/demo).
-- **Severity distribution** — small bar table (counts per severity).
-- **Timeline** — table of all scans with overall score + delta.
-- **Findings** — for each: severity badge, title, dimension, why it matters, recommended fix, then a monospaced **builder fix prompt** block (so user can copy from PDF too).
-- Footer with page numbers + generated-by line.
+### 4. Stránka `src/pages/WordPressDashboard.tsx`
 
-UI: in `ProjectView` header actions add a **"Export PDF"** button (uses `Download` icon). Disabled during generation, shows loader.
+Hlavný dashboard s headerom, site selectorom, tabmi (zatiaľ Overview; ďalšie taby pripravené ako placeholder na budúce rozšírenie). Auth gate cez `useAdminAuth`.
 
-### 3. "Open in Builder" button
+### 5. Edge funkcia `supabase/functions/wordpress-proxy/index.ts`
 
-Goal: from a finding, jump into the in-app builder (the chat in `/`) with the `builderPrompt` pre-filled.
+Podľa nahraného súboru: prijme `{ siteId, method, path, body, query }`, overí JWT, načíta site config (RLS), pre **self-hosted** pridá Basic auth (`username:app_password`), proxy na `{base_url}/wp-json/wp/v2/{path}`, výsledok zapíše do `wp_audit_log`.
 
-**Mechanism (no prop drilling across routes):**
-1. `FindingCard.tsx` adds an **"Open in Builder"** button next to the existing copy button. On click:
-   - `sessionStorage.setItem('builderPrompt', finding.builderPrompt)`
-   - `navigate('/?view=chat&from=launch')`
-2. `src/pages/Index.tsx` on mount reads `sessionStorage.builderPrompt`. If present:
-   - `setCurrentView('chat')`
-   - `setInputValue(stored)` (don't auto-send — user reviews then hits send)
-   - clear the storage key + show a toast "Prompt loaded from Launch Audit".
+Pre **WordPress.com** site (`site_type = 'com'`) routujem cez **gateway konektora** `wordpress_com` (`https://connector-gateway.lovable.dev/wordpress_com/rest/v1.1/sites/{site_id}/...`) s `LOVABLE_API_KEY` + `WORDPRESS_COM_API_KEY` headermi — to je dôvod, prečo neukladáme app_password pre WP.com siteov.
 
-This works without changing route shape and survives the lazy-loaded views.
+`verify_jwt = true` (default), input validácia cez Zod, CORS headers na všetkých responsoch.
+
+### 6. WordPress.com konektor
+
+Predtým, než wp.com siteovia môžu fungovať, musí byť v projekte nalinkovaný **`wordpress_com`** konektor. Po schválení plánu zavolám `standard_connectors--connect` s `connector_id="wordpress_com"`. Užívateľ si vyberie/vytvorí connection cez built-in picker.
+
+### 7. Routing + sidebar
+
+- `App.tsx` — pridám `<Route path="/dashboard/wordpress" element={<WordPressDashboard />} />` (presne podľa kódu v správe).
+- `ConnectorsView.tsx` — pridám tile pre **WordPress** (📘) s tlačidlom "Otvoriť WordPress dashboard" → `/dashboard/wordpress`, podobne ako existujúci GitHub dashboard pattern.
+
+### 8. Mimo scope (vedome vynechané)
+
+- **`wordpress-cli` edge funkcia** — vyžaduje SSH knižnicu pre Deno + tabuľku `wp_ssh_credentials` + UI pre SSH credentials. Je to citlivá vec a nemáme zatiaľ UX. Nechám ako follow-up. Súbor `wordpress-cli/index.ts` z uploadov nebudem zatiaľ deployovať.
+- **Šifrovanie `app_password`** — uploady používajú `btoa()` (nie je to šifrovanie). V tejto iterácii to zachovám aby som matchol uploady, ale pridám TODO komentár + odporúčanie použiť pgsodium / vault v ďalšej iterácii. Ak chceš, môžem rovno spraviť proper encryption cez Supabase vault — povedz a pridám.
+
+### Bezpečnosť
+
+- RLS na všetkých nových tabuľkách
+- Edge funkcia overuje JWT a načíta site iba s `user_id = auth.uid()`
+- Zod validácia inputov v edge funkcii aj v service
+- Žiadne plain-text app passwordy v UI po uložení
+- Audit log pre každú mutáciu
 
 ### Files
 
 **New:**
-- `supabase/functions/launch-audit/index.ts` — real audit checks (Deno fetch + regex parsing).
-- `src/lib/launch/pdfReport.ts` — jsPDF builder.
+- `src/lib/wordpress/types.ts`
+- `src/lib/wordpress/wordpressService.ts`
+- `src/lib/wordpress/useWordPressService.ts`
+- `src/components/wordpress/WordPressSiteSelector.tsx`
+- `src/components/wordpress/AddSiteDialog.tsx`
+- `src/components/wordpress/WordPressOverview.tsx`
+- `src/pages/WordPressDashboard.tsx`
+- `supabase/functions/wordpress-proxy/index.ts`
 
 **Edited:**
-- `supabase/config.toml` — add `[functions.launch-audit] verify_jwt = false`.
-- `src/lib/launch/audit.ts` — add `runRealAudit()` wrapper.
-- `src/pages/LaunchDashboard.tsx` — Real/Demo toggle, Export PDF action, wire async rescan.
-- `src/components/launch/FindingCard.tsx` — "Open in Builder" button.
-- `src/pages/Index.tsx` — pickup `sessionStorage.builderPrompt` on mount → set chat view + input.
-- `package.json` — add `jspdf`, `jspdf-autotable`.
+- `src/App.tsx` — pridať route
+- `src/components/workspace/ConnectorsView.tsx` — pridať WordPress tile
+- `supabase/config.toml` — netreba zmenu (default `verify_jwt = true` je správne pre proxy)
 
-### Notes / scope limits
+**Migration:** vytvorenie `wp_sites` + `wp_audit_log` s RLS a indexmi.
 
-- Real audit is **best-effort heuristics**, not Lighthouse. We say so in the UI subtitle.
-- Performance LCP/CLS metrics are not measured (no headless browser); we surface only static signals. Documented in the function.
-- Edge function has a small concurrency cap and a 10s fetch timeout per probe to keep it cheap.
+### Otázka pred implementáciou
+
+Súbory volajú edge funkciu `wordpress-proxy` aj pre `site_type = 'com'`. WordPress.com má ale vlastnú REST API (`public-api.wordpress.com`) cez konektor gateway, nie `/wp-json/wp/v2/`. Mám:
+- **A)** podporiť oba typy (self → REST `/wp-json/`, com → connector gateway) — odporúčané, povolí to skutočnú správu wp.com sajtov.
+- **B)** zatiaľ implementovať len self-hosted a wp.com odložiť.
+
+Pôjdem s **A** ak nepovieš inak.
