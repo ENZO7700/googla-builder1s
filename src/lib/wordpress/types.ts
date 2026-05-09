@@ -298,5 +298,3 @@ export interface RequestOptions {
   skipAudit?: boolean; // default false
   cacheTime?: number; // ms
 }
-</parameter>
-</invoke>
