@@ -1,0 +1,128 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { useAdminAuth } from '@/lib/admin';
+import { useQuery } from '@tanstack/react-query';
+import { 
+  FileText, Plus, ArrowLeft, RefreshCw
+} from 'lucide-react';
+import { toast } from 'sonner';
+import DashboardCard from '@/components/dashboard/DashboardCard';
+import { LoadingState, EmptyState } from '@/components/dashboard/States';
+import WordPressSiteSelector from '@/components/wordpress/WordPressSiteSelector';
+import AddSiteDialog from '@/components/wordpress/AddSiteDialog';
+import WordPressOverview from '@/components/wordpress/WordPressOverview';
+
+export default function WordPressDashboard() {
+  const navigate = useNavigate();
+  const { user, isAdmin, loading: authLoading } = useAdminAuth();
+  
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
+  const [showAddSite, setShowAddSite] = useState(false);
+
+  // Auth gate
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user || !isAdmin) navigate('/', { replace: true });
+  }, [authLoading, user, isAdmin, navigate]);
+
+  // Load sites
+  const { data: sites = [], isLoading: sitesLoading, refetch } = useQuery({
+    queryKey: ['wp_sites', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('wp_sites')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  useEffect(() => {
+    if (sites.length > 0 && !selectedSiteId) {
+      setSelectedSiteId(sites[0].id);
+    }
+  }, [sites, selectedSiteId]);
+
+  const selectedSite = sites.find(s => s.id === selectedSiteId);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur border-b border-border">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/')}
+              className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition"
+              title="Späť"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div className="w-9 h-9 rounded-xl bg-blue-500/20 flex items-center justify-center">
+              <FileText size={18} className="text-blue-500" />
+            </div>
+            <div>
+              <h1 className="text-base font-semibold text-foreground">WordPress Manager</h1>
+              <p className="text-[11px] text-muted-foreground">Správa WP stránok a obsahu</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowAddSite(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 bg-primary text-primary-foreground rounded-full text-xs font-medium hover:opacity-90"
+          >
+            <Plus size={14} /> Pripojiť WP site
+          </button>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+        {sitesLoading ? (
+          <LoadingState />
+        ) : sites.length === 0 ? (
+          <EmptyState
+            title="Žiadne WordPress sites"
+            description="Pripojte svoj prvý WordPress.com alebo self-hosted WordPress."
+            icon={<FileText size={24} />}
+          />
+        ) : (
+          <>
+            <WordPressSiteSelector
+              sites={sites}
+              selectedSiteId={selectedSiteId}
+              onSelect={setSelectedSiteId}
+              onDelete={() => refetch()}
+              onAddNew={() => setShowAddSite(true)}
+            />
+
+            {selectedSite && (
+              <WordPressOverview site={selectedSite} />
+            )}
+          </>
+        )}
+      </main>
+
+      {/* Add Site Dialog */}
+      <AddSiteDialog
+        open={showAddSite}
+        onOpenChange={setShowAddSite}
+        onSuccess={() => {
+          setShowAddSite(false);
+          refetch();
+          toast.success('WordPress site pripojený');
+        }}
+      />
+    </div>
+  );
+}
