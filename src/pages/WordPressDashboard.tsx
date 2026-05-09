@@ -13,33 +13,41 @@ import WordPressSiteSelector from '@/components/wordpress/WordPressSiteSelector'
 import AddSiteDialog from '@/components/wordpress/AddSiteDialog';
 import WordPressOverview from '@/components/wordpress/WordPressOverview';
 
+interface WPSite {
+  id: string;
+  label: string;
+  base_url: string;
+  site_type: 'com' | 'self';
+}
+
 export default function WordPressDashboard() {
   const navigate = useNavigate();
-  const { user, isAdmin, loading: authLoading } = useAdminAuth();
+  const { user, loading: authLoading } = useAdminAuth();
   
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [showAddSite, setShowAddSite] = useState(false);
 
-  // Auth gate
+  // Auth gate – any signed-in user can access
   useEffect(() => {
     if (authLoading) return;
-    if (!user || !isAdmin) navigate('/', { replace: true });
-  }, [authLoading, user, isAdmin, navigate]);
+    if (!user) navigate('/', { replace: true });
+  }, [authLoading, user, navigate]);
 
   // Load sites
-  const { data: sites = [], isLoading: sitesLoading, refetch } = useQuery({
+  const { data: sites = [], isLoading: sitesLoading, refetch } = useQuery<WPSite[]>({
     queryKey: ['wp_sites', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('wp_sites')
-        .select('*')
-        .eq('user_id', user?.id)
+        .select('id, label, base_url, site_type')
+        .eq('user_id', user!.id)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data;
+      return (data ?? []) as WPSite[];
     },
     enabled: !!user,
   });
+
 
   useEffect(() => {
     if (sites.length > 0 && !selectedSiteId) {
