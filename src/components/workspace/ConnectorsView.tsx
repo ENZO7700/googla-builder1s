@@ -108,6 +108,15 @@ export default function ConnectorsView({ onBack }: ConnectorsViewProps) {
               </button>
             )}
 
+            {selected.id === 'wordpress' && (
+              <button
+                onClick={() => { setSelected(null); navigate('/dashboard/wordpress'); }}
+                className="w-full mb-4 flex items-center justify-center gap-2 px-4 py-2.5 bg-foreground text-background rounded-full text-sm font-medium hover:opacity-90 transition-colors"
+              >
+                <LayoutDashboard size={14} /> Otvoriť WordPress dashboard
+              </button>
+            )}
+
             {selected.available ? (
               <>
                 <div className="mb-4">
