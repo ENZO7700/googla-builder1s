@@ -73,6 +73,50 @@ export type Database = {
         }
         Relationships: []
       }
+      wp_about: {
+        Row: {
+          content_html: string | null
+          created_at: string
+          id: string
+          image_url: string | null
+          site_id: string
+          subtitle: string | null
+          title: string | null
+          updated_at: string
+          wp_post_id: number | null
+        }
+        Insert: {
+          content_html?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          site_id: string
+          subtitle?: string | null
+          title?: string | null
+          updated_at?: string
+          wp_post_id?: number | null
+        }
+        Update: {
+          content_html?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          site_id?: string
+          subtitle?: string | null
+          title?: string | null
+          updated_at?: string
+          wp_post_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_about_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: true
+            referencedRelation: "wp_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wp_audit_log: {
         Row: {
           action: string
@@ -113,6 +157,477 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "wp_audit_log_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "wp_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wp_company_info: {
+        Row: {
+          address: string | null
+          cover_url: string | null
+          created_at: string
+          description: string | null
+          email: string | null
+          id: string
+          logo_url: string | null
+          name: string | null
+          phone: string | null
+          site_id: string
+          social: Json
+          tagline: string | null
+          updated_at: string
+          vat_id: string | null
+          wp_post_id: number | null
+        }
+        Insert: {
+          address?: string | null
+          cover_url?: string | null
+          created_at?: string
+          description?: string | null
+          email?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string | null
+          phone?: string | null
+          site_id: string
+          social?: Json
+          tagline?: string | null
+          updated_at?: string
+          vat_id?: string | null
+          wp_post_id?: number | null
+        }
+        Update: {
+          address?: string | null
+          cover_url?: string | null
+          created_at?: string
+          description?: string | null
+          email?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string | null
+          phone?: string | null
+          site_id?: string
+          social?: Json
+          tagline?: string | null
+          updated_at?: string
+          vat_id?: string | null
+          wp_post_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_company_info_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: true
+            referencedRelation: "wp_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wp_footer: {
+        Row: {
+          columns: Json
+          copyright: string | null
+          created_at: string
+          id: string
+          legal_links: Json
+          logo_url: string | null
+          site_id: string
+          updated_at: string
+        }
+        Insert: {
+          columns?: Json
+          copyright?: string | null
+          created_at?: string
+          id?: string
+          legal_links?: Json
+          logo_url?: string | null
+          site_id: string
+          updated_at?: string
+        }
+        Update: {
+          columns?: Json
+          copyright?: string | null
+          created_at?: string
+          id?: string
+          legal_links?: Json
+          logo_url?: string | null
+          site_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_footer_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: true
+            referencedRelation: "wp_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wp_header: {
+        Row: {
+          created_at: string
+          cta_label: string | null
+          cta_url: string | null
+          id: string
+          logo_url: string | null
+          menu: Json
+          site_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          cta_label?: string | null
+          cta_url?: string | null
+          id?: string
+          logo_url?: string | null
+          menu?: Json
+          site_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          cta_label?: string | null
+          cta_url?: string | null
+          id?: string
+          logo_url?: string | null
+          menu?: Json
+          site_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_header_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: true
+            referencedRelation: "wp_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wp_inquiries: {
+        Row: {
+          created_at: string
+          email: string | null
+          form_slug: string
+          id: string
+          ip_hash: string | null
+          message: string | null
+          name: string | null
+          payload: Json
+          phone: string | null
+          read: boolean
+          site_id: string
+          source_url: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          form_slug?: string
+          id?: string
+          ip_hash?: string | null
+          message?: string | null
+          name?: string | null
+          payload?: Json
+          phone?: string | null
+          read?: boolean
+          site_id: string
+          source_url?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          form_slug?: string
+          id?: string
+          ip_hash?: string | null
+          message?: string | null
+          name?: string | null
+          payload?: Json
+          phone?: string | null
+          read?: boolean
+          site_id?: string
+          source_url?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_inquiries_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "wp_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wp_inquiry_forms: {
+        Row: {
+          created_at: string
+          fields: Json
+          id: string
+          name: string
+          recipient_email: string | null
+          site_id: string
+          slug: string
+          success_message: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          fields?: Json
+          id?: string
+          name: string
+          recipient_email?: string | null
+          site_id: string
+          slug: string
+          success_message?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          fields?: Json
+          id?: string
+          name?: string
+          recipient_email?: string | null
+          site_id?: string
+          slug?: string
+          success_message?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_inquiry_forms_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "wp_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wp_members: {
+        Row: {
+          bio: string | null
+          created_at: string
+          email: string | null
+          id: string
+          link_url: string | null
+          name: string
+          order_index: number
+          photo_url: string | null
+          published: boolean
+          role: string | null
+          site_id: string
+          updated_at: string
+        }
+        Insert: {
+          bio?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          link_url?: string | null
+          name: string
+          order_index?: number
+          photo_url?: string | null
+          published?: boolean
+          role?: string | null
+          site_id: string
+          updated_at?: string
+        }
+        Update: {
+          bio?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          link_url?: string | null
+          name?: string
+          order_index?: number
+          photo_url?: string | null
+          published?: boolean
+          role?: string | null
+          site_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_members_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "wp_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wp_news: {
+        Row: {
+          content_html: string | null
+          cover_url: string | null
+          created_at: string
+          excerpt: string | null
+          id: string
+          order_index: number
+          published: boolean
+          published_at: string | null
+          site_id: string
+          slug: string | null
+          title: string
+          updated_at: string
+          wp_post_id: number | null
+        }
+        Insert: {
+          content_html?: string | null
+          cover_url?: string | null
+          created_at?: string
+          excerpt?: string | null
+          id?: string
+          order_index?: number
+          published?: boolean
+          published_at?: string | null
+          site_id: string
+          slug?: string | null
+          title: string
+          updated_at?: string
+          wp_post_id?: number | null
+        }
+        Update: {
+          content_html?: string | null
+          cover_url?: string | null
+          created_at?: string
+          excerpt?: string | null
+          id?: string
+          order_index?: number
+          published?: boolean
+          published_at?: string | null
+          site_id?: string
+          slug?: string | null
+          title?: string
+          updated_at?: string
+          wp_post_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_news_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "wp_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wp_references: {
+        Row: {
+          client_name: string | null
+          completed_at: string | null
+          created_at: string
+          description_html: string | null
+          id: string
+          image_url: string | null
+          link_url: string | null
+          order_index: number
+          project_title: string
+          published: boolean
+          site_id: string
+          updated_at: string
+          wp_post_id: number | null
+        }
+        Insert: {
+          client_name?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description_html?: string | null
+          id?: string
+          image_url?: string | null
+          link_url?: string | null
+          order_index?: number
+          project_title: string
+          published?: boolean
+          site_id: string
+          updated_at?: string
+          wp_post_id?: number | null
+        }
+        Update: {
+          client_name?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description_html?: string | null
+          id?: string
+          image_url?: string | null
+          link_url?: string | null
+          order_index?: number
+          project_title?: string
+          published?: boolean
+          site_id?: string
+          updated_at?: string
+          wp_post_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_references_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "wp_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wp_services: {
+        Row: {
+          created_at: string
+          description_html: string | null
+          excerpt: string | null
+          icon: string | null
+          id: string
+          image_url: string | null
+          link_url: string | null
+          order_index: number
+          price: string | null
+          published: boolean
+          site_id: string
+          slug: string | null
+          title: string
+          updated_at: string
+          wp_post_id: number | null
+        }
+        Insert: {
+          created_at?: string
+          description_html?: string | null
+          excerpt?: string | null
+          icon?: string | null
+          id?: string
+          image_url?: string | null
+          link_url?: string | null
+          order_index?: number
+          price?: string | null
+          published?: boolean
+          site_id: string
+          slug?: string | null
+          title: string
+          updated_at?: string
+          wp_post_id?: number | null
+        }
+        Update: {
+          created_at?: string
+          description_html?: string | null
+          excerpt?: string | null
+          icon?: string | null
+          id?: string
+          image_url?: string | null
+          link_url?: string | null
+          order_index?: number
+          price?: string | null
+          published?: boolean
+          site_id?: string
+          slug?: string | null
+          title?: string
+          updated_at?: string
+          wp_post_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_services_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "wp_sites"
@@ -161,7 +676,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_wp_site_owner: { Args: { _site_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
