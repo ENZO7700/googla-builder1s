@@ -71,7 +71,7 @@ export default function RepeaterManager({ siteId, kind, title, description, fiel
     <DashboardCard
       title={title}
       description={description}
-      action={
+      actions={
         <Button size="sm" onClick={startNew} className="gap-2"><Plus size={14} /> Pridať</Button>
       }
     >
