@@ -10,7 +10,7 @@ import {
 
 // ============= STATIC (singleton) =============
 
-export function useStatic<T extends Record<string, unknown>>(siteId: string | null, kind: StaticKind) {
+export function useStatic<T>(siteId: string | null, kind: StaticKind) {
   const qc = useQueryClient();
   const table = STATIC_TABLE[kind];
 
