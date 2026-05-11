@@ -1,86 +1,156 @@
 
-## Plán: WordPress Manager integrácia
+## Plán: Site Content Manager (static + dynamic + inquiries)
 
-Spracujem 10 nahraných súborov a zapojím ich do projektu ako kompletný WordPress dashboard (multi-site, posts/pages/comments/users/plugins/settings + audit log).
+Postavím "ACF Options + CPTs" vrstvu nad `wp_sites`. Primárny zdroj pravdy je naša Supabase DB; jedným tlačidlom sa dá publikovať do WordPressu cez existujúci `wordpress-proxy`.
 
-### 1. Databáza (migrácia)
+### 1) Databáza (1 migrácia)
 
-Vytvorím tabuľky podľa `supabase_migrations_20260508_wordpress_manager.sql`:
-- **`wp_sites`** — `user_id`, `label`, `base_url`, `site_type` ('com'|'self'), `username`, `app_password_encrypted`, `last_sync_at`, UNIQUE(user_id, base_url)
-- **`wp_audit_log`** — `site_id`, `user_id`, `action`, `resource_type`, `resource_id`, `details` (jsonb), `status`, `error_message`
+Všetky tabuľky sú scopované na `site_id` (FK → `wp_sites`) + `user_id` cez RLS (vlastník siteu = vlastník dát). Bucket `wp-content-images` pre obrázky.
 
-RLS: každý user vidí/spravuje len svoje sites a audit logy svojich sites.
-Pridám indexy. WP-CLI tabuľku `wp_ssh_credentials` nebudem pridávať (CLI funkcia je v tejto fáze mimo scope — viď nižšie).
+**Static (singletony — 1 záznam per site, upsert):**
 
-### 2. Frontend — knižnica `src/lib/wordpress/`
+- `wp_company_info` — `site_id` (UNIQUE), `name`, `tagline`, `description`, `email`, `phone`, `address`, `vat_id`, `logo_url`, `cover_url`, `social` (jsonb: fb/ig/li/yt), `wp_post_id` (sync target — voliteľné single post id v WP)
+- `wp_about` — `site_id` (UNIQUE), `title`, `subtitle`, `content_html`, `image_url`, `wp_post_id`
+- `wp_header` — `site_id` (UNIQUE), `logo_url`, `menu` (jsonb: `[{label, url, order}]`), `cta_label`, `cta_url`
+- `wp_footer` — `site_id` (UNIQUE), `logo_url`, `copyright`, `columns` (jsonb: `[{title, links:[{label,url}]}]`), `legal_links` (jsonb)
 
-- `types.ts` — Zod schémy + TS typy (Post, Page, Comment, User, Plugin, Media, Settings, error map, retry/rate-limit konfig)
-- `wordpressService.ts` — trieda `WordPressService` s rate limiterom, retry logikou, volaniami cez `wordpress-proxy` edge funkciu
-- `useWordPressService.ts` — React Query hooky (queries + mutácie pre posts, pages, comments, users, plugins, settings, media upload)
+**Dynamic (repeatery — N záznamov per site):**
 
-### 3. Frontend — komponenty `src/components/wordpress/`
+Spoločné polia: `id`, `site_id`, `user_id`, `order_index`, `published` bool, `wp_post_id` (sync), `created_at`, `updated_at`.
 
-- `WordPressSiteSelector.tsx` — výber site + dropdown na zmazanie + "Add new"
-- `AddSiteDialog.tsx` — dialóg na pridanie siteu (com / self-hosted s app password)
-- `WordPressOverview.tsx` — overview kartičky (posty, drafty, komentáre, používatelia, pluginy, WP verzia)
+- `wp_services` — `title`, `slug`, `excerpt`, `description_html`, `icon`, `image_url`, `price`, `link_url`
+- `wp_references` — `client_name`, `project_title`, `description_html`, `image_url`, `link_url`, `completed_at`
+- `wp_news` — `title`, `slug`, `excerpt`, `content_html`, `cover_url`, `published_at`
+- `wp_members` — `name`, `role`, `bio`, `photo_url`, `email`, `link_url` (clients/members repeater bez CPT — nesyncuje sa do WP ako post, len uložené u nás / použiteľné cez REST)
 
-### 4. Stránka `src/pages/WordPressDashboard.tsx`
+**Inquiries (formulár):**
 
-Hlavný dashboard s headerom, site selectorom, tabmi (zatiaľ Overview; ďalšie taby pripravené ako placeholder na budúce rozšírenie). Auth gate cez `useAdminAuth`.
+- `wp_inquiry_forms` — `site_id`, `slug` (UNIQUE per site), `name`, `fields` (jsonb: `[{key,label,type,required}]`), `recipient_email`, `success_message`, `created_at`. Defaultný formulár sa vytvorí pri založení siteu (slug `default`).
+- `wp_inquiries` — `site_id`, `form_slug`, `payload` (jsonb), `email`, `name`, `phone`, `message`, `source_url`, `ip_hash`, `user_agent`, `read` bool, `created_at`.
 
-### 5. Edge funkcia `supabase/functions/wordpress-proxy/index.ts`
+**RLS:**
+- Statics + dynamics + forms: SELECT/INSERT/UPDATE/DELETE iba pre vlastníka siteu (cez subselect na `wp_sites`).
+- `wp_inquiries`: SELECT/UPDATE/DELETE len vlastník siteu. INSERT je **zakázané z klienta** — robí to public edge funkcia cez service role.
 
-Podľa nahraného súboru: prijme `{ siteId, method, path, body, query }`, overí JWT, načíta site config (RLS), pre **self-hosted** pridá Basic auth (`username:app_password`), proxy na `{base_url}/wp-json/wp/v2/{path}`, výsledok zapíše do `wp_audit_log`.
+**Triggery:**
+- `update_updated_at_column()` na všetkých tabuľkách, ktoré majú `updated_at`.
 
-Pre **WordPress.com** site (`site_type = 'com'`) routujem cez **gateway konektora** `wordpress_com` (`https://connector-gateway.lovable.dev/wordpress_com/rest/v1.1/sites/{site_id}/...`) s `LOVABLE_API_KEY` + `WORDPRESS_COM_API_KEY` headermi — to je dôvod, prečo neukladáme app_password pre WP.com siteov.
+**Storage:**
+- Bucket `wp-content-images` (public), policy: upload len pre prihláseného usera do prefixu `{user_id}/{site_id}/...`.
 
-`verify_jwt = true` (default), input validácia cez Zod, CORS headers na všetkých responsoch.
+### 2) Edge funkcie
 
-### 6. WordPress.com konektor
+- **`wordpress-sync`** (`verify_jwt = false`, validujem JWT v kóde) — vstup `{ siteId, entity: 'company|about|service|reference|news|...', recordId }`. Načíta záznam, mapne na WP REST payload (`title`, `content`, `excerpt`, `featured_media`, `meta`), zavolá `wordpress-proxy` interne (alebo priamo wp-json), uloží návratové `wp_post_id` späť do našej tabuľky. Audit log do `wp_audit_log`.
+- **`inquiries-submit`** (`verify_jwt = false`, public) — vstup `{ siteId, formSlug, payload, hp }`. Honeypot (`hp` musí byť prázdne), rate-limit per IP (in-memory map, 5/min), Zod validácia podľa `wp_inquiry_forms.fields`, insert do `wp_inquiries`, voliteľne pošle notifikačný email cez Resend (ak je `RESEND_API_KEY` k dispozícii — ak nie, len uložíme).
 
-Predtým, než wp.com siteovia môžu fungovať, musí byť v projekte nalinkovaný **`wordpress_com`** konektor. Po schválení plánu zavolám `standard_connectors--connect` s `connector_id="wordpress_com"`. Užívateľ si vyberie/vytvorí connection cez built-in picker.
+CORS allow-origin `*` na inquiries (verejné).
 
-### 7. Routing + sidebar
+### 3) Frontend — `src/lib/wordpress/content/`
 
-- `App.tsx` — pridám `<Route path="/dashboard/wordpress" element={<WordPressDashboard />} />` (presne podľa kódu v správe).
-- `ConnectorsView.tsx` — pridám tile pre **WordPress** (📘) s tlačidlom "Otvoriť WordPress dashboard" → `/dashboard/wordpress`, podobne ako existujúci GitHub dashboard pattern.
+- `types.ts` — Zod schémy + TS typy pre všetky entity.
+- `useSiteContent.ts` — generic React Query hooky `useStatic(siteId, kind)`, `useRepeater(siteId, kind)` + mutácie (upsert/insert/update/delete/reorder/sync).
+- `useInquiries.ts` — list/markRead/delete + form CRUD.
 
-### 8. Mimo scope (vedome vynechané)
+### 4) Frontend — komponenty `src/components/wordpress/content/`
 
-- **`wordpress-cli` edge funkcia** — vyžaduje SSH knižnicu pre Deno + tabuľku `wp_ssh_credentials` + UI pre SSH credentials. Je to citlivá vec a nemáme zatiaľ UX. Nechám ako follow-up. Súbor `wordpress-cli/index.ts` z uploadov nebudem zatiaľ deployovať.
-- **Šifrovanie `app_password`** — uploady používajú `btoa()` (nie je to šifrovanie). V tejto iterácii to zachovám aby som matchol uploady, ale pridám TODO komentár + odporúčanie použiť pgsodium / vault v ďalšej iterácii. Ak chceš, môžem rovno spraviť proper encryption cez Supabase vault — povedz a pridám.
+Spoločné:
+- `ImageUpload.tsx` — upload do `wp-content-images`, vráti URL.
+- `RepeaterTable.tsx` — generic CRUD tabuľka (drag-reorder, bulk publish/unpublish/delete, "Sync to WP" tlačidlo per riadok).
+- `EntityForm.tsx` — generic form renderer (Zod-driven).
 
-### Bezpečnosť
+Špecifické editory:
+- `CompanyInfoEditor.tsx` — singleton form (logo, kontakty, social).
+- `AboutEditor.tsx` — title + rich text + cover.
+- `HeaderEditor.tsx` — menu repeater (label/url/order) + CTA.
+- `FooterEditor.tsx` — columns repeater + legal links.
+- `ServicesManager.tsx`, `ReferencesManager.tsx`, `NewsManager.tsx`, `MembersManager.tsx` — repeater UI cez `RepeaterTable`.
+- `InquiryFormBuilder.tsx` — definícia polí (drag fields).
+- `InquiryInbox.tsx` — tabuľka submissions + detail drawer + označiť ako prečítané + export CSV.
+- `EmbedSnippet.tsx` — generuje `<script>` snippet + HTML form template pre embed na cudziu stránku.
 
-- RLS na všetkých nových tabuľkách
-- Edge funkcia overuje JWT a načíta site iba s `user_id = auth.uid()`
-- Zod validácia inputov v edge funkcii aj v service
-- Žiadne plain-text app passwordy v UI po uložení
-- Audit log pre každú mutáciu
+### 5) Dashboard rozšírenie
 
-### Files
+`src/pages/WordPressDashboard.tsx` — pridám tabs (shadcn `Tabs`) pod selector:
 
-**New:**
-- `src/lib/wordpress/types.ts`
-- `src/lib/wordpress/wordpressService.ts`
-- `src/lib/wordpress/useWordPressService.ts`
-- `src/components/wordpress/WordPressSiteSelector.tsx`
-- `src/components/wordpress/AddSiteDialog.tsx`
-- `src/components/wordpress/WordPressOverview.tsx`
-- `src/pages/WordPressDashboard.tsx`
-- `supabase/functions/wordpress-proxy/index.ts`
+```text
+[ Overview ] [ Static ] [ Services ] [ References ] [ News ] [ Members ] [ Inquiries ] [ Embed ]
+```
+
+Tab `Static` má pod-tabs: Company / About / Header / Footer.
+
+### 6) Embed snippet
+
+`InquiryEmbed` edge route + statický `inquiry-embed.js` v `public/`:
+
+```html
+<div data-lovable-form="default" data-site="{SITE_ID}"></div>
+<script src="https://{project}.functions.supabase.co/inquiry-embed.js" defer></script>
+```
+
+Skript fetne formulár schému z `inquiries-submit?meta=1`, vykreslí natívny `<form>`, na submit pošle JSON. Žiadne závislosti, vanilla JS, štýly cez minimálne inline CSS s prefixom `lvb-`.
+
+### 7) Publish to WordPress (sync)
+
+Per entitu mapping:
+
+| Naša entita | WP cieľ |
+|---|---|
+| `wp_about` (singleton) | Page (alebo update existujúcej `wp_post_id`) |
+| `wp_services` | CPT `services` (ak neexistuje → fallback na `posts` s tagom `service`) |
+| `wp_references` | CPT `references` / `posts` + tag |
+| `wp_news` | `posts` |
+| `wp_members` | nesyncuje sa (interné) |
+| `wp_company_info`, `wp_header`, `wp_footer` | Uložené v našej DB; pre WP buď cez ACF Options REST (ak existuje plugin), alebo len držíme u nás a vystavíme ako verejné JSON cez `site-content-public` edge funkciu, ktorú si WP zaťahuje. |
+
+V tejto iterácii spravím sync iba pre `about/services/references/news` (CPT/post). Options-style entity (company/header/footer) nechám len u nás + vystavím verejný JSON endpoint `site-content/{siteId}/public.json` na čítanie z WP.
+
+### 8) Bezpečnosť
+
+- Všetky tabuľky majú RLS, policies cez `EXISTS (SELECT 1 FROM wp_sites WHERE id = site_id AND user_id = auth.uid())`.
+- `wp_inquiries` write iba cez service role v edge funkcii.
+- Rate-limit + honeypot na inquiries.
+- Validácia inputov Zodom v edge aj na klientovi.
+- Storage policies podľa `{user_id}/{site_id}` prefixu.
+- CSP-safe embed snippet (bez `eval`, bez `innerHTML` user contentu).
+
+### 9) Mimo scope (vedome)
+
+- Šifrovanie `app_password_encrypted` cez vault (sľúbené ako follow-up).
+- WP-CLI cez SSH.
+- Image transformation / CDN resizing.
+- ACF Options sync (nechávame čítaný JSON namiesto zápisu, lebo to závisí od pluginu na WP strane).
+
+### Súbory
+
+**Migrácia:** všetky tabuľky vyššie + RLS + storage bucket + policies + triggery.
+
+**New (frontend):**
+- `src/lib/wordpress/content/types.ts`
+- `src/lib/wordpress/content/useSiteContent.ts`
+- `src/lib/wordpress/content/useInquiries.ts`
+- `src/components/wordpress/content/ImageUpload.tsx`
+- `src/components/wordpress/content/RepeaterTable.tsx`
+- `src/components/wordpress/content/CompanyInfoEditor.tsx`
+- `src/components/wordpress/content/AboutEditor.tsx`
+- `src/components/wordpress/content/HeaderEditor.tsx`
+- `src/components/wordpress/content/FooterEditor.tsx`
+- `src/components/wordpress/content/ServicesManager.tsx`
+- `src/components/wordpress/content/ReferencesManager.tsx`
+- `src/components/wordpress/content/NewsManager.tsx`
+- `src/components/wordpress/content/MembersManager.tsx`
+- `src/components/wordpress/content/InquiryFormBuilder.tsx`
+- `src/components/wordpress/content/InquiryInbox.tsx`
+- `src/components/wordpress/content/EmbedSnippet.tsx`
+- `public/inquiry-embed.js`
+
+**New (edge):**
+- `supabase/functions/wordpress-sync/index.ts`
+- `supabase/functions/inquiries-submit/index.ts`
+- `supabase/functions/site-content-public/index.ts`
 
 **Edited:**
-- `src/App.tsx` — pridať route
-- `src/components/workspace/ConnectorsView.tsx` — pridať WordPress tile
-- `supabase/config.toml` — netreba zmenu (default `verify_jwt = true` je správne pre proxy)
+- `src/pages/WordPressDashboard.tsx` — tabs.
 
-**Migration:** vytvorenie `wp_sites` + `wp_audit_log` s RLS a indexmi.
+### Otázka pred štartom
 
-### Otázka pred implementáciou
-
-Súbory volajú edge funkciu `wordpress-proxy` aj pre `site_type = 'com'`. WordPress.com má ale vlastnú REST API (`public-api.wordpress.com`) cez konektor gateway, nie `/wp-json/wp/v2/`. Mám:
-- **A)** podporiť oba typy (self → REST `/wp-json/`, com → connector gateway) — odporúčané, povolí to skutočnú správu wp.com sajtov.
-- **B)** zatiaľ implementovať len self-hosted a wp.com odložiť.
-
-Pôjdem s **A** ak nepovieš inak.
+Notifikačné emaily na nové dopyty: pripojiť **Resend** konektor teraz (cez `standard_connectors--connect`), alebo zatiaľ vynechať a robiť len uloženie do DB?
