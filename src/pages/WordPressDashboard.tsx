@@ -126,7 +126,33 @@ export default function WordPressDashboard() {
             />
 
             {selectedSite && (
-              <WordPressOverview site={selectedSite} />
+              <>
+                <WordPressOverview site={selectedSite} />
+                <Tabs defaultValue="company" className="w-full">
+                  <TabsList className="flex flex-wrap h-auto">
+                    <TabsTrigger value="company">Company</TabsTrigger>
+                    <TabsTrigger value="about">About</TabsTrigger>
+                    <TabsTrigger value="header">Header</TabsTrigger>
+                    <TabsTrigger value="footer">Footer</TabsTrigger>
+                    <TabsTrigger value="services">Services</TabsTrigger>
+                    <TabsTrigger value="references">References</TabsTrigger>
+                    <TabsTrigger value="news">News</TabsTrigger>
+                    <TabsTrigger value="members">Members</TabsTrigger>
+                    <TabsTrigger value="inquiries">Inquiries</TabsTrigger>
+                    <TabsTrigger value="form">Form & Embed</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="company"><CompanyInfoEditor siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="about"><AboutEditor siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="header"><HeaderEditor siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="footer"><FooterEditor siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="services"><ServicesManager siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="references"><ReferencesManager siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="news"><NewsManager siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="members"><MembersManager siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="inquiries"><InquiryInbox siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="form"><InquiryFormBuilder siteId={selectedSite.id} /></TabsContent>
+                </Tabs>
+              </>
             )}
           </>
         )}
