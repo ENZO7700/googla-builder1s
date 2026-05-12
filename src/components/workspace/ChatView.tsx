@@ -166,7 +166,15 @@ export default function ChatView({
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 lg:px-24 pt-10 pb-48 scrollbar-hide relative flex flex-col">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 lg:px-24 pt-10 pb-48 scrollbar-hide relative flex flex-col">
+        {!autoScroll && isLoading && (
+          <button
+            onClick={() => { setAutoScroll(true); messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
+            className="fixed bottom-40 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:opacity-90"
+          >
+            ↓ Skočiť na koniec
+          </button>
+        )}
         <div className="max-w-3xl mx-auto w-full flex-1">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full min-h-[50vh] animate-fade-in">
