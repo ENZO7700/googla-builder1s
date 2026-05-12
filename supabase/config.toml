@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.launch-audit]
 verify_jwt = false
+
+[functions.inquiries-submit]
+verify_jwt = false
