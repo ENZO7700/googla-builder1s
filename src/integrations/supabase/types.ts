@@ -644,8 +644,14 @@ export type Database = {
           label: string
           last_sync_at: string | null
           site_type: string
+          ssh_host: string | null
+          ssh_password_encrypted: string | null
+          ssh_port: number | null
+          ssh_private_key_encrypted: string | null
+          ssh_username: string | null
           user_id: string
           username: string | null
+          wp_path: string | null
         }
         Insert: {
           app_password_encrypted?: string | null
@@ -655,8 +661,14 @@ export type Database = {
           label: string
           last_sync_at?: string | null
           site_type: string
+          ssh_host?: string | null
+          ssh_password_encrypted?: string | null
+          ssh_port?: number | null
+          ssh_private_key_encrypted?: string | null
+          ssh_username?: string | null
           user_id: string
           username?: string | null
+          wp_path?: string | null
         }
         Update: {
           app_password_encrypted?: string | null
@@ -666,8 +678,14 @@ export type Database = {
           label?: string
           last_sync_at?: string | null
           site_type?: string
+          ssh_host?: string | null
+          ssh_password_encrypted?: string | null
+          ssh_port?: number | null
+          ssh_private_key_encrypted?: string | null
+          ssh_username?: string | null
           user_id?: string
           username?: string | null
+          wp_path?: string | null
         }
         Relationships: []
       }
