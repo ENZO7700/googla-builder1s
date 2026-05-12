@@ -12,6 +12,17 @@ import { LoadingState, EmptyState } from '@/components/dashboard/States';
 import WordPressSiteSelector from '@/components/wordpress/WordPressSiteSelector';
 import AddSiteDialog from '@/components/wordpress/AddSiteDialog';
 import WordPressOverview from '@/components/wordpress/WordPressOverview';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import CompanyInfoEditor from '@/components/wordpress/content/CompanyInfoEditor';
+import AboutEditor from '@/components/wordpress/content/AboutEditor';
+import HeaderEditor from '@/components/wordpress/content/HeaderEditor';
+import FooterEditor from '@/components/wordpress/content/FooterEditor';
+import ServicesManager from '@/components/wordpress/content/ServicesManager';
+import ReferencesManager from '@/components/wordpress/content/ReferencesManager';
+import NewsManager from '@/components/wordpress/content/NewsManager';
+import MembersManager from '@/components/wordpress/content/MembersManager';
+import InquiryInbox from '@/components/wordpress/content/InquiryInbox';
+import InquiryFormBuilder from '@/components/wordpress/content/InquiryFormBuilder';
 
 interface WPSite {
   id: string;
