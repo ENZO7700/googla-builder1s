@@ -96,13 +96,28 @@ export default function ChatView({
   isRecording, onMicClick, isDragging, tokenCount, onCopyCode, onToggleMobileMenu
 }: ChatViewProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputAreaRef = useRef<HTMLTextAreaElement>(null);
   const [activeCategory, setActiveCategory] = useState('WordPress FSE');
+  const [autoScroll, setAutoScroll] = useState(true);
+
+  // Disable auto-scroll the moment user scrolls up; re-enable when they reach bottom
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setAutoScroll(distanceFromBottom < 80);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
+    if (!autoScroll) return;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, autoScroll]);
 
   // Keyboard shortcuts
   useEffect(() => {
