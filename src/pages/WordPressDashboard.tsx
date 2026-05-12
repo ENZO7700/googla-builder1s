@@ -140,6 +140,7 @@ export default function WordPressDashboard() {
                     <TabsTrigger value="members">Members</TabsTrigger>
                     <TabsTrigger value="inquiries">Inquiries</TabsTrigger>
                     <TabsTrigger value="form">Form & Embed</TabsTrigger>
+                    <TabsTrigger value="wpcli">WP-CLI</TabsTrigger>
                   </TabsList>
                   <TabsContent value="company"><CompanyInfoEditor siteId={selectedSite.id} /></TabsContent>
                   <TabsContent value="about"><AboutEditor siteId={selectedSite.id} /></TabsContent>
@@ -151,6 +152,7 @@ export default function WordPressDashboard() {
                   <TabsContent value="members"><MembersManager siteId={selectedSite.id} /></TabsContent>
                   <TabsContent value="inquiries"><InquiryInbox siteId={selectedSite.id} /></TabsContent>
                   <TabsContent value="form"><InquiryFormBuilder siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="wpcli"><WPCLIManager siteId={selectedSite.id} /></TabsContent>
                 </Tabs>
               </>
             )}
