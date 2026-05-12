@@ -12,6 +12,17 @@ import { LoadingState, EmptyState } from '@/components/dashboard/States';
 import WordPressSiteSelector from '@/components/wordpress/WordPressSiteSelector';
 import AddSiteDialog from '@/components/wordpress/AddSiteDialog';
 import WordPressOverview from '@/components/wordpress/WordPressOverview';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import CompanyInfoEditor from '@/components/wordpress/content/CompanyInfoEditor';
+import AboutEditor from '@/components/wordpress/content/AboutEditor';
+import HeaderEditor from '@/components/wordpress/content/HeaderEditor';
+import FooterEditor from '@/components/wordpress/content/FooterEditor';
+import ServicesManager from '@/components/wordpress/content/ServicesManager';
+import ReferencesManager from '@/components/wordpress/content/ReferencesManager';
+import NewsManager from '@/components/wordpress/content/NewsManager';
+import MembersManager from '@/components/wordpress/content/MembersManager';
+import InquiryInbox from '@/components/wordpress/content/InquiryInbox';
+import InquiryFormBuilder from '@/components/wordpress/content/InquiryFormBuilder';
 
 interface WPSite {
   id: string;
@@ -115,7 +126,33 @@ export default function WordPressDashboard() {
             />
 
             {selectedSite && (
-              <WordPressOverview site={selectedSite} />
+              <>
+                <WordPressOverview site={selectedSite} />
+                <Tabs defaultValue="company" className="w-full">
+                  <TabsList className="flex flex-wrap h-auto">
+                    <TabsTrigger value="company">Company</TabsTrigger>
+                    <TabsTrigger value="about">About</TabsTrigger>
+                    <TabsTrigger value="header">Header</TabsTrigger>
+                    <TabsTrigger value="footer">Footer</TabsTrigger>
+                    <TabsTrigger value="services">Services</TabsTrigger>
+                    <TabsTrigger value="references">References</TabsTrigger>
+                    <TabsTrigger value="news">News</TabsTrigger>
+                    <TabsTrigger value="members">Members</TabsTrigger>
+                    <TabsTrigger value="inquiries">Inquiries</TabsTrigger>
+                    <TabsTrigger value="form">Form & Embed</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="company"><CompanyInfoEditor siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="about"><AboutEditor siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="header"><HeaderEditor siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="footer"><FooterEditor siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="services"><ServicesManager siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="references"><ReferencesManager siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="news"><NewsManager siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="members"><MembersManager siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="inquiries"><InquiryInbox siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="form"><InquiryFormBuilder siteId={selectedSite.id} /></TabsContent>
+                </Tabs>
+              </>
             )}
           </>
         )}
