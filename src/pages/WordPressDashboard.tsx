@@ -23,6 +23,7 @@ import NewsManager from '@/components/wordpress/content/NewsManager';
 import MembersManager from '@/components/wordpress/content/MembersManager';
 import InquiryInbox from '@/components/wordpress/content/InquiryInbox';
 import InquiryFormBuilder from '@/components/wordpress/content/InquiryFormBuilder';
+import WPCLIManager from '@/components/wordpress/WPCLIManager';
 
 interface WPSite {
   id: string;
