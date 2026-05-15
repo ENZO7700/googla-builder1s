@@ -1,11 +1,23 @@
 import { useState } from 'react';
-import { Mail, MailOpen, Trash2 } from 'lucide-react';
+import { Mail, MailOpen, Trash2, Paperclip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import { LoadingState, EmptyState } from '@/components/dashboard/States';
 import { useInquiries } from '@/lib/wordpress/content/useInquiries';
-import type { Inquiry } from '@/lib/wordpress/content/types';
+import type { Inquiry, InquiryFileRef } from '@/lib/wordpress/content/types';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+function isFileRef(v: unknown): v is InquiryFileRef {
+  return !!v && typeof v === 'object' && typeof (v as { path?: unknown }).path === 'string';
+}
+
+async function openAttachment(ref: InquiryFileRef) {
+  const { data, error } = await supabase.storage.from('inquiry-attachments').createSignedUrl(ref.path, 300);
+  if (error || !data?.signedUrl) { toast.error('Nepodarilo sa vygenerovať odkaz.'); return; }
+  window.open(data.signedUrl, '_blank', 'noopener');
+}
 
 export default function InquiryInbox({ siteId }: { siteId: string }) {
   const { inquiries, isLoading, markRead, remove } = useInquiries(siteId);
