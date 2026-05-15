@@ -132,10 +132,19 @@ export interface MemberItem {
 export interface InquiryFormField {
   key: string;
   label: string;
-  type: 'text' | 'email' | 'tel' | 'textarea' | 'select';
+  type: 'text' | 'email' | 'tel' | 'textarea' | 'select' | 'checkbox' | 'file';
   required?: boolean;
   options?: string[];
   placeholder?: string;
+  accept?: string;
+  maxSize?: number;
+}
+
+export interface InquiryFileRef {
+  path: string;
+  name: string;
+  size: number;
+  mime: string;
 }
 
 export interface InquiryForm {
