@@ -53,21 +53,31 @@ export default function InquiryFormBuilder({ siteId }: { siteId: string }) {
           </div>
           <div className="space-y-2">
             {fields.map((f, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <Input className="w-32" value={f.key} onChange={(e) => setFields(fields.map((x, j) => j === i ? { ...x, key: e.target.value } : x))} placeholder="key" />
-                <Input value={f.label} onChange={(e) => setFields(fields.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} placeholder="Label" />
-                <select
-                  className="border border-input bg-background h-9 px-2 rounded-md text-sm"
-                  value={f.type}
-                  onChange={(e) => setFields(fields.map((x, j) => j === i ? { ...x, type: e.target.value as InquiryFormField['type'] } : x))}
-                >
-                  <option value="text">text</option>
-                  <option value="email">email</option>
-                  <option value="tel">tel</option>
-                  <option value="textarea">textarea</option>
-                </select>
-                <div className="flex items-center gap-1"><Switch checked={!!f.required} onCheckedChange={(v) => setFields(fields.map((x, j) => j === i ? { ...x, required: v } : x))} /><span className="text-[10px] text-muted-foreground">povinné</span></div>
-                <Button variant="ghost" size="icon" onClick={() => setFields(fields.filter((_, j) => j !== i))}><Trash2 size={14} /></Button>
+              <div key={i} className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Input className="w-32" value={f.key} onChange={(e) => setFields(fields.map((x, j) => j === i ? { ...x, key: e.target.value } : x))} placeholder="key" />
+                  <Input value={f.label} onChange={(e) => setFields(fields.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} placeholder="Label" />
+                  <select
+                    className="border border-input bg-background h-9 px-2 rounded-md text-sm"
+                    value={f.type}
+                    onChange={(e) => setFields(fields.map((x, j) => j === i ? { ...x, type: e.target.value as InquiryFormField['type'] } : x))}
+                  >
+                    <option value="text">text</option>
+                    <option value="email">email</option>
+                    <option value="tel">tel</option>
+                    <option value="textarea">textarea</option>
+                    <option value="checkbox">checkbox</option>
+                    <option value="file">file</option>
+                  </select>
+                  <div className="flex items-center gap-1"><Switch checked={!!f.required} onCheckedChange={(v) => setFields(fields.map((x, j) => j === i ? { ...x, required: v } : x))} /><span className="text-[10px] text-muted-foreground">povinné</span></div>
+                  <Button variant="ghost" size="icon" onClick={() => setFields(fields.filter((_, j) => j !== i))}><Trash2 size={14} /></Button>
+                </div>
+                {f.type === 'file' && (
+                  <div className="flex items-center gap-2 pl-2">
+                    <Input className="flex-1 h-8 text-xs" value={f.accept ?? ''} onChange={(e) => setFields(fields.map((x, j) => j === i ? { ...x, accept: e.target.value } : x))} placeholder="accept (napr. image/*,application/pdf)" />
+                    <Input className="w-24 h-8 text-xs" type="number" value={f.maxSize ?? ''} onChange={(e) => setFields(fields.map((x, j) => j === i ? { ...x, maxSize: e.target.value ? Number(e.target.value) : undefined } : x))} placeholder="max MB" />
+                  </div>
+                )}
               </div>
             ))}
           </div>
