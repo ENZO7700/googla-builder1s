@@ -80,6 +80,20 @@ export default function InquiryInbox({ siteId }: { siteId: string }) {
               <div><b>Dátum:</b> {new Date(open.created_at).toLocaleString()}</div>
             </div>
             <pre className="text-xs whitespace-pre-wrap bg-muted p-3 rounded">{open.message}</pre>
+            {(() => {
+              const attachments = Object.entries(open.payload ?? {}).filter(([, v]) => isFileRef(v)) as [string, InquiryFileRef][];
+              if (!attachments.length) return null;
+              return (
+                <div className="space-y-1">
+                  <div className="text-xs font-medium text-muted-foreground">Prílohy</div>
+                  {attachments.map(([key, ref]) => (
+                    <button key={key} onClick={() => openAttachment(ref)} className="flex items-center gap-2 text-xs text-primary hover:underline">
+                      <Paperclip size={12} /> {ref.name} <span className="text-muted-foreground">({Math.round((ref.size ?? 0) / 1024)} KB)</span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
             {Object.keys(open.payload ?? {}).length > 0 && (
               <details><summary className="text-xs cursor-pointer">Plný payload</summary>
                 <pre className="text-[10px] bg-muted p-2 rounded mt-2 overflow-auto">{JSON.stringify(open.payload, null, 2)}</pre>
