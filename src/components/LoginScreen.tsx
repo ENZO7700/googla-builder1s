@@ -1,7 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { lovable } from '@/integrations/lovable/index';
+import {
+  getGoogleRedirectResult,
+  signInWithGoogle,
+  signOutFirebase,
+  subscribeToFirebaseAuth,
+} from '@/integrations/firebase/auth';
+import type { User as FirebaseUser } from 'firebase/auth';
 
 type View = 'login' | 'signup' | 'forgot';
 
@@ -9,10 +15,39 @@ export default function LoginScreen() {
   const [view, setView] = useState<View>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  useEffect(() => subscribeToFirebaseAuth(setFirebaseUser), []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getGoogleRedirectResult()
+      .then((user) => {
+        if (!isMounted || !user) return;
+        setSuccessMsg(`Firebase Google prihlásenie aktívne pre ${user.email ?? 'Google účet'}.`);
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        setError(getErrorMessage(err, 'Google prihlásenie zlyhalo.'));
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const getErrorMessage = (err: unknown, fallback: string) => {
+    if (err instanceof Error && err.message) {
+      return err.message;
+    }
+
+    return fallback;
+  };
 
   const switchView = (v: View) => {
     setView(v);
@@ -45,8 +80,8 @@ export default function LoginScreen() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
-    } catch (err: any) {
-      setError(err.message || 'Nastala chyba.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Nastala chyba.'));
     } finally {
       setLoading(false);
     }
@@ -55,20 +90,29 @@ export default function LoginScreen() {
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     setError('');
+    setSuccessMsg('');
     try {
-      const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: window.location.origin,
-      });
-      if (result.error) {
-        throw result.error;
-      }
-      if (result.redirected) {
+      const user = await signInWithGoogle();
+      if (!user) {
+        setSuccessMsg('Presmerovávam na Google prihlásenie...');
         return;
       }
-    } catch (err: any) {
-      setError(err.message || 'Google prihlásenie zlyhalo.');
+
+      setSuccessMsg(`Firebase Google prihlásenie aktívne pre ${user.email ?? 'Google účet'}.`);
+    } catch (err) {
+      setError(getErrorMessage(err, 'Google prihlásenie zlyhalo.'));
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  const handleFirebaseSignOut = async () => {
+    setError('');
+    setSuccessMsg('');
+    try {
+      await signOutFirebase();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Odhlásenie z Firebase zlyhalo.'));
     }
   };
 
@@ -92,6 +136,38 @@ export default function LoginScreen() {
 
           <h1 className="text-2xl font-normal text-foreground mb-1">{title}</h1>
           <p className="text-muted-foreground text-sm mb-8">{subtitle}</p>
+
+          {firebaseUser && (
+            <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3 text-left">
+              <div className="flex min-w-0 items-center gap-3">
+                {firebaseUser.photoURL ? (
+                  <img
+                    src={firebaseUser.photoURL}
+                    alt=""
+                    className="h-10 w-10 rounded-full"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
+                    {(firebaseUser.email ?? 'G').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {firebaseUser.displayName ?? firebaseUser.email ?? 'Google účet'}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">{firebaseUser.email}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleFirebaseSignOut}
+                className="shrink-0 text-xs font-medium text-primary hover:underline"
+              >
+                Odhlásiť
+              </button>
+            </div>
+          )}
 
           {successMsg ? (
             <div className="py-6 text-success text-sm font-medium">{successMsg}</div>
