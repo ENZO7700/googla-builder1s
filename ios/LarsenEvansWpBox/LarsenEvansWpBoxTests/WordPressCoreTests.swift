@@ -117,6 +117,8 @@ final class WordPressCoreTests: XCTestCase {
         XCTAssertEqual(SiteConnectionMode.authenticatedViaKeychain.label, "Authenticated via Keychain")
         XCTAssertTrue(SiteConnectionMode.anonymous.detail.contains("Public REST"))
         XCTAssertTrue(SiteConnectionMode.authenticatedViaKeychain.detail.contains("Keychain"))
+        XCTAssertTrue(SiteConnectionMode.anonymous.notice?.contains("Anonymous mode") == true)
+        XCTAssertNil(SiteConnectionMode.authenticatedViaKeychain.notice)
     }
 
     func testPostContentMappingKeepsExplorerMetadata() throws {

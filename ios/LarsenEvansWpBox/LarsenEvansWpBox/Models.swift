@@ -152,6 +152,15 @@ enum SiteConnectionMode: Equatable {
         }
     }
 
+    var notice: String? {
+        switch self {
+        case .anonymous:
+            "Anonymous mode is active. Public content remains visible; protected WordPress endpoints stay locked."
+        case .authenticatedViaKeychain:
+            nil
+        }
+    }
+
     var tint: Color {
         switch self {
         case .anonymous: .secondary

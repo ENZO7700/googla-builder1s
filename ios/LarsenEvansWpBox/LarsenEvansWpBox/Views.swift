@@ -386,12 +386,7 @@ private struct ConnectionCard: View {
                 StatusPill(title: model.isConnectionSaved ? "Keychain saved" : "Local test", tint: model.isConnectionSaved ? .green : .secondary)
                 Spacer()
                 if model.isConnectionSaved {
-                    Button("Forget") {
-                        Task { await model.forgetConnectionAndRefresh() }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .tint(.red)
+                    ForgetConnectionButton(model: model, isFullWidth: false)
                 }
             }
 
@@ -539,18 +534,15 @@ private struct SiteOverviewCard: View {
                 .disabled(model.isTestingConnection || !model.isAuthenticatedHealthMode)
 
                 if model.isConnectionSaved {
-                    Button(role: .destructive) {
-                        Task { await model.forgetConnectionAndRefresh() }
-                    } label: {
-                        Label("Forget saved connection", systemImage: "trash")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
+                    ForgetConnectionButton(model: model, isFullWidth: true)
                 }
             }
 
             if model.isLoadingOverview {
                 LoadingRow(title: "Refreshing site overview...")
+            }
+            if let notice = model.connectionMode.notice {
+                NoticeResultView(message: notice)
             }
             if let error = model.overviewError {
                 ErrorResultView(message: error)
@@ -578,6 +570,36 @@ private struct SiteOverviewCard: View {
             return "Not refreshed yet"
         }
         return OverviewDateFormatter.timestamp.string(from: date)
+    }
+}
+
+private struct ForgetConnectionButton: View {
+    @Bindable var model: AppViewModel
+    let isFullWidth: Bool
+    @State private var isConfirming = false
+
+    var body: some View {
+        Button(role: .destructive) {
+            isConfirming = true
+        } label: {
+            if isFullWidth {
+                Label("Forget saved connection", systemImage: "trash")
+                    .frame(maxWidth: .infinity)
+            } else {
+                Text("Forget")
+            }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(isFullWidth ? .regular : .small)
+        .disabled(model.isLoadingOverview || model.isTestingConnection)
+        .alert("Forget saved connection?", isPresented: $isConfirming) {
+            Button("Cancel", role: .cancel) {}
+            Button("Forget", role: .destructive) {
+                Task { await model.forgetConnectionAndRefresh() }
+            }
+        } message: {
+            Text("This removes only the local Keychain connection. WordPress content and settings are not changed.")
+        }
     }
 }
 
