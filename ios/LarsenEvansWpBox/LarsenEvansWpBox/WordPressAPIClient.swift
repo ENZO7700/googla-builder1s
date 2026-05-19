@@ -113,6 +113,41 @@ struct WordPressAPIClient {
         }
     }
 
+    func fetchContentCount(baseURL: String, type: WordPressContentType) async throws -> Int {
+        guard let url = makeURL(baseURL: baseURL, path: type.countPath) else {
+            throw ClientError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                throw ClientError.network("WordPress returned an invalid response.")
+            }
+            if !(200..<300).contains(http.statusCode) {
+                let error = try? JSONDecoder().decode(WPErrorResponse.self, from: data)
+                let message = error?.message?.strippingHTML ?? "Content count endpoint is not available."
+                throw ClientError.rejected(http.statusCode, message)
+            }
+            if let total = http.value(forHTTPHeaderField: "X-WP-Total"),
+               let count = Int(total) {
+                return count
+            }
+            guard !data.isEmpty else {
+                return 0
+            }
+
+            let decoded = try JSONDecoder().decode([WPContentResponse].self, from: data)
+            return decoded.count
+        } catch let error as ClientError {
+            throw error
+        } catch {
+            throw ClientError.network(error.localizedDescription)
+        }
+    }
+
     private func check(endpoint: HealthEndpoint, baseURL: String, credentials: WordPressConnection?) async -> HealthEndpoint {
         var next = endpoint
         guard let url = makeURL(baseURL: baseURL, path: endpoint.path) else {

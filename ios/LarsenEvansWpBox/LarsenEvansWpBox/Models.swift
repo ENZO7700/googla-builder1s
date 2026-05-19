@@ -23,7 +23,7 @@ enum CheckState: Equatable {
         case .idle: .secondary
         case .running: .blue
         case .ok: .green
-        case .protected: .orange
+        case .protected: .blue
         case .failed: .red
         }
     }
@@ -68,7 +68,7 @@ struct WordPressConnection: Codable, Equatable {
     let applicationPassword: String
 }
 
-enum WordPressContentType: String, CaseIterable, Identifiable {
+enum WordPressContentType: String, CaseIterable, Identifiable, Hashable {
     case posts
     case pages
     case media
@@ -94,11 +94,68 @@ enum WordPressContentType: String, CaseIterable, Identifiable {
         }
     }
 
+    var countPath: String {
+        switch self {
+        case .posts:
+            "/wp/v2/posts?per_page=1&_fields=id"
+        case .pages:
+            "/wp/v2/pages?per_page=1&_fields=id"
+        case .media:
+            "/wp/v2/media?per_page=1&_fields=id"
+        }
+    }
+
     var icon: String {
         switch self {
         case .posts: "doc.text.fill"
         case .pages: "rectangle.on.rectangle.fill"
         case .media: "photo.on.rectangle.angled"
+        }
+    }
+}
+
+struct SiteOverviewCounts: Equatable {
+    private let values: [WordPressContentType: Int]
+
+    init(values: [WordPressContentType: Int] = [:]) {
+        self.values = values
+    }
+
+    func count(for type: WordPressContentType) -> Int {
+        values[type] ?? 0
+    }
+
+    var total: Int {
+        WordPressContentType.allCases.reduce(0) { partial, type in
+            partial + count(for: type)
+        }
+    }
+}
+
+enum SiteConnectionMode: Equatable {
+    case anonymous
+    case authenticatedViaKeychain
+
+    var label: String {
+        switch self {
+        case .anonymous: "Anonymous"
+        case .authenticatedViaKeychain: "Authenticated via Keychain"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .anonymous:
+            "Public REST endpoints are available. Protected checks stay locked by WordPress."
+        case .authenticatedViaKeychain:
+            "Protected REST checks use the saved local Keychain connection."
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .anonymous: .secondary
+        case .authenticatedViaKeychain: .blue
         }
     }
 }
@@ -178,7 +235,7 @@ extension CapabilityRow.State {
     var tint: Color {
         switch self {
         case .ready: .green
-        case .needsAuth: .orange
+        case .needsAuth: .secondary
         case .authenticated: .green
         case .readOnlyAvailable: .blue
         case .edge: .blue

@@ -93,6 +93,32 @@ final class WordPressCoreTests: XCTestCase {
         XCTAssertTrue(WordPressContentType.media.path.contains("alt_text"))
     }
 
+    func testContentTypeCountPathsUseLightweightFields() {
+        XCTAssertEqual(WordPressContentType.posts.countPath, "/wp/v2/posts?per_page=1&_fields=id")
+        XCTAssertEqual(WordPressContentType.pages.countPath, "/wp/v2/pages?per_page=1&_fields=id")
+        XCTAssertEqual(WordPressContentType.media.countPath, "/wp/v2/media?per_page=1&_fields=id")
+    }
+
+    func testSiteOverviewCountsMapContentTypes() {
+        let counts = SiteOverviewCounts(values: [
+            .posts: 3,
+            .pages: 2,
+            .media: 1
+        ])
+
+        XCTAssertEqual(counts.count(for: .posts), 3)
+        XCTAssertEqual(counts.count(for: .pages), 2)
+        XCTAssertEqual(counts.count(for: .media), 1)
+        XCTAssertEqual(counts.total, 6)
+    }
+
+    func testSiteConnectionModeLabels() {
+        XCTAssertEqual(SiteConnectionMode.anonymous.label, "Anonymous")
+        XCTAssertEqual(SiteConnectionMode.authenticatedViaKeychain.label, "Authenticated via Keychain")
+        XCTAssertTrue(SiteConnectionMode.anonymous.detail.contains("Public REST"))
+        XCTAssertTrue(SiteConnectionMode.authenticatedViaKeychain.detail.contains("Keychain"))
+    }
+
     func testPostContentMappingKeepsExplorerMetadata() throws {
         let json = """
         {

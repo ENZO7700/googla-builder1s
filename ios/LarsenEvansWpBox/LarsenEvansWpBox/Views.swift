@@ -17,6 +17,10 @@ final class AppViewModel {
     var contentItems: [WordPressContentItem] = []
     var contentError: String?
     var isLoadingContent = false
+    var overviewCounts = SiteOverviewCounts()
+    var overviewError: String?
+    var isLoadingOverview = false
+    var lastOverviewRefresh: Date?
 
     private let api = WordPressAPIClient()
     private let credentialStore = KeychainCredentialStore()
@@ -43,6 +47,7 @@ final class AppViewModel {
         connectionUser = nil
         connectionError = nil
         connectionNotice = nil
+        overviewError = nil
         let password = applicationPassword
         defer {
             applicationPassword = ""
@@ -77,8 +82,50 @@ final class AppViewModel {
                 }
             }
             healthChecks = await api.runHealthChecks(baseURL: connection.baseURL, credentials: savedConnectionForCurrentBaseURL())
+            await refreshContentCounts()
+            lastOverviewRefresh = Date()
         } catch {
             connectionError = error.localizedDescription
+        }
+    }
+
+    func refreshOverview() async {
+        isLoadingOverview = true
+        overviewError = nil
+        defer { isLoadingOverview = false }
+
+        await runHealthChecks()
+        await refreshSavedConnectionUser()
+        await refreshContentCounts()
+        lastOverviewRefresh = Date()
+    }
+
+    func testSavedConnection() async {
+        guard let connection = savedConnectionForCurrentBaseURL() else {
+            connectionError = "No saved Keychain connection for this WordPress URL."
+            return
+        }
+
+        isTestingConnection = true
+        connectionError = nil
+        connectionNotice = nil
+        overviewError = nil
+        defer { isTestingConnection = false }
+
+        do {
+            connectionUser = try await api.validateConnection(
+                baseURL: connection.baseURL,
+                username: connection.username,
+                applicationPassword: connection.applicationPassword
+            )
+            connectionNotice = "Saved Keychain connection is valid."
+            healthChecks = await api.runHealthChecks(baseURL: connection.baseURL, credentials: connection)
+            await refreshContentCounts()
+            lastOverviewRefresh = Date()
+        } catch {
+            connectionUser = nil
+            connectionError = "Saved connection test failed: \(error.localizedDescription)"
+            overviewError = connectionError
         }
     }
 
@@ -95,7 +142,7 @@ final class AppViewModel {
     }
 
     func refreshAll() async {
-        await runHealthChecks()
+        await refreshOverview()
         await loadContent()
     }
 
@@ -107,11 +154,17 @@ final class AppViewModel {
             savedConnection = nil
             connectionUser = nil
             connectionError = nil
+            overviewError = nil
             isConnectionSaved = false
             connectionNotice = "Saved connection removed from Keychain."
         } catch {
             connectionError = error.localizedDescription
         }
+    }
+
+    func forgetConnectionAndRefresh() async {
+        forgetConnection()
+        await refreshOverview()
     }
 
     private func restoreSavedConnection() {
@@ -177,6 +230,46 @@ final class AppViewModel {
         }
         return "HTTP 401/403 on protected endpoints means WordPress is locked correctly."
     }
+
+    var connectionMode: SiteConnectionMode {
+        isAuthenticatedHealthMode ? .authenticatedViaKeychain : .anonymous
+    }
+
+    var normalizedBaseURL: String {
+        baseURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingTrailingSlash
+    }
+
+    private func refreshSavedConnectionUser() async {
+        guard let connection = savedConnectionForCurrentBaseURL() else {
+            connectionUser = nil
+            return
+        }
+
+        do {
+            connectionUser = try await api.validateConnection(
+                baseURL: connection.baseURL,
+                username: connection.username,
+                applicationPassword: connection.applicationPassword
+            )
+            connectionError = nil
+        } catch {
+            connectionUser = nil
+            connectionError = "Saved connection test failed: \(error.localizedDescription)"
+            overviewError = connectionError
+        }
+    }
+
+    private func refreshContentCounts() async {
+        do {
+            var next: [WordPressContentType: Int] = [:]
+            for type in WordPressContentType.allCases {
+                next[type] = try await api.fetchContentCount(baseURL: baseURL, type: type)
+            }
+            overviewCounts = SiteOverviewCounts(values: next)
+        } catch {
+            overviewError = error.localizedDescription
+        }
+    }
 }
 
 struct RootView: View {
@@ -191,6 +284,7 @@ struct RootView: View {
                 VStack(spacing: 18) {
                     HeroCard()
                     ConnectionCard(model: model)
+                    SiteOverviewCard(model: model)
                     ContentBrowserCard(model: model)
                     HealthCard(model: model)
                     ControlCenterCard(isAuthenticated: model.isAuthenticatedHealthMode)
@@ -212,9 +306,7 @@ struct RootView: View {
                 }
             }
             .task {
-                if model.healthChecks.allSatisfy({ $0.state == .idle }) {
-                    await model.runHealthChecks()
-                }
+                await model.refreshOverview()
                 if model.contentItems.isEmpty {
                     await model.loadContent()
                 }
@@ -295,7 +387,7 @@ private struct ConnectionCard: View {
                 Spacer()
                 if model.isConnectionSaved {
                     Button("Forget") {
-                        model.forgetConnection()
+                        Task { await model.forgetConnectionAndRefresh() }
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -348,6 +440,168 @@ private struct ConnectionCard: View {
             }
         }
         .cardStyle()
+    }
+}
+
+private enum OverviewDateFormatter {
+    static let timestamp: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+}
+
+private struct SiteOverviewCard: View {
+    @Bindable var model: AppViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                SectionHeader(
+                    icon: "gauge.medium",
+                    title: "Site overview",
+                    subtitle: "Connection, REST health, and content counts at a glance."
+                )
+                Spacer()
+                Button {
+                    Task { await model.refreshOverview() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.bordered)
+                .disabled(model.isLoadingOverview || model.isCheckingHealth)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    StatusPill(title: model.connectionMode.label, tint: model.connectionMode.tint)
+                    StatusPill(title: "\(model.healthSummary.ok) OK", tint: .green)
+                }
+                HStack {
+                    StatusPill(title: "\(model.healthSummary.protected) protected", tint: .blue)
+                    StatusPill(title: "\(model.healthSummary.errors) errors", tint: model.healthSummary.errors == 0 ? .secondary : .red)
+                }
+            }
+            Text(model.connectionMode.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                OverviewMetricTile(
+                    title: "Posts",
+                    value: model.overviewCounts.count(for: .posts),
+                    icon: WordPressContentType.posts.icon,
+                    tint: .blue
+                )
+                OverviewMetricTile(
+                    title: "Pages",
+                    value: model.overviewCounts.count(for: .pages),
+                    icon: WordPressContentType.pages.icon,
+                    tint: .indigo
+                )
+                OverviewMetricTile(
+                    title: "Media",
+                    value: model.overviewCounts.count(for: .media),
+                    icon: WordPressContentType.media.icon,
+                    tint: .purple
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                MetadataRow(title: "URL", value: model.normalizedBaseURL)
+                MetadataRow(title: "Mode", value: model.connectionMode.label)
+                MetadataRow(title: "User", value: overviewUserLabel)
+                MetadataRow(title: "Roles", value: overviewRoleLabel)
+                MetadataRow(title: "Refresh", value: lastRefreshLabel)
+            }
+            .padding(12)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+
+            VStack(spacing: 10) {
+                Button {
+                    Task { await model.refreshOverview() }
+                } label: {
+                    Label(model.isLoadingOverview ? "Refreshing..." : "Refresh overview", systemImage: "arrow.clockwise")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(model.isLoadingOverview)
+
+                Button {
+                    Task { await model.testSavedConnection() }
+                } label: {
+                    Label(model.isTestingConnection ? "Testing..." : "Test connection again", systemImage: "checkmark.shield")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(model.isTestingConnection || !model.isAuthenticatedHealthMode)
+
+                if model.isConnectionSaved {
+                    Button(role: .destructive) {
+                        Task { await model.forgetConnectionAndRefresh() }
+                    } label: {
+                        Label("Forget saved connection", systemImage: "trash")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+
+            if model.isLoadingOverview {
+                LoadingRow(title: "Refreshing site overview...")
+            }
+            if let error = model.overviewError {
+                ErrorResultView(message: error)
+            }
+        }
+        .cardStyle()
+    }
+
+    private var overviewUserLabel: String {
+        guard let user = model.connectionUser else {
+            return model.isAuthenticatedHealthMode ? "Not verified yet" : "Not connected"
+        }
+        return user.name
+    }
+
+    private var overviewRoleLabel: String {
+        guard let user = model.connectionUser else {
+            return model.isAuthenticatedHealthMode ? "Pending test" : "None"
+        }
+        return user.roles.isEmpty ? "Role hidden" : user.roles.joined(separator: ", ")
+    }
+
+    private var lastRefreshLabel: String {
+        guard let date = model.lastOverviewRefresh else {
+            return "Not refreshed yet"
+        }
+        return OverviewDateFormatter.timestamp.string(from: date)
+    }
+}
+
+private struct OverviewMetricTile: View {
+    let title: String
+    let value: Int
+    let icon: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: icon)
+                .foregroundStyle(tint)
+                .frame(width: 28, height: 28)
+                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+            Text("\(value)")
+                .font(.title3.bold())
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -434,11 +688,15 @@ private struct HealthCard: View {
                 .disabled(model.isCheckingHealth)
             }
 
-            HStack {
-                StatusPill(title: model.healthModeTitle, tint: model.isAuthenticatedHealthMode ? .blue : .secondary)
-                StatusPill(title: "\(model.healthSummary.ok) OK", tint: .green)
-                StatusPill(title: "\(model.healthSummary.protected) protected", tint: .orange)
-                StatusPill(title: "\(model.healthSummary.errors) errors", tint: model.healthSummary.errors == 0 ? .secondary : .red)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    StatusPill(title: model.healthModeTitle, tint: model.isAuthenticatedHealthMode ? .blue : .secondary)
+                    StatusPill(title: "\(model.healthSummary.ok) OK", tint: .green)
+                }
+                HStack {
+                    StatusPill(title: "\(model.healthSummary.protected) protected", tint: .blue)
+                    StatusPill(title: "\(model.healthSummary.errors) errors", tint: model.healthSummary.errors == 0 ? .secondary : .red)
+                }
             }
             Text(model.healthModeDetail)
                 .font(.caption)
