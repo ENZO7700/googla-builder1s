@@ -1,7 +1,7 @@
 {
-	"name": "Lovable App",
-	"short_name": "Lovable",
-	"description": "Lovable Generated Project",
+	"name": "LarsenEvans-wpBOX",
+	"short_name": "wpBOX",
+	"description": "LarsenEvans WordPress workspace dashboard",
 	"start_url": ".",
 	"scope": "/",
 	"display": "standalone",

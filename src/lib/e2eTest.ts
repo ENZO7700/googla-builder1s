@@ -16,7 +16,7 @@ const log = (msg: string, ok: boolean) => {
 
 export async function runE2ETest(): Promise<E2EResult[]> {
   // eslint-disable-next-line no-console
-  console.log('%c━━━ H4CK3D Enterprise E2E Test ━━━', 'color:#3b82f6;font-weight:bold;font-size:14px');
+  console.log('%c━━━ LarsenEvans-wpBOX E2E Test ━━━', 'color:#3b82f6;font-weight:bold;font-size:14px');
   const results: E2EResult[] = [];
   let testSessionId: string | null = null;
   let testFilePath: string | null = null;

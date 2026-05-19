@@ -1,4 +1,4 @@
-import { Layout, X, Loader2, Terminal, Send } from 'lucide-react';
+import { ArrowLeft, Layout, Menu, X, Loader2, Terminal, Send } from 'lucide-react';
 import { MarkdownRenderer } from '@/lib/formatMarkdown';
 
 interface Message {
@@ -9,6 +9,8 @@ interface Message {
 interface PreviewViewProps {
   latestCode: string;
   onClearCode: () => void;
+  onBack: () => void;
+  onOpenMobileMenu?: () => void;
   messages: Message[];
   isLoading: boolean;
   inputValue: string;
@@ -18,7 +20,7 @@ interface PreviewViewProps {
 }
 
 export default function PreviewView({
-  latestCode, onClearCode, messages, isLoading,
+  latestCode, onClearCode, onBack, onOpenMobileMenu, messages, isLoading,
   inputValue, onInputChange, onSend, onGenerateDemo
 }: PreviewViewProps) {
   return (
@@ -72,18 +74,38 @@ export default function PreviewView({
 
       {/* Right preview */}
       <div className="flex-1 h-full flex flex-col relative bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-border bg-accent">
+        <div className="px-4 py-3 flex flex-col gap-3 border-b border-border bg-accent sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-foreground font-medium text-sm">
             <Layout size={16} className="text-muted-foreground" /> Live Sandbox
           </div>
-          {latestCode && (
+          <div className="flex flex-wrap gap-2">
+            {onOpenMobileMenu && (
+              <button
+                type="button"
+                onClick={onOpenMobileMenu}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-[11px] font-medium text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground lg:hidden"
+              >
+                <Menu size={14} />
+                Nástroje
+              </button>
+            )}
             <button
-              onClick={onClearCode}
-              className="text-[11px] px-3 py-1.5 bg-card border border-border text-muted-foreground rounded-md hover:bg-accent transition-colors font-medium flex items-center gap-1.5 shadow-sm"
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-[11px] font-medium text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
             >
-              <X size={14} /> Vyčistiť
+              <ArrowLeft size={14} />
+              Späť
             </button>
-          )}
+            {latestCode && (
+              <button
+                onClick={onClearCode}
+                className="text-[11px] px-3 py-1.5 bg-card border border-border text-muted-foreground rounded-md hover:bg-accent transition-colors font-medium flex items-center gap-1.5 shadow-sm"
+              >
+                <X size={14} /> Vyčistiť
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex-1 relative bg-card">

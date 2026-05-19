@@ -5,15 +5,30 @@ import LoginScreen from '@/components/LoginScreen';
 import SidebarNav, { Session } from '@/components/workspace/SidebarNav';
 import SystemMonitor, { StreamDiagnostics } from '@/components/workspace/SystemMonitor';
 import ChatView from '@/components/workspace/ChatView';
+import WorkflowRibbon from '@/components/workspace/WorkflowRibbon';
 import ToastContainer, { Toast } from '@/components/workspace/ToastContainer';
 import SettingsPanel from '@/components/workspace/SettingsPanel';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
+import {
+  createWorkflowRun,
+  finishWorkflowRun,
+  updateWorkflowStep,
+  type WorkflowRun,
+  type WorkflowStepId,
+} from '@/lib/workflow';
 
 const AnalyzerView = lazy(() => import('@/components/workspace/AnalyzerView'));
 const GeneratorView = lazy(() => import('@/components/workspace/GeneratorView'));
 const PreviewView = lazy(() => import('@/components/workspace/PreviewView'));
 const ConnectorsView = lazy(() => import('@/components/workspace/ConnectorsView'));
+
+const LOCAL_ACCESS_KEY = 'wpbox.localAccess';
+const LOCAL_USER_ID = 'local-wpbox-user';
+const LOCAL_DEMO_USER = {
+  id: LOCAL_USER_ID,
+  email: 'local@larsenevans-wpbox.dev',
+} as User;
 
 interface Message {
   role: string;
@@ -55,30 +70,32 @@ export default function Index() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
   const [diagnostics, setDiagnostics] = useState<StreamDiagnostics | null>(null);
+  const [workflowRun, setWorkflowRun] = useState<WorkflowRun | null>(null);
   const recognitionRef = useRef<any>(null);
   const [logs, setLogs] = useState([
-    '[SYSTEM] Inicializácia inštancie H4CK3D Enterprise...',
+    '[SYSTEM] Inicializácia inštancie LarsenEvans-wpBOX...',
     '[AUTH] IAM politiky úspešne overené.',
     '[NET] Pripojenie k VPC nadviazané.',
     '[AGENT] Cloud AI agent pripravený.',
   ]);
 
-  // Auth listener
+  // Local preview gate. Real Supabase auth is intentionally bypassed here so
+  // the workspace can be opened while OAuth provider setup is unresolved.
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setAuthLoading(false);
-    });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setAuthLoading(false);
-    });
-    return () => subscription.unsubscribe();
+    if (localStorage.getItem(LOCAL_ACCESS_KEY) === 'true') {
+      setUser(LOCAL_DEMO_USER);
+    }
+    setAuthLoading(false);
   }, []);
 
   // Load sessions from DB
   useEffect(() => {
     if (!user) { setSessionsLoading(false); return; }
+    if (user.id === LOCAL_USER_ID) {
+      setSessions([]);
+      setSessionsLoading(false);
+      return;
+    }
     const loadSessions = async () => {
       setSessionsLoading(true);
       const { data } = await supabase
@@ -139,6 +156,14 @@ export default function Index() {
     setLogs(prev => [...prev.slice(-30), msg]);
   }, []);
 
+  const setWorkflowStep = useCallback((stepId: WorkflowStepId, update: Parameters<typeof updateWorkflowStep>[2]) => {
+    setWorkflowRun(prev => prev ? updateWorkflowStep(prev, stepId, update) : prev);
+  }, []);
+
+  const finishWorkflow = useCallback((status: 'done' | 'error', lastEvent: string) => {
+    setWorkflowRun(prev => prev ? finishWorkflowRun(prev, status, lastEvent) : prev);
+  }, []);
+
   // Real event logs instead of fake ones
   useEffect(() => {
     if (!user) return;
@@ -158,6 +183,8 @@ export default function Index() {
 
   const extractCodeForPreview = (text: string) => {
     if (!text) return;
+    setWorkflowStep('preview', { status: 'running', detail: 'Hľadám HTML blok pre náhľad', progress: 35 });
+    let foundPreview = false;
     try {
       const parts = text.split('```');
       for (let i = 1; i < parts.length; i += 2) {
@@ -165,18 +192,32 @@ export default function Index() {
         if (block.toLowerCase().startsWith('html') || block.toLowerCase().startsWith('xml')) {
           const code = block.substring(block.indexOf('\n') + 1);
           setLatestGeneratedCode(code);
+          foundPreview = true;
+          setWorkflowStep('preview', { status: 'done', detail: 'HTML náhľad pripravený', progress: 100 });
           addLog('[UI] Vizuálny kód exportovaný do Sandboxu.');
           showToast('Live Náhľad aktualizovaný', 'success');
           break;
         }
       }
+      if (!foundPreview) {
+        setWorkflowStep('preview', { status: 'skipped', detail: 'Bez HTML náhľadu', progress: 100 });
+      }
     } catch {
+      setWorkflowStep('preview', { status: 'error', detail: 'Extrakcia náhľadu zlyhala', progress: 100 });
       addLog('[ERROR] Extrakcia náhľadu zlyhala.');
     }
   };
 
   const saveMessageToDB = async (sessionId: string, role: string, content: string) => {
     if (!user) return;
+    if (user.id === LOCAL_USER_ID) {
+      setSessions(prev => prev.map(s => (
+        s.id === sessionId
+          ? { ...s, messages: [...s.messages, { role, content }] }
+          : s
+      )));
+      return;
+    }
     await supabase.from('chat_messages').insert({
       session_id: sessionId,
       user_id: user.id,
@@ -187,6 +228,9 @@ export default function Index() {
 
   const createSessionInDB = async (title: string): Promise<string | null> => {
     if (!user) return null;
+    if (user.id === LOCAL_USER_ID) {
+      return `local_${Date.now()}`;
+    }
     const { data } = await supabase.from('chat_sessions').insert({
       user_id: user.id,
       title: title.substring(0, 40),
@@ -196,6 +240,10 @@ export default function Index() {
 
   const updateSessionTitle = async (sessionId: string, title: string) => {
     const trimmed = title.substring(0, 40);
+    if (user?.id === LOCAL_USER_ID) {
+      setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: trimmed } : s));
+      return;
+    }
     await supabase.from('chat_sessions').update({ title: trimmed, updated_at: new Date().toISOString() }).eq('id', sessionId);
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: trimmed } : s));
   };
@@ -212,6 +260,14 @@ export default function Index() {
   // Upload one file immediately, updating progress in state
   const uploadOne = async (att: Attachment, index: number) => {
     if (!user || !att.file) return;
+    if (user.id === LOCAL_USER_ID) {
+      const url = URL.createObjectURL(att.file);
+      setAttachments(prev => prev.map((a, i) =>
+        i === index ? { ...a, uploading: false, progress: 100, url, path: url } : a
+      ));
+      addLog(`[LOCAL] Súbor pripravený lokálne: ${att.name}`);
+      return;
+    }
     const path = `${user.id}/pending/${Date.now()}_${att.name}`;
     // simulate progress while supabase SDK does the upload
     const progressInterval = setInterval(() => {
@@ -255,6 +311,7 @@ export default function Index() {
     let chunks = 0;
 
     setDiagnostics(null);
+    setWorkflowStep('ai', { status: 'running', detail: 'Odosielam request do AI Core', progress: 30 });
 
     let response: Response;
     try {
@@ -269,6 +326,8 @@ export default function Index() {
       });
     } catch (netErr: any) {
       setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: netErr.message || 'Network error', timestamp: new Date() });
+      setWorkflowStep('ai', { status: 'error', detail: netErr.message || 'Network error', progress: 100 });
+      finishWorkflow('error', 'AI request zlyhal');
       throw netErr;
     }
 
@@ -278,18 +337,25 @@ export default function Index() {
       else if (response.status === 402) toast.error('Nedostatok kreditov.');
       const msg = errData.error || `HTTP ${response.status}`;
       setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: msg, timestamp: new Date() });
+      setWorkflowStep('ai', { status: 'error', detail: msg, progress: 100 });
+      finishWorkflow('error', 'AI Core vrátil chybu');
       throw new Error(msg);
     }
 
     const reader = response.body?.getReader();
     if (!reader) {
       setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: 'No stream', timestamp: new Date() });
+      setWorkflowStep('ai', { status: 'done', detail: 'AI Core odpovedal', progress: 100 });
+      setWorkflowStep('stream', { status: 'error', detail: 'Stream nie je dostupný', progress: 100 });
+      finishWorkflow('error', 'Chýba stream odpovede');
       throw new Error('No stream');
     }
     const decoder = new TextDecoder();
     let fullText = '';
     let textBuffer = '';
     setIsStreaming(true);
+    setWorkflowStep('ai', { status: 'done', detail: 'AI Core prijal request', progress: 100 });
+    setWorkflowStep('stream', { status: 'running', detail: 'Čakám na prvý token', progress: 15 });
 
     setMessages(prev => [...prev, { role: 'model', content: '' }]);
 
@@ -312,8 +378,18 @@ export default function Index() {
             const parsed = JSON.parse(jsonStr);
             const delta = parsed.choices?.[0]?.delta?.content;
             if (delta) {
-              if (!firstTokenTime) firstTokenTime = performance.now();
+              if (!firstTokenTime) {
+                firstTokenTime = performance.now();
+                setWorkflowStep('stream', { status: 'running', detail: 'Prvý token prijatý', progress: 35 });
+              }
               chunks++;
+              if (chunks % 8 === 0) {
+                setWorkflowStep('stream', {
+                  status: 'running',
+                  detail: `Streamujem odpoveď (${chunks} chunkov)`,
+                  progress: Math.min(92, 35 + chunks * 2),
+                });
+              }
               fullText += delta;
               setMessages(prev => {
                 const updated = [...prev];
@@ -339,8 +415,18 @@ export default function Index() {
             const parsed = JSON.parse(jsonStr);
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) {
-              if (!firstTokenTime) firstTokenTime = performance.now();
+              if (!firstTokenTime) {
+                firstTokenTime = performance.now();
+                setWorkflowStep('stream', { status: 'running', detail: 'Prvý token prijatý', progress: 35 });
+              }
               chunks++;
+              if (chunks % 8 === 0) {
+                setWorkflowStep('stream', {
+                  status: 'running',
+                  detail: `Streamujem odpoveď (${chunks} chunkov)`,
+                  progress: Math.min(92, 35 + chunks * 2),
+                });
+              }
               fullText += content;
               setMessages(prev => {
                 const updated = [...prev];
@@ -360,10 +446,14 @@ export default function Index() {
         error: streamErr.message || 'Stream interrupted',
         timestamp: new Date(),
       });
+      setWorkflowStep('stream', { status: 'error', detail: streamErr.message || 'Stream interrupted', progress: 100 });
+      finishWorkflow('error', 'Stream odpovede bol prerušený');
       throw streamErr;
     } finally {
       setIsStreaming(false);
     }
+
+    setWorkflowStep('stream', { status: 'done', detail: `Stream hotový (${chunks} chunkov)`, progress: 100 });
 
     setDiagnostics({
       ttft: firstTokenTime ? firstTokenTime - startTime : 0,
@@ -404,6 +494,23 @@ export default function Index() {
     setIsLoading(true);
     addLog('[API] Odosielam požiadavku na Enterprise Core...');
 
+    const initialWorkflow = updateWorkflowStep(
+      updateWorkflowStep(
+        updateWorkflowStep(createWorkflowRun('AI request'), 'input', {
+          status: 'done',
+          detail: 'Prompt prijatý',
+          progress: 100,
+        }),
+        'files',
+        ready.length > 0
+          ? { status: 'done', detail: `${ready.length} súbor(ov) pripravených`, progress: 100 }
+          : { status: 'skipped', detail: 'Bez príloh', progress: 100 },
+      ),
+      'ai',
+      { status: 'running', detail: 'Pripravujem AI request', progress: 15 },
+    );
+    setWorkflowRun(initialWorkflow);
+
     let sessionId = activeSessionId;
     if (!sessionId) {
       const newId = await createSessionInDB(finalPrompt);
@@ -427,12 +534,18 @@ export default function Index() {
       extractCodeForPreview(replyText);
 
       if (sessionId) {
+        setWorkflowStep('save', { status: 'running', detail: 'Ukladám reláciu', progress: 45 });
         saveMessageToDB(sessionId, 'model', replyText);
         // Update session title and timestamp
         await supabase.from('chat_sessions').update({ updated_at: new Date().toISOString() }).eq('id', sessionId);
+        setWorkflowStep('save', { status: 'done', detail: 'Relácia uložená', progress: 100 });
+      } else {
+        setWorkflowStep('save', { status: 'skipped', detail: 'Bez aktívnej relácie', progress: 100 });
       }
+      finishWorkflow('done', 'Workflow dokončený');
     } catch (err: any) {
       addLog(`[ERROR] ${err.message || 'Spojenie prerušené.'}`);
+      finishWorkflow('error', err.message || 'Spojenie prerušené');
       // Only add error message if streaming didn't already add one
       setMessages(prev => {
         const last = prev[prev.length - 1];
@@ -457,13 +570,26 @@ export default function Index() {
 
   const handleAnalyzeLogs = async (rawLogs: string): Promise<string> => {
     addLog('[API] Spúšťam analýzu zraniteľností...');
+    setWorkflowRun(updateWorkflowStep(
+      updateWorkflowStep(
+        updateWorkflowStep(createWorkflowRun('Log analysis'), 'input', { status: 'done', detail: 'Logy prijaté', progress: 100 }),
+        'files',
+        { status: 'skipped', detail: 'Analýza textu bez uploadu', progress: 100 },
+      ),
+      'ai',
+      { status: 'running', detail: 'Pripravujem analýzu', progress: 15 },
+    ));
     try {
       const msgs: Message[] = [{ role: 'user', content: `Analyzuj tieto logy a identifikuj hrozby:\n\n${rawLogs}` }];
       const result = await callAIStreaming(msgs, 'FOCUS: Log Analysis. Identify anomalies, penetration attempts, and suspicious IPs. Format output in Markdown.');
+      setWorkflowStep('preview', { status: 'skipped', detail: 'Log analýza bez náhľadu', progress: 100 });
+      setWorkflowStep('save', { status: 'skipped', detail: 'Výstup sa zobrazuje v module', progress: 100 });
+      finishWorkflow('done', 'Analýza dokončená');
       addLog('[API] Analýza úspešne dokončená (200 OK).');
       showToast('Analýza hrozieb hotová', 'success');
       return result;
     } catch {
+      finishWorkflow('error', 'Analýza zlyhala');
       addLog('[ERROR] Analýza zlyhala.');
       showToast('Chyba pripojenia', 'error');
       return '⚠️ Zlyhalo pripojenie k AI backendu.';
@@ -472,14 +598,26 @@ export default function Index() {
 
   const handleGenerateSkill = async (desc: string): Promise<string> => {
     addLog('[API] Generujem Cloud funkciu...');
+    setWorkflowRun(updateWorkflowStep(
+      updateWorkflowStep(
+        updateWorkflowStep(createWorkflowRun('Code generation'), 'input', { status: 'done', detail: 'Zadanie prijaté', progress: 100 }),
+        'files',
+        { status: 'skipped', detail: 'Bez príloh', progress: 100 },
+      ),
+      'ai',
+      { status: 'running', detail: 'Pripravujem generovanie', progress: 15 },
+    ));
     try {
       const msgs: Message[] = [{ role: 'user', content: `Napíš skript pre nasledujúcu úlohu: ${desc}` }];
       const text = await callAIStreaming(msgs, 'FOCUS: Script Generation. Write clean, secure, production-ready code. Return ONLY the code wrapped in a markdown block.');
       addLog('[API] Zdrojový kód úspešne vygenerovaný.');
       showToast('Nástroj vygenerovaný', 'success');
       extractCodeForPreview(text);
+      setWorkflowStep('save', { status: 'skipped', detail: 'Generátor bez DB zápisu', progress: 100 });
+      finishWorkflow('done', 'Generovanie dokončené');
       return text;
     } catch {
+      finishWorkflow('error', 'Generovanie zlyhalo');
       addLog('[ERROR] Generovanie zlyhalo.');
       showToast('Chyba generovania', 'error');
       return '⚠️ Generovanie zlyhalo.';
@@ -492,6 +630,7 @@ export default function Index() {
     setInputValue('');
     setActiveSessionId(null);
     setCurrentView('tasks');
+    setWorkflowRun(null);
     addLog('[SYSTEM] Nový pracovný priestor alokovaný.');
     showToast('Nová relácia spustená', 'success');
   };
@@ -500,6 +639,12 @@ export default function Index() {
     setActiveSessionId(session.id);
     setCurrentView('tasks');
     addLog(`[SYSTEM] Načítavam reláciu...`);
+
+    if (user?.id === LOCAL_USER_ID) {
+      setMessages(session.messages);
+      showToast('Lokálna relácia obnovená', 'info');
+      return;
+    }
 
     const { data } = await supabase
       .from('chat_messages')
@@ -514,6 +659,15 @@ export default function Index() {
   };
 
   const deleteSession = async (sessionId: string) => {
+    if (user?.id === LOCAL_USER_ID) {
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      if (activeSessionId === sessionId) {
+        setMessages([]);
+        setActiveSessionId(null);
+      }
+      showToast('Lokálna relácia vymazaná', 'info');
+      return;
+    }
     await supabase.from('chat_sessions').delete().eq('id', sessionId);
     setSessions(prev => prev.filter(s => s.id !== sessionId));
     if (activeSessionId === sessionId) {
@@ -529,7 +683,11 @@ export default function Index() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    localStorage.removeItem(LOCAL_ACCESS_KEY);
+    if (user?.id !== LOCAL_USER_ID) {
+      await supabase.auth.signOut();
+    }
+    setUser(null);
     setMessages([]);
     setSessions([]);
     setActiveSessionId(null);
@@ -667,7 +825,14 @@ export default function Index() {
   }
 
   if (!user) {
-    return <LoginScreen />;
+    return (
+      <LoginScreen
+        onEnter={() => {
+          localStorage.setItem(LOCAL_ACCESS_KEY, 'true');
+          setUser(LOCAL_DEMO_USER);
+        }}
+      />
+    );
   }
 
   const tokenCount = messages.length > 0 ? (8.1 + messages.length * 0.3).toFixed(1) : '8.1';
@@ -677,13 +842,21 @@ export default function Index() {
       case 'files':
         return (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
-            <AnalyzerView onAnalyze={handleAnalyzeLogs} />
+            <AnalyzerView
+              onAnalyze={handleAnalyzeLogs}
+              onBack={() => setCurrentView('tasks')}
+              onOpenMobileMenu={() => setMobileMenuOpen(true)}
+            />
           </Suspense>
         );
       case 'skills':
         return (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
-            <GeneratorView onGenerate={handleGenerateSkill} />
+            <GeneratorView
+              onGenerate={handleGenerateSkill}
+              onBack={() => setCurrentView('tasks')}
+              onOpenMobileMenu={() => setMobileMenuOpen(true)}
+            />
           </Suspense>
         );
       case 'preview':
@@ -692,6 +865,8 @@ export default function Index() {
             <PreviewView
               latestCode={latestGeneratedCode}
               onClearCode={() => { setLatestGeneratedCode(''); addLog('[UI] Pamäť náhľadu vyčistená.'); showToast('Vyčistené', 'info'); }}
+              onBack={() => setCurrentView('tasks')}
+              onOpenMobileMenu={() => setMobileMenuOpen(true)}
               messages={messages}
               isLoading={isLoading}
               inputValue={inputValue}
@@ -704,7 +879,10 @@ export default function Index() {
       case 'connectors':
         return (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
-            <ConnectorsView onBack={() => setCurrentView('tasks')} />
+            <ConnectorsView
+              onBack={() => setCurrentView('tasks')}
+              onOpenMobileMenu={() => setMobileMenuOpen(true)}
+            />
           </Suspense>
         );
       default:
@@ -789,6 +967,7 @@ export default function Index() {
       </div>
 
       <main className="flex-1 flex flex-col relative overflow-hidden">
+        <WorkflowRibbon workflowRun={workflowRun} />
         <AnimatePresence mode="wait">
           <motion.div
             key={currentView}
@@ -809,6 +988,9 @@ export default function Index() {
         attachmentCount={attachments.length}
         logs={logs}
         diagnostics={diagnostics}
+        workflowRun={workflowRun}
+        attachments={attachments.map(({ name, progress, uploading, error, url }) => ({ name, progress, uploading, error, url }))}
+        hasPreviewCode={!!latestGeneratedCode}
       />
     </div>
   );

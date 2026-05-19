@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.0";
+import { decryptSecret, encodeBasicAuth } from "../_shared/wordpress-credentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,11 +68,11 @@ Deno.serve(async (req) => {
     const path = ENTITY_WP_PATH[body.entity];
     const wpPostId = (row as { wp_post_id?: number | null }).wp_post_id;
     const url = wpPostId ? `${base}/wp-json/wp/v2/${path}/${wpPostId}` : `${base}/wp-json/wp/v2/${path}`;
-    const credentials = btoa(`${site.username}:${atob(site.app_password_encrypted)}`);
+    const appPassword = await decryptSecret(String(site.app_password_encrypted));
 
     const wpRes = await fetch(url, {
       method: wpPostId ? 'POST' : 'POST', // WP REST accepts POST for both create + update via /id
-      headers: { 'Content-Type': 'application/json', Authorization: `Basic ${credentials}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Basic ${encodeBasicAuth(String(site.username), appPassword)}` },
       body: JSON.stringify(mapPayload(body.entity, row as Record<string, unknown>)),
     });
     const wpJson = await wpRes.json();

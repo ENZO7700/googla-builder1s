@@ -2,6 +2,13 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
+const LOCAL_ACCESS_KEY = 'wpbox.localAccess';
+const LOCAL_USER_ID = 'local-wpbox-user';
+const LOCAL_DEMO_USER = {
+  id: LOCAL_USER_ID,
+  email: 'local@larsenevans-wpbox.dev',
+} as User;
+
 /**
  * Hardcoded admin/owner email whitelist.
  * Add or remove emails here to grant/revoke access to the GitHub dashboard
@@ -39,6 +46,12 @@ export function useAdminAuth(): AdminAuthState {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (localStorage.getItem(LOCAL_ACCESS_KEY) === 'true') {
+      setUser(LOCAL_DEMO_USER);
+      setLoading(false);
+      return;
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);

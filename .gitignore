@@ -10,7 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+supabase/.temp
 *.local
+.wpbox/
 
 # Editor directories and files
 .vscode/*

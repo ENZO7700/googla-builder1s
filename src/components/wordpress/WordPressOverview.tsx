@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import DashboardCard from '@/components/dashboard/DashboardCard';
-import { FileText, Users, MessageSquare, Settings } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { LoadingState } from '@/components/dashboard/States';
+import { getPublicWordPressStats } from '@/lib/wordpress/publicWordPressApi';
 
 interface WPSite {
   id: string;
@@ -13,17 +14,7 @@ interface WPSite {
 export default function WordPressOverview({ site }: { site: WPSite }) {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['wp_stats', site.id],
-    queryFn: async () => {
-      // Mock data – nahraďte skutočným edge function call
-      return {
-        posts: 24,
-        drafts: 3,
-        comments: 156,
-        users: 5,
-        plugins: 12,
-        wpVersion: '6.4.2',
-      };
-    },
+    queryFn: () => getPublicWordPressStats(site.base_url),
   });
 
   if (isLoading) return <LoadingState />;
@@ -37,18 +28,18 @@ export default function WordPressOverview({ site }: { site: WPSite }) {
       >
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 px-6 py-5">
           <StatTile label="Posty" value={stats?.posts} icon="📝" />
-          <StatTile label="Drafty" value={stats?.drafts} icon="✏️" />
+          <StatTile label="Stránky" value={stats?.pages} icon="📄" />
           <StatTile label="Komentáre" value={stats?.comments} icon="💬" />
           <StatTile label="Používatelia" value={stats?.users} icon="👥" />
-          <StatTile label="Pluginy" value={stats?.plugins} icon="🧩" />
-          <StatTile label="WP verzia" value={stats?.wpVersion} icon="🔧" />
+          <StatTile label="Médiá" value={stats?.media} icon="🖼️" />
+          <StatTile label="Custom API" value={stats?.customNamespaces.length ?? 0} icon="🔌" />
         </div>
       </DashboardCard>
     </>
   );
 }
 
-function StatTile({ label, value, icon }: { label: string; value: any; icon: string }) {
+function StatTile({ label, value, icon }: { label: string; value: number | string | undefined; icon: string }) {
   return (
     <div className="p-4 rounded-lg bg-muted/30 border border-border">
       <div className="text-2xl mb-1">{icon}</div>

@@ -45,7 +45,7 @@ const MOCK_CONNECTION: GitHubConnection = {
   status: 'connected',
   account: {
     login: 'h4ck3d-ent',
-    name: 'H4CK3D Enterprise',
+    name: 'LarsenEvans-wpBOX',
     avatarUrl: 'https://avatars.githubusercontent.com/u/9919?v=4',
     type: 'Organization',
   },

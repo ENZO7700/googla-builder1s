@@ -5,7 +5,7 @@ export const DEMO_PROJECT_ID = 'proj_demo_h4ck3d_ecommerce';
 
 export const demoProject: LaunchProject = {
   id: DEMO_PROJECT_ID,
-  name: 'H4CK3D Sample E-commerce App',
+  name: 'LarsenEvans-wpBOX Sample WordPress App',
   url: 'https://demo.h4ck3d-shop.example.com',
   appType: 'ecommerce',
   config: { collectsPersonalData: true, usesPayments: true, hasAuth: true, storesUserContent: true },

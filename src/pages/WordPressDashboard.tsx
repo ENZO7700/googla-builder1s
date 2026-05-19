@@ -4,14 +4,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAdminAuth } from '@/lib/admin';
 import { useQuery } from '@tanstack/react-query';
 import { 
-  FileText, Plus, ArrowLeft, RefreshCw
+  FileText, Plus, ArrowLeft
 } from 'lucide-react';
 import { toast } from 'sonner';
-import DashboardCard from '@/components/dashboard/DashboardCard';
 import { LoadingState, EmptyState } from '@/components/dashboard/States';
 import WordPressSiteSelector from '@/components/wordpress/WordPressSiteSelector';
 import AddSiteDialog from '@/components/wordpress/AddSiteDialog';
 import WordPressOverview from '@/components/wordpress/WordPressOverview';
+import WordPressControlCenter from '@/components/wordpress/WordPressControlCenter';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CompanyInfoEditor from '@/components/wordpress/content/CompanyInfoEditor';
 import AboutEditor from '@/components/wordpress/content/AboutEditor';
@@ -24,6 +24,7 @@ import MembersManager from '@/components/wordpress/content/MembersManager';
 import InquiryInbox from '@/components/wordpress/content/InquiryInbox';
 import InquiryFormBuilder from '@/components/wordpress/content/InquiryFormBuilder';
 import WPCLIManager from '@/components/wordpress/WPCLIManager';
+import WordPressApiTester from '@/components/wordpress/WordPressApiTester';
 
 interface WPSite {
   id: string;
@@ -32,12 +33,21 @@ interface WPSite {
   site_type: 'com' | 'self';
 }
 
+const LOCAL_USER_ID = 'local-wpbox-user';
+const LOCAL_DEMO_SITE: WPSite = {
+  id: 'local-wordpress-dev',
+  label: 'Local WordPress',
+  base_url: 'http://localhost:18090',
+  site_type: 'self',
+};
+
 export default function WordPressDashboard() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAdminAuth();
   
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [showAddSite, setShowAddSite] = useState(false);
+  const isLocalDemo = user?.id === LOCAL_USER_ID;
 
   // Auth gate – any signed-in user can access
   useEffect(() => {
@@ -49,6 +59,7 @@ export default function WordPressDashboard() {
   const { data: sites = [], isLoading: sitesLoading, refetch } = useQuery<WPSite[]>({
     queryKey: ['wp_sites', user?.id],
     queryFn: async () => {
+      if (user!.id === LOCAL_USER_ID) return [LOCAL_DEMO_SITE];
       const { data, error } = await supabase
         .from('wp_sites')
         .select('id, label, base_url, site_type')
@@ -100,7 +111,9 @@ export default function WordPressDashboard() {
           </div>
           <button
             onClick={() => setShowAddSite(true)}
+            disabled={isLocalDemo}
             className="inline-flex items-center gap-2 px-3 py-2 bg-primary text-primary-foreground rounded-full text-xs font-medium hover:opacity-90"
+            title={isLocalDemo ? 'V lokálnom demo režime je pripojený Rubberduck WordPress read-only.' : 'Pripojiť WP site'}
           >
             <Plus size={14} /> Pripojiť WP site
           </button>
@@ -124,37 +137,47 @@ export default function WordPressDashboard() {
               onSelect={setSelectedSiteId}
               onDelete={() => refetch()}
               onAddNew={() => setShowAddSite(true)}
+              readOnly={isLocalDemo}
             />
 
             {selectedSite && (
               <>
                 <WordPressOverview site={selectedSite} />
-                <Tabs defaultValue="company" className="w-full">
-                  <TabsList className="flex flex-wrap h-auto">
-                    <TabsTrigger value="company">Company</TabsTrigger>
-                    <TabsTrigger value="about">About</TabsTrigger>
-                    <TabsTrigger value="header">Header</TabsTrigger>
-                    <TabsTrigger value="footer">Footer</TabsTrigger>
-                    <TabsTrigger value="services">Services</TabsTrigger>
-                    <TabsTrigger value="references">References</TabsTrigger>
-                    <TabsTrigger value="news">News</TabsTrigger>
-                    <TabsTrigger value="members">Members</TabsTrigger>
-                    <TabsTrigger value="inquiries">Inquiries</TabsTrigger>
-                    <TabsTrigger value="form">Form & Embed</TabsTrigger>
-                    <TabsTrigger value="wpcli">WP-CLI</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="company"><CompanyInfoEditor siteId={selectedSite.id} /></TabsContent>
-                  <TabsContent value="about"><AboutEditor siteId={selectedSite.id} /></TabsContent>
-                  <TabsContent value="header"><HeaderEditor siteId={selectedSite.id} /></TabsContent>
-                  <TabsContent value="footer"><FooterEditor siteId={selectedSite.id} /></TabsContent>
-                  <TabsContent value="services"><ServicesManager siteId={selectedSite.id} /></TabsContent>
-                  <TabsContent value="references"><ReferencesManager siteId={selectedSite.id} /></TabsContent>
-                  <TabsContent value="news"><NewsManager siteId={selectedSite.id} /></TabsContent>
-                  <TabsContent value="members"><MembersManager siteId={selectedSite.id} /></TabsContent>
-                  <TabsContent value="inquiries"><InquiryInbox siteId={selectedSite.id} /></TabsContent>
-                  <TabsContent value="form"><InquiryFormBuilder siteId={selectedSite.id} /></TabsContent>
-                  <TabsContent value="wpcli"><WPCLIManager siteId={selectedSite.id} /></TabsContent>
-                </Tabs>
+                <WordPressControlCenter site={selectedSite} isLocalDemo={isLocalDemo} onSaved={() => refetch()} />
+                <WordPressApiTester baseUrl={selectedSite.base_url} />
+                {isLocalDemo ? (
+                  <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
+                    Lokálny demo režim testuje bezpečné verejné REST endpointy. Editácia obsahu, sync, WP-CLI a uploady
+                    vyžadujú reálne Supabase prihlásenie a WordPress Application Password.
+                  </div>
+                ) : (
+                  <Tabs defaultValue="company" className="w-full">
+                    <TabsList className="flex flex-wrap h-auto">
+                      <TabsTrigger value="company">Company</TabsTrigger>
+                      <TabsTrigger value="about">About</TabsTrigger>
+                      <TabsTrigger value="header">Header</TabsTrigger>
+                      <TabsTrigger value="footer">Footer</TabsTrigger>
+                      <TabsTrigger value="services">Services</TabsTrigger>
+                      <TabsTrigger value="references">References</TabsTrigger>
+                      <TabsTrigger value="news">News</TabsTrigger>
+                      <TabsTrigger value="members">Members</TabsTrigger>
+                      <TabsTrigger value="inquiries">Inquiries</TabsTrigger>
+                      <TabsTrigger value="form">Form & Embed</TabsTrigger>
+                      <TabsTrigger value="wpcli">WP-CLI</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="company"><CompanyInfoEditor siteId={selectedSite.id} /></TabsContent>
+                    <TabsContent value="about"><AboutEditor siteId={selectedSite.id} /></TabsContent>
+                    <TabsContent value="header"><HeaderEditor siteId={selectedSite.id} /></TabsContent>
+                    <TabsContent value="footer"><FooterEditor siteId={selectedSite.id} /></TabsContent>
+                    <TabsContent value="services"><ServicesManager siteId={selectedSite.id} /></TabsContent>
+                    <TabsContent value="references"><ReferencesManager siteId={selectedSite.id} /></TabsContent>
+                    <TabsContent value="news"><NewsManager siteId={selectedSite.id} /></TabsContent>
+                    <TabsContent value="members"><MembersManager siteId={selectedSite.id} /></TabsContent>
+                    <TabsContent value="inquiries"><InquiryInbox siteId={selectedSite.id} /></TabsContent>
+                    <TabsContent value="form"><InquiryFormBuilder siteId={selectedSite.id} /></TabsContent>
+                    <TabsContent value="wpcli"><WPCLIManager siteId={selectedSite.id} /></TabsContent>
+                  </Tabs>
+                )}
               </>
             )}
           </>

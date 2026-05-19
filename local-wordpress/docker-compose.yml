@@ -1,0 +1,57 @@
+services:
+  db:
+    image: mariadb:11.4
+    container_name: wpbox-local-db
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: wpbox
+      MARIADB_USER: wpbox
+      MARIADB_PASSWORD: wpbox_local_password
+      MARIADB_ROOT_PASSWORD: wpbox_local_root_password
+    volumes:
+      - wpbox_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "healthcheck.sh --connect --innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  wordpress:
+    image: wordpress:6.6-php8.3-apache
+    container_name: wpbox-local-wordpress
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "18090:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wpbox
+      WORDPRESS_DB_USER: wpbox
+      WORDPRESS_DB_PASSWORD: wpbox_local_password
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_ENVIRONMENT_TYPE', 'local');
+    volumes:
+      - wpbox_wordpress_data:/var/www/html
+
+  wpcli:
+    image: wordpress:cli-php8.3
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+      wordpress:
+        condition: service_started
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wpbox
+      WORDPRESS_DB_USER: wpbox
+      WORDPRESS_DB_PASSWORD: wpbox_local_password
+    volumes:
+      - wpbox_wordpress_data:/var/www/html
+    working_dir: /var/www/html
+
+volumes:
+  wpbox_db_data:
+  wpbox_wordpress_data:

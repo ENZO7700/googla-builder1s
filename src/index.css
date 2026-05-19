@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Text:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Text:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @layer base {
   :root {
@@ -147,6 +147,106 @@
 
   .font-mono {
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+
+  .wpbox-google-mark {
+    position: relative;
+    display: inline-grid;
+    height: 28px;
+    width: 28px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3px;
+    padding: 4px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 999px;
+    background: hsl(var(--card));
+    box-shadow: 0 1px 2px rgba(60, 64, 67, 0.08);
+  }
+
+  .wpbox-google-mark span {
+    display: block;
+    border-radius: 999px;
+  }
+
+  .wpbox-ambient-hero {
+    position: relative;
+    width: min(100%, 820px);
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 3.5rem 1rem 3rem;
+    isolation: isolate;
+  }
+
+  .wpbox-ambient-hero::before {
+    content: "";
+    position: absolute;
+    inset: 14% 5%;
+    z-index: 0;
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 32% 42%, hsl(var(--google-blue) / 0.10), transparent 32%),
+      radial-gradient(circle at 62% 54%, hsl(var(--google-red) / 0.08), transparent 34%),
+      radial-gradient(circle at 50% 35%, hsl(var(--google-yellow) / 0.08), transparent 36%);
+    filter: blur(24px);
+    opacity: 0.9;
+  }
+
+  .wpbox-ambient-field {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .wpbox-ambient-particle {
+    position: absolute;
+    height: 10px;
+    border-radius: 999px;
+    color: currentColor;
+    background: currentColor;
+    opacity: 0.82;
+    box-shadow: 0 0 16px currentColor;
+    animation-name: wpbox-particle-drift;
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+    transform-origin: center;
+  }
+
+  @keyframes wpbox-particle-drift {
+    0%, 100% {
+      translate: 0 0;
+      opacity: 0.25;
+    }
+    35% {
+      translate: 18px -26px;
+      opacity: 0.9;
+    }
+    70% {
+      translate: -14px 18px;
+      opacity: 0.55;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .wpbox-ambient-hero {
+      min-height: 240px;
+      padding: 2rem 0.25rem 1.5rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wpbox-ambient-particle {
+      animation: none;
+      opacity: 0.45;
+    }
+
+    .animate-fade-in,
+    .animate-blink {
+      animation: none;
+    }
   }
 
   @keyframes fade-in {

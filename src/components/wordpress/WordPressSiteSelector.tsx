@@ -22,12 +22,14 @@ export default function WordPressSiteSelector({
   onSelect,
   onDelete,
   onAddNew,
+  readOnly = false,
 }: {
   sites: WPSite[];
   selectedSiteId: string | null;
   onSelect: (id: string) => void;
   onDelete: () => void;
   onAddNew: () => void;
+  readOnly?: boolean;
 }) {
   const [deleting, setDeleting] = useState<string | null>(null);
 
@@ -41,8 +43,9 @@ export default function WordPressSiteSelector({
       toast.success('Site odstránený');
       onDelete();
       onSelect(sites.find(s => s.id !== id)?.id || '');
-    } catch (err: any) {
-      toast.error('Chyba pri zmazaní', { description: err.message });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Neznáma chyba';
+      toast.error('Chyba pri zmazaní', { description: message });
     } finally {
       setDeleting(null);
     }
@@ -72,32 +75,40 @@ export default function WordPressSiteSelector({
                 {site.site_type === 'com' ? '📘 WordPress.com' : '🖥️ Self-hosted'}
               </div>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="p-1 hover:bg-accent rounded transition shrink-0">
-                  <MoreVertical size={14} className="text-muted-foreground" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() => handleDelete(site.id)}
-                  disabled={deleting === site.id}
-                  className="text-destructive"
-                >
-                  <Trash2 size={12} className="mr-2" /> 
-                  {deleting === site.id ? 'Mazem...' : 'Odstrániť'}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {!readOnly && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="p-1 hover:bg-accent rounded transition shrink-0">
+                    <MoreVertical size={14} className="text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => handleDelete(site.id)}
+                    disabled={deleting === site.id}
+                    className="text-destructive"
+                  >
+                    <Trash2 size={12} className="mr-2" /> 
+                    {deleting === site.id ? 'Mazem...' : 'Odstrániť'}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
       ))}
-      <button
-        onClick={onAddNew}
-        className="flex-1 min-w-[200px] max-w-xs px-4 py-3 rounded-lg border-2 border-dashed border-border hover:border-primary text-muted-foreground hover:text-foreground transition text-sm font-medium"
-      >
-        + Pripojiť ďalší site
-      </button>
+      {readOnly ? (
+        <div className="flex-1 min-w-[200px] max-w-xs px-4 py-3 rounded-lg border-2 border-dashed border-border text-sm text-muted-foreground">
+          Read-only test pripojenie
+        </div>
+      ) : (
+        <button
+          onClick={onAddNew}
+          className="flex-1 min-w-[200px] max-w-xs px-4 py-3 rounded-lg border-2 border-dashed border-border hover:border-primary text-muted-foreground hover:text-foreground transition text-sm font-medium"
+        >
+          + Pripojiť ďalší site
+        </button>
+      )}
     </div>
   );
 }

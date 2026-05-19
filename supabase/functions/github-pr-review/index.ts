@@ -9,7 +9,7 @@ const corsHeaders = {
 const ALLOWED_ACTIONS = new Set(["opened", "synchronize", "reopened"]);
 const MAX_DIFF_BYTES = 120_000;
 
-const SYSTEM_PROMPT = `Si senior code reviewer pre projekt NEXIFY TECH CENTER / H4CK3D Builder.
+const SYSTEM_PROMPT = `Si senior code reviewer pre projekt LarsenEvans-wpBOX.
 Píš v slovenčine, technické termíny a kód v angličtine.
 Buď stručný, konkrétny a praktický. Nikdy nekomentuj formátovanie (rieši ESLint/Prettier).
 

@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { ShieldAlert, Loader2, CheckCircle2, Shield } from 'lucide-react';
+import { ArrowLeft, Menu, ShieldAlert, Loader2, CheckCircle2, Shield } from 'lucide-react';
 import { MarkdownRenderer } from '@/lib/formatMarkdown';
 
 interface AnalyzerViewProps {
   onAnalyze: (logs: string) => Promise<string>;
+  onBack: () => void;
+  onOpenMobileMenu?: () => void;
 }
 
-export default function AnalyzerView({ onAnalyze }: AnalyzerViewProps) {
+export default function AnalyzerView({ onAnalyze, onBack, onOpenMobileMenu }: AnalyzerViewProps) {
   const [rawLogs, setRawLogs] = useState('');
   const [logAnalysis, setLogAnalysis] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -26,9 +28,31 @@ export default function AnalyzerView({ onAnalyze }: AnalyzerViewProps) {
   return (
     <div className="flex-1 flex flex-col p-6 lg:p-12 overflow-y-auto w-full relative z-10 scrollbar-hide bg-card m-4 rounded-2xl shadow-sm border border-border">
       <div className="max-w-4xl mx-auto w-full">
-        <div className="mb-8">
-          <h2 className="text-2xl font-normal text-foreground">Analyzátor Logov</h2>
-          <p className="text-muted-foreground text-sm mt-1">Nahrajte systémové logy pre automatickú analýzu hrozieb.</p>
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-normal text-foreground">Analyzátor Logov</h2>
+            <p className="text-muted-foreground text-sm mt-1">Nahrajte systémové logy pre automatickú analýzu hrozieb.</p>
+          </div>
+          <div className="flex flex-wrap gap-2 sm:shrink-0">
+            {onOpenMobileMenu && (
+              <button
+                type="button"
+                onClick={onOpenMobileMenu}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-accent lg:hidden"
+              >
+                <Menu size={16} />
+                Nástroje
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-accent"
+            >
+              <ArrowLeft size={16} />
+              Späť
+            </button>
+          </div>
         </div>
 
         {!rawLogs && !logAnalysis && !isAnalyzing && (

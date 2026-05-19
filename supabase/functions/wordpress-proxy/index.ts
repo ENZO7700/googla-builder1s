@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.0";
+import { decryptSecret, encodeBasicAuth } from "../_shared/wordpress-credentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -84,9 +85,8 @@ Deno.serve(async (req) => {
       const base = String(site.base_url).replace(/\/+$/, "");
       targetUrl = `${base}/wp-json/wp/v2/${path}`;
       if (site.username && site.app_password_encrypted) {
-        const appPassword = atob(site.app_password_encrypted);
-        const credentials = btoa(`${site.username}:${appPassword}`);
-        headers["Authorization"] = `Basic ${credentials}`;
+        const appPassword = await decryptSecret(String(site.app_password_encrypted));
+        headers["Authorization"] = `Basic ${encodeBasicAuth(String(site.username), appPassword)}`;
       }
     } else {
       // WordPress.com via Lovable connector gateway

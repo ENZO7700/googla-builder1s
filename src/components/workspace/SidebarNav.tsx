@@ -20,9 +20,9 @@ function SidebarItem({ icon, label, active, onClick, status, indicator }: Sideba
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 ${
+      className={`w-full flex items-center gap-3 rounded-full px-3.5 py-2.5 text-sm transition-all duration-200 ${
         active
-          ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+          ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-[inset_0_0_0_1px_rgba(26,115,232,0.08)]'
           : 'text-sidebar-foreground hover:bg-accent hover:text-foreground'
       }`}
     >
@@ -122,17 +122,20 @@ export default function SidebarNav({
   return (
     <aside className="w-[280px] bg-sidebar border-r border-sidebar-border flex flex-col shrink-0 z-20">
       {/* Logo */}
-      <div className="p-5 border-b border-sidebar-border">
+      <div className="border-b border-sidebar-border px-5 py-5">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-sm">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card shadow-[0_1px_2px_rgba(60,64,67,0.08)]">
             <div className="grid grid-cols-2 gap-0.5">
-              <div className="w-2 h-2 rounded-sm bg-primary-foreground opacity-90" />
-              <div className="w-2 h-2 rounded-sm bg-primary-foreground opacity-60" />
-              <div className="w-2 h-2 rounded-sm bg-primary-foreground opacity-60" />
-              <div className="w-2 h-2 rounded-sm bg-primary-foreground opacity-90" />
+              <div className="h-2 w-2 rounded-full bg-google-blue" />
+              <div className="h-2 w-2 rounded-full bg-google-red" />
+              <div className="h-2 w-2 rounded-full bg-google-yellow" />
+              <div className="h-2 w-2 rounded-full bg-google-green" />
             </div>
           </div>
-          <span className="text-foreground font-semibold tracking-tight text-lg">H4CK3D</span>
+          <div>
+            <span className="block text-[15px] font-medium tracking-normal text-foreground">wpBOX</span>
+            <span className="block text-[11px] text-muted-foreground">LarsenEvans</span>
+          </div>
         </div>
       </div>
 
@@ -140,7 +143,7 @@ export default function SidebarNav({
       <div className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide">
         <button
           onClick={onNewSession}
-          className="w-full flex items-center gap-2 px-4 py-2.5 mb-4 bg-primary text-primary-foreground rounded-full hover:bg-google-blue-hover transition-colors text-sm font-medium shadow-sm"
+          className="mb-4 flex w-full items-center justify-center gap-2 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground shadow-[0_1px_2px_rgba(60,64,67,0.08)] transition-all hover:bg-accent hover:shadow-[0_4px_14px_rgba(60,64,67,0.12)]"
         >
           <Plus size={18} /> Nová Relácia
         </button>
@@ -217,9 +220,9 @@ export default function SidebarNav({
                         <button
                           onClick={() => onLoadSession(session)}
                           onDoubleClick={() => { setEditingId(session.id); setEditTitle(session.title); }}
-                          className={`w-full flex flex-col items-start px-3 py-2.5 rounded-xl transition-all duration-200 text-left text-sm ${
+                          className={`w-full flex flex-col items-start rounded-2xl px-3 py-2.5 text-left text-sm transition-all duration-200 ${
                             activeSessionId === session.id
-                              ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+                              ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
                               : 'text-sidebar-foreground hover:bg-accent hover:text-foreground'
                           }`}
                         >
@@ -259,11 +262,11 @@ export default function SidebarNav({
       </div>
 
       {/* User */}
-      <div className="p-4 border-t border-sidebar-border space-y-2">
+      <div className="space-y-2 border-t border-sidebar-border p-4">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setDark(!dark)}
-            className="p-2 rounded-xl hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+            className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             title={dark ? 'Svetlý režim' : 'Tmavý režim'}
           >
             {dark ? <Sun size={16} /> : <Moon size={16} />}
@@ -271,7 +274,7 @@ export default function SidebarNav({
           {onLogout && (
             <button
               onClick={onLogout}
-              className="p-2 rounded-xl hover:bg-accent transition-colors text-muted-foreground hover:text-destructive"
+              className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-destructive"
               title="Odhlásiť sa"
             >
               <LogOut size={16} />
@@ -280,10 +283,10 @@ export default function SidebarNav({
         </div>
         <button
           onClick={onOpenSettings}
-          className="flex items-center justify-between p-2 rounded-xl hover:bg-accent transition-colors cursor-pointer w-full"
+          className="flex w-full cursor-pointer items-center justify-between rounded-2xl p-2 transition-colors hover:bg-accent"
         >
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-xs font-medium text-background">
               {userEmail ? userEmail[0].toUpperCase() : 'U'}
             </div>
             <div className="text-left">

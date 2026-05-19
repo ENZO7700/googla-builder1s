@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
+import { saveValidatedWordPressConnection } from '@/lib/wordpress/connectionService';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -69,32 +70,38 @@ export default function AddSiteDialog({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Nie ste prihlásený');
 
-      const insertData: any = {
-        user_id: user.id,
-        label: data.label,
-        base_url: data.base_url.endsWith('/') 
-          ? data.base_url.slice(0, -1) 
-          : data.base_url,
-        site_type: data.site_type,
-      };
+      const baseUrl = data.base_url.endsWith('/')
+        ? data.base_url.slice(0, -1)
+        : data.base_url;
 
       if (data.site_type === 'self') {
         if (!data.username || !data.app_password) {
           throw new Error('Username a Application Password sú povinné');
         }
-        insertData.username = data.username;
-        insertData.app_password_encrypted = btoa(data.app_password);
+
+        await saveValidatedWordPressConnection({
+          label: data.label,
+          baseUrl,
+          username: data.username,
+          applicationPassword: data.app_password,
+        });
+      } else {
+        const { error } = await supabase
+          .from('wp_sites')
+          .insert([{
+            user_id: user.id,
+            label: data.label,
+            base_url: baseUrl,
+            site_type: data.site_type,
+          }]);
+
+        if (error) throw error;
       }
-
-      const { error } = await supabase
-        .from('wp_sites')
-        .insert([insertData]);
-
-      if (error) throw error;
       onSuccess();
       form.reset();
-    } catch (err: any) {
-      toast.error('Chyba pri pripojení', { description: err.message });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Neznáma chyba';
+      toast.error('Chyba pri pripojení', { description: message });
     } finally {
       setLoading(false);
     }
