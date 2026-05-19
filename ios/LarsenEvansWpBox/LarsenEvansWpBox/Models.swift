@@ -45,7 +45,7 @@ struct HealthEndpoint: Identifiable, Equatable {
             detail = "Endpoint responds."
         } else if protectedIsExpected && (code == 401 || code == 403) {
             state = .protected
-            detail = "Protected as expected. HTTP \(code)."
+            detail = "WordPress is protecting this endpoint as expected. HTTP \(code)."
         } else {
             state = .failed("HTTP \(code)")
             detail = "Unexpected WordPress status."
@@ -123,9 +123,11 @@ struct CapabilityGroup: Identifiable {
 }
 
 struct CapabilityRow: Identifiable {
-    enum State {
+    enum State: Equatable {
         case ready
         case needsAuth
+        case authenticated
+        case readOnlyAvailable
         case edge
         case locked
     }
@@ -136,13 +138,21 @@ struct CapabilityRow: Identifiable {
     let state: State
 }
 
+struct GuardrailItem: Identifiable {
+    let id = UUID()
+    let title: String
+    let detail: String
+}
+
 extension CapabilityRow.State {
     var label: String {
         switch self {
         case .ready: "Ready"
         case .needsAuth: "Needs auth"
+        case .authenticated: "Authenticated"
+        case .readOnlyAvailable: "Read-only available"
         case .edge: "Edge"
-        case .locked: "Locked"
+        case .locked: "Locked for MVP"
         }
     }
 
@@ -150,6 +160,8 @@ extension CapabilityRow.State {
         switch self {
         case .ready: .green
         case .needsAuth: .orange
+        case .authenticated: .green
+        case .readOnlyAvailable: .blue
         case .edge: .blue
         case .locked: .secondary
         }
@@ -162,46 +174,78 @@ let defaultHealthEndpoints: [HealthEndpoint] = [
     HealthEndpoint(name: "Pages", path: "/wp/v2/pages?per_page=1&_fields=id,slug,title,status", protectedIsExpected: false),
     HealthEndpoint(name: "Media", path: "/wp/v2/media?per_page=1&_fields=id,slug,title,source_url", protectedIsExpected: false),
     HealthEndpoint(name: "Users", path: "/wp/v2/users?per_page=1&_fields=id,name,slug", protectedIsExpected: false),
+    HealthEndpoint(name: "Current user", path: "/wp/v2/users/me?context=edit", protectedIsExpected: true),
     HealthEndpoint(name: "Settings", path: "/wp/v2/settings", protectedIsExpected: true),
-    HealthEndpoint(name: "Plugins", path: "/wp/v2/plugins", protectedIsExpected: true),
-    HealthEndpoint(name: "Custom namespace", path: "/webdo24h/v1", protectedIsExpected: false)
+    HealthEndpoint(name: "Plugins", path: "/wp/v2/plugins", protectedIsExpected: true)
 ]
 
-let capabilityGroups: [CapabilityGroup] = [
-    CapabilityGroup(
-        title: "Public read",
-        subtitle: "Works without credentials.",
-        rows: [
-            CapabilityRow(title: "Posts, pages, media", detail: "Read-only REST endpoints.", state: .ready),
-            CapabilityRow(title: "Users and types", detail: "Safe discovery data.", state: .ready),
-            CapabilityRow(title: "Custom namespace", detail: "/webdo24h/v1 responds.", state: .ready)
-        ]
+func capabilityGroups(isAuthenticated: Bool) -> [CapabilityGroup] {
+    [
+        CapabilityGroup(
+            title: "Public read",
+            subtitle: "Works without credentials.",
+            rows: [
+                CapabilityRow(title: "Posts, pages, media", detail: "Read-only REST endpoints.", state: .ready),
+                CapabilityRow(title: "Users and types", detail: "Safe discovery data.", state: .ready)
+            ]
+        ),
+        CapabilityGroup(
+            title: isAuthenticated ? "Authenticated WordPress" : "After Application Password",
+            subtitle: isAuthenticated ? "Using saved Keychain credentials." : "Requires a WordPress account.",
+            rows: [
+                CapabilityRow(
+                    title: "/users/me",
+                    detail: isAuthenticated ? "Keychain credentials are valid." : "Validates username and app password.",
+                    state: isAuthenticated ? .authenticated : .needsAuth
+                ),
+                CapabilityRow(
+                    title: "Settings and plugins",
+                    detail: isAuthenticated ? "Admin REST reads are available; writes stay locked." : "Admin read only after auth.",
+                    state: isAuthenticated ? .readOnlyAvailable : .needsAuth
+                ),
+                CapabilityRow(
+                    title: "Media upload",
+                    detail: isAuthenticated ? "Future server upload flow; no client upload in MVP." : "Requires auth later; upload remains locked in MVP.",
+                    state: .locked
+                )
+            ]
+        ),
+        CapabilityGroup(
+            title: "Server edge",
+            subtitle: "Supabase remains the safe boundary.",
+            rows: [
+                CapabilityRow(title: "wordpress-connection", detail: "Validate and encrypt credentials.", state: .edge),
+                CapabilityRow(title: "wordpress-proxy", detail: "Use saved credentials server-side.", state: .edge),
+                CapabilityRow(title: "wordpress-sync", detail: "Future content publish pipeline.", state: .edge)
+            ]
+        ),
+        CapabilityGroup(
+            title: "Locked for MVP",
+            subtitle: "Product capabilities intentionally not exposed.",
+            rows: [
+                CapabilityRow(title: "Delete post", detail: "Write action is not available in MVP.", state: .locked),
+                CapabilityRow(title: "Update settings", detail: "Admin writes require a future approval flow.", state: .locked),
+                CapabilityRow(title: "WP-CLI / SSH", detail: "Infrastructure access stays outside the native app.", state: .locked)
+            ]
+        )
+    ]
+}
+
+let productionGuardrails: [GuardrailItem] = [
+    GuardrailItem(
+        title: "Theme upload locked",
+        detail: "Requires explicit target and approval."
     ),
-    CapabilityGroup(
-        title: "After Application Password",
-        subtitle: "Requires a WordPress account.",
-        rows: [
-            CapabilityRow(title: "/users/me", detail: "Validates username and app password.", state: .needsAuth),
-            CapabilityRow(title: "Settings and plugins", detail: "Admin read only after auth.", state: .needsAuth),
-            CapabilityRow(title: "Media upload", detail: "Server flow needed before release.", state: .needsAuth)
-        ]
+    GuardrailItem(
+        title: "Plugin activation locked",
+        detail: "Requires admin confirmation and audit."
     ),
-    CapabilityGroup(
-        title: "Server edge",
-        subtitle: "Supabase remains the safe boundary.",
-        rows: [
-            CapabilityRow(title: "wordpress-connection", detail: "Validate and encrypt credentials.", state: .edge),
-            CapabilityRow(title: "wordpress-proxy", detail: "Use saved credentials server-side.", state: .edge),
-            CapabilityRow(title: "wordpress-sync", detail: "Future content publish pipeline.", state: .edge)
-        ]
+    GuardrailItem(
+        title: "SSH / WP-CLI unavailable",
+        detail: "Infrastructure access stays outside this iOS MVP."
     ),
-    CapabilityGroup(
-        title: "Locked for MVP",
-        subtitle: "Not exposed in the iOS MVP.",
-        rows: [
-            CapabilityRow(title: "Delete post", detail: "Needs explicit confirm flow.", state: .locked),
-            CapabilityRow(title: "Update settings", detail: "Production-risk action.", state: .locked),
-            CapabilityRow(title: "WP-CLI / SSH", detail: "Out of scope for native MVP.", state: .locked)
-        ]
+    GuardrailItem(
+        title: "Database writes unavailable",
+        detail: "Server save flow comes after backend approval."
     )
 ]

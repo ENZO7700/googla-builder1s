@@ -24,11 +24,11 @@ struct WordPressAPIClient {
         }
     }
 
-    func runHealthChecks(baseURL: String) async -> [HealthEndpoint] {
+    func runHealthChecks(baseURL: String, credentials: WordPressConnection? = nil) async -> [HealthEndpoint] {
         await withTaskGroup(of: HealthEndpoint.self) { group in
             for endpoint in defaultHealthEndpoints {
                 group.addTask {
-                    await check(endpoint: endpoint, baseURL: baseURL)
+                    await check(endpoint: endpoint, baseURL: baseURL, credentials: credentials)
                 }
             }
 
@@ -113,7 +113,7 @@ struct WordPressAPIClient {
         }
     }
 
-    private func check(endpoint: HealthEndpoint, baseURL: String) async -> HealthEndpoint {
+    private func check(endpoint: HealthEndpoint, baseURL: String, credentials: WordPressConnection?) async -> HealthEndpoint {
         var next = endpoint
         guard let url = makeURL(baseURL: baseURL, path: endpoint.path) else {
             next.state = .failed("Invalid URL")
@@ -123,6 +123,9 @@ struct WordPressAPIClient {
 
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if endpoint.protectedIsExpected, let credentials, isSafeCredentialURL(url) {
+            request.setValue("Basic \(basicAuth(username: credentials.username, password: credentials.applicationPassword))", forHTTPHeaderField: "Authorization")
+        }
 
         do {
             let (_, response) = try await URLSession.shared.data(for: request)

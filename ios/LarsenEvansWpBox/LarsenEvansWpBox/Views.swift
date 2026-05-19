@@ -20,6 +20,7 @@ final class AppViewModel {
 
     private let api = WordPressAPIClient()
     private let credentialStore = KeychainCredentialStore()
+    private var savedConnection: WordPressConnection?
 
     init() {
         restoreSavedConnection()
@@ -33,7 +34,7 @@ final class AppViewModel {
             next.detail = "Checking..."
             return next
         }
-        healthChecks = await api.runHealthChecks(baseURL: baseURL)
+        healthChecks = await api.runHealthChecks(baseURL: baseURL, credentials: savedConnectionForCurrentBaseURL())
         isCheckingHealth = false
     }
 
@@ -62,15 +63,20 @@ final class AppViewModel {
             connectionUser = user
             do {
                 try credentialStore.save(connection)
+                savedConnection = connection
+                baseURL = connection.baseURL
+                username = connection.username
                 isConnectionSaved = true
                 connectionNotice = "Connection saved securely in Keychain."
             } catch {
+                savedConnection = nil
                 isConnectionSaved = false
                 connectionNotice = keychainNotice(for: error)
                 if connectionNotice == nil {
                     connectionError = "Connected, but the credentials could not be saved: \(error.localizedDescription)"
                 }
             }
+            healthChecks = await api.runHealthChecks(baseURL: connection.baseURL, credentials: savedConnectionForCurrentBaseURL())
         } catch {
             connectionError = error.localizedDescription
         }
@@ -98,6 +104,7 @@ final class AppViewModel {
             try credentialStore.clear()
             username = ""
             applicationPassword = ""
+            savedConnection = nil
             connectionUser = nil
             connectionError = nil
             isConnectionSaved = false
@@ -113,6 +120,7 @@ final class AppViewModel {
             baseURL = connection.baseURL
             username = connection.username
             applicationPassword = ""
+            savedConnection = connection
             isConnectionSaved = true
             connectionNotice = "Saved connection loaded from Keychain."
         } catch {
@@ -122,6 +130,14 @@ final class AppViewModel {
                 connectionError = error.localizedDescription
             }
         }
+    }
+
+    private func savedConnectionForCurrentBaseURL() -> WordPressConnection? {
+        guard let connection = savedConnection,
+              connection.baseURL == baseURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingTrailingSlash else {
+            return nil
+        }
+        return connection
     }
 
     private func keychainNotice(for error: Error) -> String? {
@@ -146,10 +162,28 @@ final class AppViewModel {
         !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
             !applicationPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+
+    var isAuthenticatedHealthMode: Bool {
+        savedConnectionForCurrentBaseURL() != nil
+    }
+
+    var healthModeTitle: String {
+        isAuthenticatedHealthMode ? "Authenticated via Keychain" : "Anonymous mode"
+    }
+
+    var healthModeDetail: String {
+        if isAuthenticatedHealthMode {
+            return "Protected checks use saved Keychain credentials."
+        }
+        return "HTTP 401/403 on protected endpoints means WordPress is locked correctly."
+    }
 }
 
 struct RootView: View {
     @State private var model = AppViewModel()
+#if DEBUG && targetEnvironment(simulator)
+    @State private var didRunSimulatorConnectionTest = false
+#endif
 
     var body: some View {
         NavigationStack {
@@ -159,7 +193,7 @@ struct RootView: View {
                     ConnectionCard(model: model)
                     ContentBrowserCard(model: model)
                     HealthCard(model: model)
-                    ControlCenterCard()
+                    ControlCenterCard(isAuthenticated: model.isAuthenticatedHealthMode)
                     LockedActionsCard()
                 }
                 .padding(18)
@@ -184,9 +218,32 @@ struct RootView: View {
                 if model.contentItems.isEmpty {
                     await model.loadContent()
                 }
+#if DEBUG && targetEnvironment(simulator)
+                await runSimulatorConnectionTestIfRequested()
+#endif
             }
         }
     }
+
+#if DEBUG && targetEnvironment(simulator)
+    private func runSimulatorConnectionTestIfRequested() async {
+        guard !didRunSimulatorConnectionTest else { return }
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["WPBOX_SIMULATOR_AUTOTEST_CONNECTION"] == "1",
+              let username = environment["WPBOX_SIMULATOR_USERNAME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let password = environment["WPBOX_SIMULATOR_APPLICATION_PASSWORD"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !username.isEmpty,
+              !password.isEmpty else {
+            return
+        }
+
+        didRunSimulatorConnectionTest = true
+        model.baseURL = environment["WPBOX_SIMULATOR_BASE_URL"]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? model.baseURL
+        model.username = username
+        model.applicationPassword = password
+        await model.testConnection()
+    }
+#endif
 }
 
 private struct HeroCard: View {
@@ -371,10 +428,15 @@ private struct HealthCard: View {
             }
 
             HStack {
+                StatusPill(title: model.healthModeTitle, tint: model.isAuthenticatedHealthMode ? .blue : .secondary)
                 StatusPill(title: "\(model.healthSummary.ok) OK", tint: .green)
                 StatusPill(title: "\(model.healthSummary.protected) protected", tint: .orange)
                 StatusPill(title: "\(model.healthSummary.errors) errors", tint: model.healthSummary.errors == 0 ? .secondary : .red)
             }
+            Text(model.healthModeDetail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             VStack(spacing: 10) {
                 ForEach(model.healthChecks) { check in
@@ -387,6 +449,8 @@ private struct HealthCard: View {
 }
 
 private struct ControlCenterCard: View {
+    let isAuthenticated: Bool
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader(
@@ -395,7 +459,7 @@ private struct ControlCenterCard: View {
                 subtitle: "What the iOS MVP can show safely."
             )
 
-            ForEach(capabilityGroups) { group in
+            ForEach(capabilityGroups(isAuthenticated: isAuthenticated)) { group in
                 VStack(alignment: .leading, spacing: 10) {
                     Text(group.title)
                         .font(.headline)
@@ -421,13 +485,12 @@ private struct LockedActionsCard: View {
             SectionHeader(
                 icon: "lock.shield.fill",
                 title: "Production guardrails",
-                subtitle: "This native MVP will not write to WordPress by accident."
+                subtitle: "Production-risk actions are blocked by design."
             )
 
-            GuardrailRow(title: "No theme upload", detail: "Needs an explicit target and confirmation.")
-            GuardrailRow(title: "No plugin activation", detail: "Requires admin confirmation and audit.")
-            GuardrailRow(title: "No SSH or WP-CLI", detail: "Out of scope for this clean iOS start.")
-            GuardrailRow(title: "No DB operations", detail: "Server save flow comes after backend approval.")
+            ForEach(productionGuardrails) { item in
+                GuardrailRow(item: item)
+            }
         }
         .cardStyle()
     }
@@ -756,17 +819,17 @@ private struct CapabilityRowView: View {
 }
 
 private struct GuardrailRow: View {
-    let title: String
-    let detail: String
+    let item: GuardrailItem
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "checkmark.shield.fill")
-                .foregroundStyle(.orange)
+            Image(systemName: "lock.shield.fill")
+                .foregroundStyle(.blue)
+                .frame(width: 22, height: 22)
             VStack(alignment: .leading, spacing: 3) {
-                Text(title)
+                Text(item.title)
                     .font(.subheadline.weight(.semibold))
-                Text(detail)
+                Text(item.detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
