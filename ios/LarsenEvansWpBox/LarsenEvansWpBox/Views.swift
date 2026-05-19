@@ -382,6 +382,13 @@ private struct ContentBrowserCard: View {
                 Task { await model.loadContent() }
             }
 
+            HStack {
+                StatusPill(title: "Read-only", tint: .green)
+                if !model.isLoadingContent, model.contentError == nil {
+                    StatusPill(title: "\(model.contentItems.count) \(model.selectedContentType.title.lowercased())", tint: .secondary)
+                }
+            }
+
             if model.isLoadingContent {
                 LoadingRow(title: "Loading \(model.selectedContentType.title.lowercased())...")
             } else if let error = model.contentError {
@@ -564,6 +571,22 @@ private struct HealthRow: View {
     }
 }
 
+private enum ContentDateFormatter {
+    static let short: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+
+    static let full: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+}
+
 private struct ContentRow: View {
     let item: WordPressContentItem
 
@@ -571,17 +594,33 @@ private struct ContentRow: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: item.type.icon)
                 .font(.body.weight(.semibold))
-                .foregroundStyle(.blue)
-                .frame(width: 24)
+                .foregroundStyle(item.type == .media ? .purple : .blue)
+                .frame(width: 30, height: 30)
+                .background((item.type == .media ? Color.purple : Color.blue).opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
 
-            VStack(alignment: .leading, spacing: 5) {
-                Text(item.title)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(2)
-                Text(item.subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
+                    Text(item.title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(2)
+                    Spacer(minLength: 6)
+                    StatusPill(title: item.status, tint: item.status == "publish" ? .green : .secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Label(item.typeLabel, systemImage: item.type.icon)
+                    Label(item.slugLabel, systemImage: "number")
+                    if let date = item.date {
+                        Label(ContentDateFormatter.short.string(from: date), systemImage: "calendar")
+                    }
+                    if item.type == .media, let mimeType = item.mimeType?.nonEmpty {
+                        Label(mimeType, systemImage: "doc")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
                 Text(item.detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -611,26 +650,38 @@ private struct ContentDetailView: View {
                     Text(item.title)
                         .font(.title2.bold())
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(item.subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    HStack {
+                        StatusPill(title: item.status, tint: item.status == "publish" ? .green : .secondary)
+                        StatusPill(title: item.typeLabel, tint: .blue)
+                        StatusPill(title: item.slugLabel, tint: .secondary)
+                    }
                 }
                 .cardStyle()
 
                 if let mediaURL = item.mediaURL {
                     VStack(alignment: .leading, spacing: 10) {
-                        AsyncImage(url: mediaURL) { image in
-                            image
-                                .resizable()
-                                .scaledToFit()
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
-                        } placeholder: {
-                            LoadingRow(title: "Loading preview...")
+                        if item.isImageMedia {
+                            AsyncImage(url: mediaURL) { image in
+                                image
+                                    .resizable()
+                                    .scaledToFit()
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                            } placeholder: {
+                                LoadingRow(title: "Loading preview...")
+                            }
+                        } else {
+                            EmptyStateRow(title: "Media preview unavailable", detail: item.mimeType ?? "This media type does not render as an image preview.")
                         }
                         Text(mediaURL.absoluteString)
                             .font(.caption.monospaced())
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
+
+                        Link(destination: mediaURL) {
+                            Label("Open media source", systemImage: "arrow.up.forward.square")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
                     }
                     .cardStyle()
                 }
@@ -645,14 +696,34 @@ private struct ContentDetailView: View {
 
                     Divider()
 
+                    MetadataRow(title: "Type", value: item.typeLabel)
                     MetadataRow(title: "Status", value: item.status)
+                    MetadataRow(title: "Slug", value: item.slugLabel)
                     MetadataRow(title: "ID", value: "\(item.id)")
-                    MetadataRow(title: "Date", value: item.date.map(Self.dateFormatter.string(from:)) ?? "Not provided")
+                    MetadataRow(title: "Date", value: item.date.map(ContentDateFormatter.full.string(from:)) ?? "Not provided")
+                    if let mediaType = item.mediaType?.nonEmpty {
+                        MetadataRow(title: "Media", value: mediaType)
+                    }
+                    if let mimeType = item.mimeType?.nonEmpty {
+                        MetadataRow(title: "MIME", value: mimeType)
+                    }
                     if let link = item.link {
                         MetadataRow(title: "Link", value: link.absoluteString)
                     }
+                    if let mediaURL = item.mediaURL {
+                        MetadataRow(title: "Source", value: mediaURL.absoluteString)
+                    }
                 }
                 .cardStyle()
+
+                if let link = item.link {
+                    Link(destination: link) {
+                        Label("Open in WordPress", systemImage: "safari")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                }
             }
             .padding(18)
         }
@@ -660,13 +731,6 @@ private struct ContentDetailView: View {
         .navigationTitle(item.type.title)
         .navigationBarTitleDisplayMode(.inline)
     }
-
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter
-    }()
 }
 
 private struct MetadataRow: View {
@@ -678,7 +742,7 @@ private struct MetadataRow: View {
             Text(title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-                .frame(width: 64, alignment: .leading)
+                .frame(width: 74, alignment: .leading)
             Text(value)
                 .font(.caption)
                 .foregroundStyle(.primary)

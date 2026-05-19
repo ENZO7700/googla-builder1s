@@ -77,6 +77,75 @@ final class WordPressCoreTests: XCTestCase {
         XCTAssertFalse(paths.contains { $0.contains("webdo24h") })
     }
 
+    func testContentTypePathsIncludeExplorerFields() {
+        XCTAssertTrue(WordPressContentType.posts.path.contains("slug"))
+        XCTAssertTrue(WordPressContentType.posts.path.contains("excerpt"))
+        XCTAssertTrue(WordPressContentType.posts.path.contains("content"))
+        XCTAssertTrue(WordPressContentType.posts.path.contains("date"))
+        XCTAssertTrue(WordPressContentType.posts.path.contains("link"))
+
+        XCTAssertTrue(WordPressContentType.pages.path.contains("slug"))
+        XCTAssertTrue(WordPressContentType.pages.path.contains("content"))
+
+        XCTAssertTrue(WordPressContentType.media.path.contains("media_type"))
+        XCTAssertTrue(WordPressContentType.media.path.contains("mime_type"))
+        XCTAssertTrue(WordPressContentType.media.path.contains("source_url"))
+        XCTAssertTrue(WordPressContentType.media.path.contains("alt_text"))
+    }
+
+    func testPostContentMappingKeepsExplorerMetadata() throws {
+        let json = """
+        {
+          "id": 42,
+          "slug": "hello-world",
+          "title": { "rendered": "Hello <strong>world</strong>!" },
+          "excerpt": { "rendered": "<p>Excerpt body</p>" },
+          "content": { "rendered": "<p>Full body</p>" },
+          "status": "publish",
+          "date": "2026-05-19T12:34:56",
+          "link": "http://localhost:18090/hello-world/"
+        }
+        """
+        let response = try JSONDecoder().decode(WPContentResponse.self, from: Data(json.utf8))
+        let item = response.item(type: .posts)
+
+        XCTAssertEqual(item.id, 42)
+        XCTAssertEqual(item.title, "Hello world!")
+        XCTAssertEqual(item.slug, "hello-world")
+        XCTAssertEqual(item.status, "publish")
+        XCTAssertEqual(item.detail, "Excerpt body")
+        XCTAssertEqual(item.link?.absoluteString, "http://localhost:18090/hello-world/")
+        XCTAssertNotNil(item.date)
+    }
+
+    func testMediaContentMappingKeepsSourceAndMimeMetadata() throws {
+        let json = """
+        {
+          "id": 7,
+          "slug": "logo",
+          "title": { "rendered": "Logo" },
+          "caption": { "rendered": "<p>Brand asset</p>" },
+          "description": { "rendered": "<p>Full description</p>" },
+          "alt_text": "Alternative logo text",
+          "media_type": "image",
+          "mime_type": "image/png",
+          "source_url": "http://localhost:18090/wp-content/uploads/logo.png",
+          "date": "2026-05-19T13:00:00",
+          "link": "http://localhost:18090/logo/"
+        }
+        """
+        let response = try JSONDecoder().decode(WPContentResponse.self, from: Data(json.utf8))
+        let item = response.item(type: .media)
+
+        XCTAssertEqual(item.typeLabel, "Image")
+        XCTAssertEqual(item.slugLabel, "logo")
+        XCTAssertEqual(item.detail, "Brand asset")
+        XCTAssertEqual(item.mediaType, "image")
+        XCTAssertEqual(item.mimeType, "image/png")
+        XCTAssertTrue(item.isImageMedia)
+        XCTAssertEqual(item.mediaURL?.absoluteString, "http://localhost:18090/wp-content/uploads/logo.png")
+    }
+
     func testWhitespaceCredentialsAreRejectedBeforeNetwork() async {
         let client = WordPressAPIClient()
 

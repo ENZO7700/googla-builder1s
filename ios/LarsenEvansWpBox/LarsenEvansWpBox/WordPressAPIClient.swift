@@ -198,12 +198,15 @@ private struct WPMeResponse: Decodable {
     }
 }
 
-private struct WPContentResponse: Decodable {
+struct WPContentResponse: Decodable {
     let id: Int?
     let slug: String?
     let title: WPRenderedText?
     let excerpt: WPRenderedText?
+    let content: WPRenderedText?
     let caption: WPRenderedText?
+    let description: WPRenderedText?
+    let altText: String?
     let status: String?
     let date: String?
     let link: String?
@@ -216,7 +219,10 @@ private struct WPContentResponse: Decodable {
         case slug
         case title
         case excerpt
+        case content
         case caption
+        case description
+        case altText = "alt_text"
         case status
         case date
         case link
@@ -226,22 +232,29 @@ private struct WPContentResponse: Decodable {
     }
 
     func item(type: WordPressContentType) -> WordPressContentItem {
-        let cleanTitle = title?.rendered.strippingHTML.nonEmpty ?? slug?.replacingOccurrences(of: "-", with: " ") ?? type.title
+        let cleanSlug = slug?.nonEmpty ?? ""
+        let cleanTitle = title?.rendered.strippingHTML.nonEmpty ?? cleanSlug.replacingOccurrences(of: "-", with: " ").nonEmpty ?? type.title
         let cleanExcerpt = excerpt?.rendered.strippingHTML.nonEmpty
+        let cleanContent = content?.rendered.strippingHTML.nonEmpty
         let cleanCaption = caption?.rendered.strippingHTML.nonEmpty
-        let detail = cleanExcerpt ?? cleanCaption ?? sourceURL ?? "No preview text available."
+        let cleanDescription = description?.rendered.strippingHTML.nonEmpty
+        let cleanAltText = altText?.nonEmpty
+        let detail = cleanExcerpt ?? cleanContent ?? cleanCaption ?? cleanDescription ?? cleanAltText ?? sourceURL ?? "No preview text available."
         let subtitle = subtitleText(type: type)
 
         return WordPressContentItem(
             id: id ?? 0,
             type: type,
             title: cleanTitle,
+            slug: cleanSlug,
             subtitle: subtitle,
             detail: detail,
             status: status ?? mediaType ?? "available",
             date: date.flatMap(Self.parseDate),
             link: link.flatMap(URL.init(string:)),
-            mediaURL: sourceURL.flatMap(URL.init(string:))
+            mediaURL: sourceURL.flatMap(URL.init(string:)),
+            mediaType: mediaType,
+            mimeType: mimeType
         )
     }
 
@@ -254,7 +267,7 @@ private struct WPContentResponse: Decodable {
         }
     }
 
-    private static func parseDate(_ value: String) -> Date? {
+    static func parseDate(_ value: String) -> Date? {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
@@ -262,7 +275,7 @@ private struct WPContentResponse: Decodable {
     }
 }
 
-private struct WPRenderedText: Decodable {
+struct WPRenderedText: Decodable {
     let rendered: String
 
     enum CodingKeys: String, CodingKey {

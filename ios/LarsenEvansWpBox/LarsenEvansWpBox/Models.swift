@@ -86,11 +86,11 @@ enum WordPressContentType: String, CaseIterable, Identifiable {
     var path: String {
         switch self {
         case .posts:
-            "/wp/v2/posts?per_page=20&_fields=id,slug,title,excerpt,status,date,link"
+            "/wp/v2/posts?per_page=20&_fields=id,slug,title,excerpt,content,status,date,link"
         case .pages:
-            "/wp/v2/pages?per_page=20&_fields=id,slug,title,excerpt,status,date,link"
+            "/wp/v2/pages?per_page=20&_fields=id,slug,title,excerpt,content,status,date,link"
         case .media:
-            "/wp/v2/media?per_page=20&_fields=id,slug,title,caption,media_type,mime_type,source_url,date,link"
+            "/wp/v2/media?per_page=20&_fields=id,slug,title,caption,description,alt_text,media_type,mime_type,source_url,date,link"
         }
     }
 
@@ -107,12 +107,31 @@ struct WordPressContentItem: Identifiable, Hashable {
     let id: Int
     let type: WordPressContentType
     let title: String
+    let slug: String
     let subtitle: String
     let detail: String
     let status: String
     let date: Date?
     let link: URL?
     let mediaURL: URL?
+    let mediaType: String?
+    let mimeType: String?
+
+    var typeLabel: String {
+        switch type {
+        case .posts: "Post"
+        case .pages: "Page"
+        case .media: mediaType?.nonEmpty?.capitalized ?? "Media"
+        }
+    }
+
+    var slugLabel: String {
+        slug.nonEmpty ?? "No slug"
+    }
+
+    var isImageMedia: Bool {
+        mimeType?.hasPrefix("image/") == true
+    }
 }
 
 struct CapabilityGroup: Identifiable {
