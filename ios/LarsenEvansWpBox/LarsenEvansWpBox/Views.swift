@@ -21,6 +21,11 @@ final class AppViewModel {
     var overviewError: String?
     var isLoadingOverview = false
     var lastOverviewRefresh: Date?
+    var snapshotItems: [WordPressContentType: [WordPressContentItem]] = [:]
+    var snapshotError: String?
+    var isLoadingSnapshot = false
+    var lastSnapshotRefresh: Date?
+    var hasLoadedSnapshot = false
 
     private let api = WordPressAPIClient()
     private let credentialStore = KeychainCredentialStore()
@@ -146,6 +151,33 @@ final class AppViewModel {
         await loadContent()
     }
 
+    func refreshSnapshot() async {
+        isLoadingSnapshot = true
+        snapshotError = nil
+        defer { isLoadingSnapshot = false }
+
+        await refreshOverview()
+
+        var nextItems: [WordPressContentType: [WordPressContentItem]] = [:]
+        var failures: [String] = []
+        for type in WordPressContentType.allCases {
+            do {
+                let items = try await api.fetchContent(baseURL: baseURL, type: type)
+                nextItems[type] = Array(items.prefix(5))
+            } catch {
+                nextItems[type] = []
+                failures.append("\(type.title): \(error.localizedDescription)")
+            }
+        }
+
+        snapshotItems = nextItems
+        hasLoadedSnapshot = true
+        lastSnapshotRefresh = Date()
+        if !failures.isEmpty {
+            snapshotError = failures.joined(separator: "\n")
+        }
+    }
+
     func forgetConnection() {
         do {
             try credentialStore.clear()
@@ -155,6 +187,10 @@ final class AppViewModel {
             connectionUser = nil
             connectionError = nil
             overviewError = nil
+            snapshotError = nil
+            snapshotItems = [:]
+            hasLoadedSnapshot = false
+            lastSnapshotRefresh = nil
             isConnectionSaved = false
             connectionNotice = "Saved connection removed from Keychain."
         } catch {
@@ -237,6 +273,53 @@ final class AppViewModel {
 
     var normalizedBaseURL: String {
         baseURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingTrailingSlash
+    }
+
+    var snapshotSections: [SiteSnapshotSection] {
+        WordPressContentType.allCases.map { type in
+            SiteSnapshotSection(
+                type: type,
+                totalCount: overviewCounts.count(for: type),
+                items: snapshotItems[type] ?? []
+            )
+        }
+    }
+
+    var siteSnapshotReportText: String {
+        let health = healthSummary
+        let lastRefresh = lastOverviewRefresh.map(SnapshotDateFormatter.report.string(from:)) ?? "Not refreshed yet"
+        let snapshotRefresh = lastSnapshotRefresh.map(SnapshotDateFormatter.report.string(from:)) ?? "Not generated yet"
+        let userLabel: String
+        if let user = connectionUser {
+            let roles = user.roles.isEmpty ? "roles hidden" : user.roles.joined(separator: ", ")
+            userLabel = "\(user.name) (\(roles))"
+        } else {
+            userLabel = isAuthenticatedHealthMode ? "Authenticated user not verified yet" : "Not connected"
+        }
+
+        var lines = [
+            "LarsenEvans-wpBOX Site Snapshot",
+            "",
+            "WordPress URL: \(normalizedBaseURL)",
+            "Auth mode: \(connectionMode.label)",
+            "User: \(userLabel)",
+            "REST health: \(health.ok) OK / \(health.protected) protected / \(health.errors) errors",
+            "Counts: \(overviewCounts.count(for: .posts)) posts / \(overviewCounts.count(for: .pages)) pages / \(overviewCounts.count(for: .media)) media",
+            "Last overview refresh: \(lastRefresh)",
+            "Snapshot generated: \(snapshotRefresh)",
+            "",
+            "Content summary"
+        ]
+
+        for section in snapshotSections {
+            lines.append("")
+            lines.append("\(section.type.title) (\(section.countLabel))")
+            lines.append(contentsOf: section.exportLines())
+        }
+
+        lines.append("")
+        lines.append("Read-only export. No WordPress write actions were executed.")
+        return lines.joined(separator: "\n")
     }
 
     private func refreshSavedConnectionUser() async {
@@ -447,6 +530,15 @@ private enum OverviewDateFormatter {
     }()
 }
 
+private enum SnapshotDateFormatter {
+    static let report: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+}
+
 private struct SiteOverviewCard: View {
     @Bindable var model: AppViewModel
 
@@ -523,6 +615,14 @@ private struct SiteOverviewCard: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(model.isLoadingOverview)
+
+                NavigationLink {
+                    SiteSnapshotView(model: model)
+                } label: {
+                    Label("Open Site Snapshot", systemImage: "doc.text.magnifyingglass")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
 
                 Button {
                     Task { await model.testSavedConnection() }
@@ -624,6 +724,206 @@ private struct OverviewMetricTile: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+private struct SiteSnapshotView: View {
+    @Bindable var model: AppViewModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(
+                        icon: "doc.text.magnifyingglass",
+                        title: "Site Snapshot",
+                        subtitle: "A read-only export report for the current WordPress connection."
+                    )
+
+                    HStack {
+                        StatusPill(title: "Read-only export", tint: .green)
+                        StatusPill(title: model.connectionMode.label, tint: model.connectionMode.tint)
+                    }
+
+                    Text("Includes URL, auth mode, REST health, content counts, last refresh, and a short public content summary.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    ShareLink(item: model.siteSnapshotReportText) {
+                        Label("Share snapshot", systemImage: "square.and.arrow.up")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+
+                    Button {
+                        Task { await model.refreshSnapshot() }
+                    } label: {
+                        Label(model.isLoadingSnapshot ? "Refreshing snapshot..." : "Refresh snapshot", systemImage: "arrow.clockwise")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(model.isLoadingSnapshot)
+                }
+                .cardStyle()
+
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionHeader(
+                        icon: "list.clipboard.fill",
+                        title: "Report metadata",
+                        subtitle: "Current values captured from the local app state."
+                    )
+
+                    MetadataRow(title: "URL", value: model.normalizedBaseURL)
+                    MetadataRow(title: "Mode", value: model.connectionMode.label)
+                    MetadataRow(title: "User", value: userLabel)
+                    MetadataRow(title: "Health", value: healthLabel)
+                    MetadataRow(title: "Counts", value: countsLabel)
+                    MetadataRow(title: "Overview", value: overviewRefreshLabel)
+                    MetadataRow(title: "Snapshot", value: snapshotRefreshLabel)
+                }
+                .cardStyle()
+
+                if model.isLoadingSnapshot {
+                    LoadingRow(title: "Building read-only site snapshot...")
+                }
+                if let error = model.snapshotError {
+                    ErrorResultView(message: error)
+                }
+
+                ForEach(model.snapshotSections) { section in
+                    SnapshotSectionCard(section: section)
+                }
+            }
+            .padding(18)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Site Snapshot")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await model.refreshSnapshot() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(model.isLoadingSnapshot)
+            }
+        }
+        .task {
+            if !model.hasLoadedSnapshot {
+                await model.refreshSnapshot()
+            }
+        }
+    }
+
+    private var userLabel: String {
+        guard let user = model.connectionUser else {
+            return model.isAuthenticatedHealthMode ? "Not verified yet" : "Not connected"
+        }
+        let roles = user.roles.isEmpty ? "roles hidden" : user.roles.joined(separator: ", ")
+        return "\(user.name) (\(roles))"
+    }
+
+    private var healthLabel: String {
+        let health = model.healthSummary
+        return "\(health.ok) OK / \(health.protected) protected / \(health.errors) errors"
+    }
+
+    private var countsLabel: String {
+        "\(model.overviewCounts.count(for: .posts)) posts / \(model.overviewCounts.count(for: .pages)) pages / \(model.overviewCounts.count(for: .media)) media"
+    }
+
+    private var overviewRefreshLabel: String {
+        model.lastOverviewRefresh.map(SnapshotDateFormatter.report.string(from:)) ?? "Not refreshed yet"
+    }
+
+    private var snapshotRefreshLabel: String {
+        model.lastSnapshotRefresh.map(SnapshotDateFormatter.report.string(from:)) ?? "Not generated yet"
+    }
+}
+
+private struct SnapshotSectionCard: View {
+    let section: SiteSnapshotSection
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                SectionHeader(
+                    icon: section.type.icon,
+                    title: section.type.title,
+                    subtitle: "Read-only summary of public \(section.type.title.lowercased())."
+                )
+                Spacer()
+                VStack(alignment: .trailing, spacing: 6) {
+                    StatusPill(title: section.countLabel, tint: .secondary)
+                    StatusPill(title: section.loadedLabel, tint: .blue)
+                }
+            }
+
+            if section.items.isEmpty {
+                EmptyStateRow(
+                    title: "No \(section.type.title.lowercased()) in snapshot",
+                    detail: "Refresh the snapshot after WordPress has public \(section.type.title.lowercased()) to show here."
+                )
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(section.items) { item in
+                        NavigationLink(value: item) {
+                            SnapshotItemSummaryRow(item: item)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .cardStyle()
+    }
+}
+
+private struct SnapshotItemSummaryRow: View {
+    let item: WordPressContentItem
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: item.type.icon)
+                .foregroundStyle(item.type == .media ? .purple : .blue)
+                .frame(width: 28, height: 28)
+                .background((item.type == .media ? Color.purple : Color.blue).opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(item.title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(2)
+                HStack {
+                    StatusPill(title: item.status, tint: item.status == "publish" ? .green : .secondary)
+                    StatusPill(title: item.slugLabel, tint: .secondary)
+                }
+                Text(summaryDetail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var summaryDetail: String {
+        var parts = [item.typeLabel]
+        if let date = item.date {
+            parts.append(ContentDateFormatter.short.string(from: date))
+        }
+        if item.type == .media, let mimeType = item.mimeType?.nonEmpty {
+            parts.append(mimeType)
+        }
+        return parts.joined(separator: " · ")
     }
 }
 

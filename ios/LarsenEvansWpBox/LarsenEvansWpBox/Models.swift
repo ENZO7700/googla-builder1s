@@ -132,6 +132,33 @@ struct SiteOverviewCounts: Equatable {
     }
 }
 
+struct SiteSnapshotSection: Identifiable, Equatable {
+    let type: WordPressContentType
+    let totalCount: Int
+    let items: [WordPressContentItem]
+
+    var id: String { type.id }
+
+    var countLabel: String {
+        "\(totalCount) total"
+    }
+
+    var loadedLabel: String {
+        "\(items.count) in snapshot"
+    }
+
+    func exportLines(maxItems: Int = 5) -> [String] {
+        let visibleItems = Array(items.prefix(maxItems))
+        guard !visibleItems.isEmpty else {
+            return ["- No \(type.title.lowercased()) loaded in this snapshot."]
+        }
+
+        return visibleItems.map { item in
+            "- \(item.title) | status: \(item.status) | slug: \(item.slugLabel)"
+        }
+    }
+}
+
 enum SiteConnectionMode: Equatable {
     case anonymous
     case authenticatedViaKeychain

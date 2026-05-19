@@ -1,5 +1,4 @@
 import XCTest
-@testable import LarsenEvansWpBox
 
 final class WordPressCoreTests: XCTestCase {
     func testMakeURLTrimsTrailingSlash() {
@@ -121,6 +120,25 @@ final class WordPressCoreTests: XCTestCase {
         XCTAssertNil(SiteConnectionMode.authenticatedViaKeychain.notice)
     }
 
+    func testSiteSnapshotSectionSummarizesLoadedItemsForExport() {
+        let item = makeContentItem(title: "Hello world", slug: "hello-world", status: "publish", type: .posts)
+        let section = SiteSnapshotSection(type: .posts, totalCount: 3, items: [item])
+
+        XCTAssertEqual(section.countLabel, "3 total")
+        XCTAssertEqual(section.loadedLabel, "1 in snapshot")
+        XCTAssertEqual(section.exportLines(), [
+            "- Hello world | status: publish | slug: hello-world"
+        ])
+    }
+
+    func testSiteSnapshotSectionExportsClearEmptyState() {
+        let section = SiteSnapshotSection(type: .media, totalCount: 0, items: [])
+
+        XCTAssertEqual(section.exportLines(), [
+            "- No media loaded in this snapshot."
+        ])
+    }
+
     func testPostContentMappingKeepsExplorerMetadata() throws {
         let json = """
         {
@@ -222,5 +240,27 @@ final class WordPressCoreTests: XCTestCase {
         XCTAssertFalse(titles.contains { $0.hasPrefix("No ") })
         XCTAssertFalse(details.localizedCaseInsensitiveContains("error"))
         XCTAssertFalse(details.localizedCaseInsensitiveContains("warning"))
+    }
+
+    private func makeContentItem(
+        title: String,
+        slug: String,
+        status: String,
+        type: WordPressContentType
+    ) -> WordPressContentItem {
+        WordPressContentItem(
+            id: 1,
+            type: type,
+            title: title,
+            slug: slug,
+            subtitle: status,
+            detail: "Preview",
+            status: status,
+            date: nil,
+            link: nil,
+            mediaURL: nil,
+            mediaType: nil,
+            mimeType: nil
+        )
     }
 }

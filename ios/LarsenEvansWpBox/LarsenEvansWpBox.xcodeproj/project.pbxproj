@@ -13,6 +13,8 @@
 			A10000000000000000000004 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* Views.swift */; };
 			A10000000000000000000005 /* KeychainCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* KeychainCredentialStore.swift */; };
 			A20000000000000000000001 /* WordPressCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* WordPressCoreTests.swift */; };
+			A20000000000000000000002 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* Models.swift */; };
+			A20000000000000000000003 /* WordPressAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* WordPressAPIClient.swift */; };
 	/* End PBXBuildFile section */
 
 	/* Begin PBXContainerItemProxy section */
@@ -123,7 +125,6 @@
 				buildRules = (
 				);
 				dependencies = (
-					A20000000000000000000081 /* PBXTargetDependency */,
 				);
 				name = LarsenEvansWpBoxTests;
 				productName = LarsenEvansWpBoxTests;
@@ -145,7 +146,6 @@
 						};
 						A20000000000000000000040 = {
 							CreatedOnToolsVersion = 26.5;
-							TestTargetID = A10000000000000000000040;
 						};
 					};
 				};
@@ -204,6 +204,8 @@
 				isa = PBXSourcesBuildPhase;
 				buildActionMask = 2147483647;
 				files = (
+					A20000000000000000000002 /* Models.swift in Sources */,
+					A20000000000000000000003 /* WordPressAPIClient.swift in Sources */,
 					A20000000000000000000001 /* WordPressCoreTests.swift in Sources */,
 				);
 				runOnlyForDeploymentPostprocessing = 0;
@@ -383,7 +385,6 @@
 			A20000000000000000000091 /* Debug */ = {
 				isa = XCBuildConfiguration;
 				buildSettings = {
-					BUNDLE_LOADER = "$(TEST_HOST)";
 					CODE_SIGN_STYLE = Automatic;
 					GENERATE_INFOPLIST_FILE = YES;
 					IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -396,14 +397,12 @@
 					PRODUCT_NAME = "$(TARGET_NAME)";
 					SWIFT_VERSION = 6.0;
 					TARGETED_DEVICE_FAMILY = "1,2";
-					TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LarsenEvansWpBox.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LarsenEvansWpBox";
 				};
 				name = Debug;
 			};
 			A20000000000000000000092 /* Release */ = {
 				isa = XCBuildConfiguration;
 				buildSettings = {
-					BUNDLE_LOADER = "$(TEST_HOST)";
 					CODE_SIGN_STYLE = Automatic;
 					GENERATE_INFOPLIST_FILE = YES;
 					IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -416,7 +415,6 @@
 					PRODUCT_NAME = "$(TARGET_NAME)";
 					SWIFT_VERSION = 6.0;
 					TARGETED_DEVICE_FAMILY = "1,2";
-					TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LarsenEvansWpBox.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LarsenEvansWpBox";
 				};
 				name = Release;
 			};
