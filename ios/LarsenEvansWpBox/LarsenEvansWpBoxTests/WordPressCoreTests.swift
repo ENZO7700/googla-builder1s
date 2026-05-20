@@ -176,6 +176,27 @@ final class WordPressCoreTests: XCTestCase {
         XCTAssertFalse(encoded.contains("applicationPassword"))
     }
 
+    func testAnonymousSecondLocalProfileIsDistinctAndHasNoAuthUser() {
+        let authenticatedA = SiteProfile.make(
+            name: "Local WordPress A",
+            baseURL: "http://localhost:18090",
+            username: "admin",
+            now: Date(timeIntervalSince1970: 100)
+        )
+        let anonymousB = SiteProfileDraft(
+            name: " Local WordPress B ",
+            baseURL: " http://localhost:18091/ ",
+            username: " "
+        ).makeProfile(now: Date(timeIntervalSince1970: 200))
+
+        XCTAssertEqual(anonymousB.name, "Local WordPress B")
+        XCTAssertEqual(anonymousB.baseURL, "http://localhost:18091")
+        XCTAssertEqual(anonymousB.username, "")
+        XCTAssertEqual(anonymousB.usernameLabel, "Anonymous")
+        XCTAssertNotEqual(anonymousB.id, authenticatedA.id)
+        XCTAssertEqual(anonymousB.id, "site-http-localhost-18091")
+    }
+
     func testSiteProfileStoreSavesLoadsAndSwitchesActiveProfile() throws {
         let suiteName = "WordPressCoreTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -195,6 +216,24 @@ final class WordPressCoreTests: XCTestCase {
         store.saveActiveProfileID(first.id)
 
         XCTAssertEqual(store.loadActiveProfileID(), first.id)
+    }
+
+    func testSiteProfileStorePersistsActiveSecondLocalSiteSelection() throws {
+        let suiteName = "WordPressCoreTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = SiteProfileStore(defaults: defaults)
+
+        let first = SiteProfile.make(name: "Local WordPress A", baseURL: "http://localhost:18090", username: "admin")
+        let second = SiteProfile.make(name: "Local WordPress B", baseURL: "http://localhost:18091", username: "")
+        var profiles = store.upsert(first, into: [])
+        profiles = store.upsert(second, into: profiles)
+
+        store.saveActiveProfileID(second.id)
+
+        XCTAssertEqual(store.loadActiveProfileID(), second.id)
+        XCTAssertEqual(store.loadProfiles().map(\.id), [second.id, first.id])
+        XCTAssertEqual(profiles.first?.id, second.id)
     }
 
     func testSiteProfileStoreDeletesProfileAndMovesActiveSelection() throws {

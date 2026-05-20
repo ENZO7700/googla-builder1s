@@ -37,6 +37,7 @@ final class AppViewModel {
     var siteProfileError: String?
     var addSiteDraft = SiteProfileDraft()
     var addSiteError: String?
+    var isSwitchingSite = false
 
     private let api = WordPressAPIClient()
     private let credentialStore = KeychainCredentialStore()
@@ -275,20 +276,12 @@ final class AppViewModel {
     }
 
     func selectSiteProfile(_ profile: SiteProfile) async {
+        isSwitchingSite = true
         siteProfileNotice = nil
         siteProfileError = nil
         addSiteError = nil
-        selectedSiteProfileID = profile.id
-        siteProfileStore.saveActiveProfileID(profile.id)
-        siteProfileName = profile.name
-        baseURL = profile.baseURL
-        username = profile.username
-        applicationPassword = ""
-        connectionUser = nil
-        connectionError = nil
-        overviewError = nil
-        snapshotError = nil
-        resetContentExplorerFilters()
+        prepareForSiteSwitch(to: profile)
+        defer { isSwitchingSite = false }
 
         do {
             savedConnection = try credentialStore.load(for: profile)
@@ -585,17 +578,40 @@ final class AppViewModel {
         selectedSiteProfileID = nil
         siteProfileStore.saveActiveProfileID(nil)
         siteProfileName = "Local WordPress"
+        baseURL = "http://localhost:18090"
         username = ""
         applicationPassword = ""
+        clearSiteScopedState()
+        resetContentExplorerFilters()
+    }
+
+    private func prepareForSiteSwitch(to profile: SiteProfile) {
+        selectedSiteProfileID = profile.id
+        siteProfileStore.saveActiveProfileID(profile.id)
+        siteProfileName = profile.name
+        baseURL = profile.baseURL
+        username = profile.username
+        applicationPassword = ""
+        clearSiteScopedState()
+        resetContentExplorerFilters()
+    }
+
+    private func clearSiteScopedState() {
         savedConnection = nil
         connectionUser = nil
         connectionError = nil
-        overviewError = nil
+        connectionNotice = nil
         isConnectionSaved = false
+        healthChecks = defaultHealthEndpoints
+        overviewCounts = SiteOverviewCounts()
+        overviewError = nil
+        lastOverviewRefresh = nil
+        contentItems = []
+        contentError = nil
         snapshotItems = [:]
+        snapshotError = nil
         hasLoadedSnapshot = false
         lastSnapshotRefresh = nil
-        resetContentExplorerFilters()
     }
 
     private func normalizeContentStatusFilter() {
@@ -809,7 +825,7 @@ private struct SiteOverviewCard: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.bordered)
-                .disabled(model.isLoadingOverview || model.isCheckingHealth)
+                .disabled(model.isSwitchingSite || model.isLoadingOverview || model.isCheckingHealth)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -866,7 +882,7 @@ private struct SiteOverviewCard: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(model.isLoadingOverview)
+                .disabled(model.isSwitchingSite || model.isLoadingOverview)
 
                 NavigationLink {
                     SiteSnapshotView(model: model)
@@ -883,14 +899,16 @@ private struct SiteOverviewCard: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .disabled(model.isTestingConnection || !model.isAuthenticatedHealthMode)
+                .disabled(model.isSwitchingSite || model.isTestingConnection || !model.isAuthenticatedHealthMode)
 
                 if model.isConnectionSaved {
                     ForgetConnectionButton(model: model, isFullWidth: true)
                 }
             }
 
-            if model.isLoadingOverview {
+            if model.isSwitchingSite {
+                LoadingRow(title: "Switching to \(model.siteProfileName)...")
+            } else if model.isLoadingOverview {
                 LoadingRow(title: "Refreshing site overview...")
             }
             if let notice = model.connectionMode.notice {
@@ -943,7 +961,7 @@ private struct ForgetConnectionButton: View {
         }
         .buttonStyle(.bordered)
         .controlSize(isFullWidth ? .regular : .small)
-        .disabled(model.isLoadingOverview || model.isTestingConnection)
+        .disabled(model.isSwitchingSite || model.isLoadingOverview || model.isTestingConnection)
         .alert("Forget saved connection?", isPresented: $isConfirming) {
             Button("Cancel", role: .cancel) {}
             Button("Forget", role: .destructive) {
@@ -970,6 +988,9 @@ private struct SavedSitesCard: View {
             HStack {
                 StatusPill(title: model.connectionMode.label, tint: model.connectionMode.tint)
                 StatusPill(title: "\(model.siteProfiles.count) saved", tint: .secondary)
+                if model.isSwitchingSite {
+                    StatusPill(title: "Switching", tint: .blue)
+                }
             }
 
             VStack(alignment: .leading, spacing: 10) {
@@ -984,7 +1005,7 @@ private struct SavedSitesCard: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .disabled(!model.canSaveCurrentSiteProfile)
+                .disabled(model.isSwitchingSite || !model.canSaveCurrentSiteProfile)
 
                 Button {
                     model.prepareAddSiteProfile()
@@ -994,6 +1015,7 @@ private struct SavedSitesCard: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(model.isSwitchingSite)
             }
 
             if model.siteProfiles.isEmpty {
@@ -1136,7 +1158,7 @@ private struct SavedSiteRow: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .disabled(isActive)
+                .disabled(isActive || model.isSwitchingSite)
 
                 Button(role: .destructive) {
                     isConfirmingForget = true
@@ -1145,6 +1167,7 @@ private struct SavedSiteRow: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .disabled(model.isSwitchingSite)
             }
         }
         .padding(12)
@@ -1217,6 +1240,7 @@ private struct SiteSnapshotView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
+                    .disabled(model.isSwitchingSite)
 
                     Button {
                         Task { await model.refreshSnapshot() }
@@ -1225,7 +1249,7 @@ private struct SiteSnapshotView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
-                    .disabled(model.isLoadingSnapshot)
+                    .disabled(model.isSwitchingSite || model.isLoadingSnapshot)
                 }
                 .cardStyle()
 
@@ -1246,7 +1270,9 @@ private struct SiteSnapshotView: View {
                 }
                 .cardStyle()
 
-                if model.isLoadingSnapshot {
+                if model.isSwitchingSite {
+                    LoadingRow(title: "Switching site before building snapshot...")
+                } else if model.isLoadingSnapshot {
                     LoadingRow(title: "Building read-only site snapshot...")
                 }
                 if let error = model.snapshotError {
@@ -1269,7 +1295,7 @@ private struct SiteSnapshotView: View {
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
-                .disabled(model.isLoadingSnapshot)
+                .disabled(model.isSwitchingSite || model.isLoadingSnapshot)
             }
         }
         .task {
@@ -1408,7 +1434,7 @@ private struct ContentBrowserCard: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.bordered)
-                .disabled(model.isLoadingContent)
+                .disabled(model.isSwitchingSite || model.isLoadingContent)
             }
 
             Picker("Content type", selection: $model.selectedContentType) {
@@ -1417,6 +1443,7 @@ private struct ContentBrowserCard: View {
                 }
             }
             .pickerStyle(.segmented)
+            .disabled(model.isSwitchingSite)
             .onChange(of: model.selectedContentType) {
                 Task { await model.loadContent() }
             }
@@ -1425,6 +1452,7 @@ private struct ContentBrowserCard: View {
                 TextField("Search title, slug, status", text: $model.contentSearchQuery)
                     .textInputAutocapitalization(.never)
                     .fieldStyle()
+                    .disabled(model.isSwitchingSite)
 
                 HStack(spacing: 10) {
                     Menu {
@@ -1458,6 +1486,7 @@ private struct ContentBrowserCard: View {
                         )
                     }
                 }
+                .disabled(model.isSwitchingSite)
 
                 if model.contentFilterIsActive {
                     Button {
@@ -1467,18 +1496,21 @@ private struct ContentBrowserCard: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
+                    .disabled(model.isSwitchingSite)
                 }
             }
 
             HStack {
                 StatusPill(title: "Read-only", tint: .green)
-                if !model.isLoadingContent, model.contentError == nil {
+                if !model.isSwitchingSite, !model.isLoadingContent, model.contentError == nil {
                     StatusPill(title: "\(explorer.totalCount) loaded", tint: .secondary)
                     StatusPill(title: "\(explorer.filteredCount) shown", tint: explorer.isFiltered ? .blue : .secondary)
                 }
             }
 
-            if model.isLoadingContent {
+            if model.isSwitchingSite {
+                LoadingRow(title: "Switching site and clearing previous content...")
+            } else if model.isLoadingContent {
                 LoadingRow(title: "Loading \(model.selectedContentType.title.lowercased())...")
             } else if let error = model.contentError {
                 ErrorResultView(message: "Could not load \(model.selectedContentType.title.lowercased()): \(error)")
