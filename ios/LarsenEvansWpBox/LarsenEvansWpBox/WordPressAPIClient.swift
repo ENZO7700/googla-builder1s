@@ -148,6 +148,30 @@ struct WordPressAPIClient {
         }
     }
 
+    func fetchCleanupRoutes(baseURL: String, credentials: WordPressConnection? = nil) async throws -> [CleanupRoute] {
+        let data = try await fetchData(baseURL: baseURL, path: "/", credentials: credentials)
+        let decoded = try JSONDecoder().decode(WPRestRootResponse.self, from: data)
+        return decoded.cleanupRoutes
+    }
+
+    func fetchCleanupHistory(baseURL: String, credentials: WordPressConnection? = nil) async throws -> [CleanupHistoryItem] {
+        let data = try await fetchData(
+            baseURL: baseURL,
+            path: "\(CleanupPluginStatus.namespace)/history",
+            credentials: credentials
+        )
+        return try CleanupHistoryResponse.decodeItems(from: data)
+    }
+
+    func fetchCleanupBackups(baseURL: String, credentials: WordPressConnection? = nil) async throws -> [CleanupBackupItem] {
+        let data = try await fetchData(
+            baseURL: baseURL,
+            path: "\(CleanupPluginStatus.namespace)/backups",
+            credentials: credentials
+        )
+        return try CleanupBackupResponse.decodeItems(from: data)
+    }
+
     private func check(endpoint: HealthEndpoint, baseURL: String, credentials: WordPressConnection?) async -> HealthEndpoint {
         var next = endpoint
         guard let url = makeURL(baseURL: baseURL, path: endpoint.path) else {
@@ -177,6 +201,36 @@ struct WordPressAPIClient {
         }
 
         return next
+    }
+
+    private func fetchData(baseURL: String, path: String, credentials: WordPressConnection? = nil) async throws -> Data {
+        guard let url = makeURL(baseURL: baseURL, path: path) else {
+            throw ClientError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let credentials, isSafeCredentialURL(url) {
+            request.setValue("Basic \(basicAuth(username: credentials.username, password: credentials.applicationPassword))", forHTTPHeaderField: "Authorization")
+        }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                throw ClientError.network("WordPress returned an invalid response.")
+            }
+            if !(200..<300).contains(http.statusCode) {
+                let error = try? JSONDecoder().decode(WPErrorResponse.self, from: data)
+                let message = error?.message?.strippingHTML ?? "Cleanup diagnostics endpoint is not available."
+                throw ClientError.rejected(http.statusCode, message)
+            }
+            return data
+        } catch let error as ClientError {
+            throw error
+        } catch {
+            throw ClientError.network(error.localizedDescription)
+        }
     }
 
     func makeURL(baseURL: String, path: String) -> URL? {
@@ -230,6 +284,82 @@ private struct WPMeResponse: Decodable {
                 .sorted(),
             avatarURL: avatarURLs?["96"].flatMap(URL.init(string:))
         )
+    }
+}
+
+private struct WPRestRootResponse: Decodable {
+    let routes: [String: WPRestRoute]
+
+    var cleanupRoutes: [CleanupRoute] {
+        routes
+            .filter { path, _ in
+                path.hasPrefix(CleanupPluginStatus.namespace)
+            }
+            .map { path, route in
+                CleanupRoute(path: path, methods: route.allMethods)
+            }
+            .sorted { lhs, rhs in
+                lhs.path.localizedCaseInsensitiveCompare(rhs.path) == .orderedAscending
+            }
+    }
+}
+
+private struct WPRestRoute: Decodable {
+    let methods: [String]?
+    let endpoints: [WPRestEndpoint]?
+
+    var allMethods: [String] {
+        let routeMethods = methods ?? []
+        let endpointMethods = endpoints?.flatMap { $0.methods ?? [] } ?? []
+        return Array(Set(routeMethods + endpointMethods))
+            .map { $0.uppercased() }
+            .sorted()
+    }
+}
+
+private struct WPRestEndpoint: Decodable {
+    let methods: [String]?
+}
+
+private enum CleanupHistoryResponse {
+    static func decodeItems(from data: Data) throws -> [CleanupHistoryItem] {
+        if let items = try? JSONDecoder().decode([CleanupHistoryItem].self, from: data) {
+            return items
+        }
+        let envelope = try JSONDecoder().decode(CleanupHistoryEnvelope.self, from: data)
+        return envelope.decodedItems
+    }
+}
+
+private struct CleanupHistoryEnvelope: Decodable {
+    let history: [CleanupHistoryItem]?
+    let data: [CleanupHistoryItem]?
+    let items: [CleanupHistoryItem]?
+    let results: [CleanupHistoryItem]?
+
+    var decodedItems: [CleanupHistoryItem] {
+        history ?? data ?? items ?? results ?? []
+    }
+}
+
+private enum CleanupBackupResponse {
+    static func decodeItems(from data: Data) throws -> [CleanupBackupItem] {
+        if let items = try? JSONDecoder().decode([CleanupBackupItem].self, from: data) {
+            return items
+        }
+        let envelope = try JSONDecoder().decode(CleanupBackupEnvelope.self, from: data)
+        return envelope.decodedItems
+    }
+}
+
+private struct CleanupBackupEnvelope: Decodable {
+    let backups: [CleanupBackupItem]?
+    let data: [CleanupBackupItem]?
+    let items: [CleanupBackupItem]?
+    let results: [CleanupBackupItem]?
+
+    var decodedItems: [CleanupBackupItem] {
+        backups ?? data ?? items ?? results ?? []
     }
 }
 

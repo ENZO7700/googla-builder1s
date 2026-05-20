@@ -307,6 +307,139 @@ struct SiteSnapshotSection: Identifiable, Equatable {
     }
 }
 
+struct CleanupPluginStatus: Equatable {
+    static let namespace = "/ultra-clean/v1"
+
+    var routes: [CleanupRoute] = []
+
+    var isDetected: Bool {
+        !routes.isEmpty
+    }
+
+    var readOnlyRoutes: [CleanupRoute] {
+        routes.filter { !$0.isDestructive }
+    }
+
+    var lockedRoutes: [CleanupRoute] {
+        routes.filter(\.isDestructive)
+    }
+
+    var statusLabel: String {
+        isDetected ? "Plugin detected" : "Plugin not detected"
+    }
+}
+
+struct CleanupRoute: Identifiable, Equatable {
+    let path: String
+    let methods: [String]
+
+    var id: String { path }
+
+    var methodLabel: String {
+        methods.isEmpty ? "GET" : methods.joined(separator: ", ")
+    }
+
+    var isDestructive: Bool {
+        let writeMethods = Set(["POST", "PUT", "PATCH", "DELETE"])
+        return methods.contains { writeMethods.contains($0.uppercased()) }
+            || path.lowercased().contains("deep-clean")
+            || path.lowercased().contains("rollback")
+            || path.lowercased().contains("delete")
+            || path.lowercased().contains("cleanup")
+    }
+
+    var lockLabel: String {
+        isDestructive ? "Locked" : "Read-only"
+    }
+}
+
+struct CleanupHistoryItem: Identifiable, Equatable, Decodable {
+    let id: String
+    let action: String
+    let status: String
+    let message: String
+    let removedCount: Int?
+    let date: Date?
+
+    var summary: String {
+        if let removedCount {
+            return "\(message) · \(removedCount) items"
+        }
+        return message
+    }
+
+    init(
+        id: String,
+        action: String,
+        status: String,
+        message: String,
+        removedCount: Int? = nil,
+        date: Date? = nil
+    ) {
+        self.id = id
+        self.action = action
+        self.status = status
+        self.message = message
+        self.removedCount = removedCount
+        self.date = date
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: FlexibleCodingKey.self)
+        let fallbackID = UUID().uuidString
+        id = container.flexibleString(for: ["id", "history_id", "uuid"]) ?? fallbackID
+        action = container.flexibleString(for: ["action", "type", "operation", "cleanup_type"]) ?? "Cleanup"
+        status = container.flexibleString(for: ["status", "result", "state"]) ?? "recorded"
+        message = container.flexibleString(for: ["message", "summary", "description", "details"]) ?? action
+        removedCount = container.flexibleInt(for: ["removed", "deleted", "items_removed", "count", "total"])
+        date = container.flexibleDate(for: ["date", "created_at", "timestamp", "time"])
+    }
+}
+
+struct CleanupBackupItem: Identifiable, Equatable, Decodable {
+    let id: String
+    let name: String
+    let status: String
+    let sizeLabel: String?
+    let date: Date?
+
+    init(
+        id: String,
+        name: String,
+        status: String,
+        sizeLabel: String? = nil,
+        date: Date? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.status = status
+        self.sizeLabel = sizeLabel
+        self.date = date
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: FlexibleCodingKey.self)
+        let fallbackID = UUID().uuidString
+        id = container.flexibleString(for: ["id", "backup_id", "uuid", "file"]) ?? fallbackID
+        name = container.flexibleString(for: ["name", "filename", "file", "path"]) ?? "Backup"
+        status = container.flexibleString(for: ["status", "state", "result"]) ?? "available"
+        sizeLabel = container.flexibleString(for: ["size", "size_label", "filesize"])
+            ?? container.flexibleInt(for: ["bytes", "size_bytes"]).map { "\($0) bytes" }
+        date = container.flexibleDate(for: ["date", "created_at", "timestamp", "time"])
+    }
+}
+
+struct CleanupDiagnosticsPayload: Equatable {
+    var status = CleanupPluginStatus()
+    var history: [CleanupHistoryItem] = []
+    var backups: [CleanupBackupItem] = []
+
+    var historyCount: Int { history.count }
+    var backupsCount: Int { backups.count }
+    var latestHistory: CleanupHistoryItem? { history.first }
+    var latestBackup: CleanupBackupItem? { backups.first }
+}
+
 enum SiteConnectionMode: Equatable {
     case anonymous
     case authenticatedViaKeychain
@@ -657,3 +790,99 @@ let productionGuardrails: [GuardrailItem] = [
         detail: "Server save flow comes after backend approval."
     )
 ]
+
+struct FlexibleCodingKey: CodingKey {
+    let stringValue: String
+    let intValue: Int?
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        intValue = nil
+    }
+
+    init?(intValue: Int) {
+        stringValue = "\(intValue)"
+        self.intValue = intValue
+    }
+}
+
+extension KeyedDecodingContainer where Key == FlexibleCodingKey {
+    func flexibleString(for keys: [String]) -> String? {
+        for keyName in keys {
+            guard let key = FlexibleCodingKey(stringValue: keyName) else { continue }
+            if let decoded = try? decodeIfPresent(String.self, forKey: key),
+               let value = decoded.nonEmpty {
+                return value
+            }
+            if let decoded = try? decodeIfPresent(Int.self, forKey: key) {
+                return "\(decoded)"
+            }
+            if let decoded = try? decodeIfPresent(Double.self, forKey: key) {
+                return "\(decoded)"
+            }
+        }
+        return nil
+    }
+
+    func flexibleInt(for keys: [String]) -> Int? {
+        for keyName in keys {
+            guard let key = FlexibleCodingKey(stringValue: keyName) else { continue }
+            if let decoded = try? decodeIfPresent(Int.self, forKey: key) {
+                return decoded
+            }
+            if let decoded = try? decodeIfPresent(String.self, forKey: key),
+               let intValue = Int(decoded.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                return intValue
+            }
+        }
+        return nil
+    }
+
+    func flexibleDate(for keys: [String]) -> Date? {
+        for keyName in keys {
+            guard let key = FlexibleCodingKey(stringValue: keyName) else { continue }
+            if let decoded = try? decodeIfPresent(String.self, forKey: key),
+               let date = CleanupDateParser.parse(decoded) {
+                return date
+            }
+            if let decoded = try? decodeIfPresent(Double.self, forKey: key) {
+                return Date(timeIntervalSince1970: decoded)
+            }
+            if let decoded = try? decodeIfPresent(Int.self, forKey: key) {
+                return Date(timeIntervalSince1970: TimeInterval(decoded))
+            }
+        }
+        return nil
+    }
+}
+
+enum CleanupDateParser {
+    static func parse(_ value: String) -> Date? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let timestamp = TimeInterval(trimmed) {
+            return Date(timeIntervalSince1970: timestamp)
+        }
+
+        for formatter in formatters {
+            if let date = formatter.date(from: trimmed) {
+                return date
+            }
+        }
+        return nil
+    }
+
+    private static let formatters: [DateFormatter] = [
+        makeFormatter("yyyy-MM-dd'T'HH:mm:ssXXXXX"),
+        makeFormatter("yyyy-MM-dd'T'HH:mm:ss"),
+        makeFormatter("yyyy-MM-dd HH:mm:ss"),
+        makeFormatter("yyyy-MM-dd")
+    ]
+
+    private static func makeFormatter(_ format: String) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = format
+        return formatter
+    }
+}

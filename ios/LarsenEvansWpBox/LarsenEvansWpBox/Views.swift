@@ -38,6 +38,9 @@ final class AppViewModel {
     var addSiteDraft = SiteProfileDraft()
     var addSiteError: String?
     var isSwitchingSite = false
+    var cleanupDiagnostics = CleanupDiagnosticsPayload()
+    var cleanupDiagnosticsError: String?
+    var isLoadingCleanupDiagnostics = false
 
     private let api = WordPressAPIClient()
     private let credentialStore = KeychainCredentialStore()
@@ -172,7 +175,39 @@ final class AppViewModel {
 
     func refreshAll() async {
         await refreshOverview()
+        await refreshCleanupDiagnostics()
         await loadContent()
+    }
+
+    func refreshCleanupDiagnostics() async {
+        isLoadingCleanupDiagnostics = true
+        cleanupDiagnosticsError = nil
+        defer { isLoadingCleanupDiagnostics = false }
+
+        var next = CleanupDiagnosticsPayload()
+        var failures: [String] = []
+        let credentials = savedConnectionForCurrentBaseURL()
+
+        do {
+            next.status = CleanupPluginStatus(routes: try await api.fetchCleanupRoutes(baseURL: baseURL, credentials: credentials))
+        } catch {
+            failures.append("Routes: \(error.localizedDescription)")
+        }
+
+        do {
+            next.history = try await api.fetchCleanupHistory(baseURL: baseURL, credentials: credentials)
+        } catch {
+            failures.append("History: \(error.localizedDescription)")
+        }
+
+        do {
+            next.backups = try await api.fetchCleanupBackups(baseURL: baseURL, credentials: credentials)
+        } catch {
+            failures.append("Backups: \(error.localizedDescription)")
+        }
+
+        cleanupDiagnostics = next
+        cleanupDiagnosticsError = failures.isEmpty ? nil : failures.joined(separator: "\n")
     }
 
     func refreshSnapshot() async {
@@ -608,6 +643,8 @@ final class AppViewModel {
         lastOverviewRefresh = nil
         contentItems = []
         contentError = nil
+        cleanupDiagnostics = CleanupDiagnosticsPayload()
+        cleanupDiagnosticsError = nil
         snapshotItems = [:]
         snapshotError = nil
         hasLoadedSnapshot = false
@@ -636,6 +673,7 @@ struct RootView: View {
                     ConnectionCard(model: model)
                     SavedSitesCard(model: model)
                     SiteOverviewCard(model: model)
+                    DatabaseCleanupCard(model: model)
                     ContentBrowserCard(model: model)
                     HealthCard(model: model)
                     ControlCenterCard(isAuthenticated: model.isAuthenticatedHealthMode)
@@ -658,6 +696,7 @@ struct RootView: View {
             }
             .task {
                 await model.refreshOverview()
+                await model.refreshCleanupDiagnostics()
                 if model.contentItems.isEmpty {
                     await model.loadContent()
                 }
@@ -800,6 +839,15 @@ private enum OverviewDateFormatter {
 
 private enum SnapshotDateFormatter {
     static let report: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+}
+
+private enum CleanupDateFormatter {
+    static let short: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
@@ -970,6 +1018,184 @@ private struct ForgetConnectionButton: View {
         } message: {
             Text("This removes only the local Keychain connection. WordPress content and settings are not changed.")
         }
+    }
+}
+
+private struct DatabaseCleanupCard: View {
+    @Bindable var model: AppViewModel
+
+    var body: some View {
+        let diagnostics = model.cleanupDiagnostics
+
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                SectionHeader(
+                    icon: "externaldrive.badge.checkmark",
+                    title: "Database Cleanup",
+                    subtitle: "Read-only diagnostics for Clean H4CK3D Database."
+                )
+                Spacer()
+                Button {
+                    Task { await model.refreshCleanupDiagnostics() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.bordered)
+                .disabled(model.isSwitchingSite || model.isLoadingCleanupDiagnostics)
+            }
+
+            HStack {
+                StatusPill(title: "Read-only diagnostics", tint: .green)
+                StatusPill(title: diagnostics.status.statusLabel, tint: diagnostics.status.isDetected ? .blue : .secondary)
+            }
+            HStack {
+                StatusPill(title: "Cleanup locked", tint: .secondary)
+                StatusPill(title: "Rollback locked", tint: .secondary)
+            }
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                OverviewMetricTile(
+                    title: "Routes",
+                    value: diagnostics.status.routes.count,
+                    icon: "point.3.connected.trianglepath.dotted",
+                    tint: .blue
+                )
+                OverviewMetricTile(
+                    title: "History",
+                    value: diagnostics.historyCount,
+                    icon: "clock.arrow.circlepath",
+                    tint: .green
+                )
+                OverviewMetricTile(
+                    title: "Backups",
+                    value: diagnostics.backupsCount,
+                    icon: "archivebox.fill",
+                    tint: .purple
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                MetadataRow(title: "Namespace", value: CleanupPluginStatus.namespace)
+                MetadataRow(title: "Safe GET", value: diagnostics.status.readOnlyRoutes.map(\.path).joined(separator: ", ").nonEmpty ?? "history, backups")
+                MetadataRow(title: "Locked writes", value: diagnostics.status.lockedRoutes.map(\.path).joined(separator: ", ").nonEmpty ?? "deep-clean, rollback")
+            }
+            .padding(12)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+
+            if model.isLoadingCleanupDiagnostics {
+                LoadingRow(title: "Checking cleanup plugin read-only endpoints...")
+            }
+
+            if let latestHistory = diagnostics.latestHistory {
+                CleanupLatestHistoryRow(item: latestHistory)
+            } else if !model.isLoadingCleanupDiagnostics {
+                EmptyStateRow(
+                    title: "No cleanup history loaded",
+                    detail: "The diagnostic panel has not received a cleanup history record yet."
+                )
+            }
+
+            if let latestBackup = diagnostics.latestBackup {
+                CleanupLatestBackupRow(item: latestBackup)
+            }
+
+            if !diagnostics.status.routes.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Available plugin endpoints")
+                        .font(.subheadline.weight(.semibold))
+                    ForEach(diagnostics.status.routes) { route in
+                        CleanupRouteRow(route: route)
+                    }
+                }
+            }
+
+            if let error = model.cleanupDiagnosticsError {
+                NoticeResultView(message: "Some cleanup diagnostics are unavailable in read-only mode:\n\(error)")
+            }
+        }
+        .cardStyle()
+    }
+}
+
+private struct CleanupLatestHistoryRow: View {
+    let item: CleanupHistoryItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Latest cleanup record", systemImage: "clock.arrow.circlepath")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                StatusPill(title: item.status.capitalized, tint: .blue)
+            }
+            Text(item.action)
+                .font(.caption.weight(.semibold))
+            Text(item.summary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let date = item.date {
+                Text(CleanupDateFormatter.short.string(from: date))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+private struct CleanupLatestBackupRow: View {
+    let item: CleanupBackupItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Latest backup", systemImage: "archivebox.fill")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                StatusPill(title: item.status.capitalized, tint: .purple)
+            }
+            Text(item.name)
+                .font(.caption.weight(.semibold))
+                .lineLimit(2)
+            if let sizeLabel = item.sizeLabel {
+                Text(sizeLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if let date = item.date {
+                Text(CleanupDateFormatter.short.string(from: date))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+private struct CleanupRouteRow: View {
+    let route: CleanupRoute
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: route.isDestructive ? "lock.shield.fill" : "checkmark.shield.fill")
+                .foregroundStyle(route.isDestructive ? Color.secondary : Color.green)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(route.path)
+                    .font(.caption.monospaced())
+                    .lineLimit(1)
+                Text(route.methodLabel)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            StatusPill(title: route.lockLabel, tint: route.isDestructive ? .secondary : .green)
+        }
+        .padding(10)
+        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 

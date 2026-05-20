@@ -98,6 +98,68 @@ final class WordPressCoreTests: XCTestCase {
         XCTAssertEqual(WordPressContentType.media.countPath, "/wp/v2/media?per_page=1&_fields=id")
     }
 
+    func testCleanupHistoryResponseParsesFlexibleFields() throws {
+        let data = Data("""
+        [
+          {
+            "id": 12,
+            "operation": "deep-clean preview",
+            "result": "success",
+            "summary": "Removed transient rows",
+            "items_removed": "42",
+            "created_at": "2026-05-20 12:30:00"
+          }
+        ]
+        """.utf8)
+
+        let items = try JSONDecoder().decode([CleanupHistoryItem].self, from: data)
+
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items[0].id, "12")
+        XCTAssertEqual(items[0].action, "deep-clean preview")
+        XCTAssertEqual(items[0].status, "success")
+        XCTAssertEqual(items[0].message, "Removed transient rows")
+        XCTAssertEqual(items[0].removedCount, 42)
+        XCTAssertNotNil(items[0].date)
+    }
+
+    func testCleanupBackupResponseParsesFlexibleFields() throws {
+        let data = Data("""
+        [
+          {
+            "backup_id": "backup-1",
+            "filename": "backup.sql",
+            "state": "available",
+            "bytes": 2048,
+            "timestamp": 1779296400
+          }
+        ]
+        """.utf8)
+
+        let items = try JSONDecoder().decode([CleanupBackupItem].self, from: data)
+
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items[0].id, "backup-1")
+        XCTAssertEqual(items[0].name, "backup.sql")
+        XCTAssertEqual(items[0].status, "available")
+        XCTAssertEqual(items[0].sizeLabel, "2048 bytes")
+        XCTAssertNotNil(items[0].date)
+    }
+
+    func testCleanupDestructiveEndpointsAreLocked() {
+        let history = CleanupRoute(path: "/ultra-clean/v1/history", methods: ["GET"])
+        let backups = CleanupRoute(path: "/ultra-clean/v1/backups", methods: ["GET"])
+        let deepClean = CleanupRoute(path: "/ultra-clean/v1/deep-clean", methods: ["POST"])
+        let rollback = CleanupRoute(path: "/ultra-clean/v1/rollback", methods: ["POST"])
+
+        XCTAssertFalse(history.isDestructive)
+        XCTAssertFalse(backups.isDestructive)
+        XCTAssertEqual(history.lockLabel, "Read-only")
+        XCTAssertTrue(deepClean.isDestructive)
+        XCTAssertTrue(rollback.isDestructive)
+        XCTAssertEqual(deepClean.lockLabel, "Locked")
+    }
+
     func testSiteOverviewCountsMapContentTypes() {
         let counts = SiteOverviewCounts(values: [
             .posts: 3,
