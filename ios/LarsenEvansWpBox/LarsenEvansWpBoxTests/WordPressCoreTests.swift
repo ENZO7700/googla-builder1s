@@ -120,6 +120,74 @@ final class WordPressCoreTests: XCTestCase {
         XCTAssertNil(SiteConnectionMode.authenticatedViaKeychain.notice)
     }
 
+    func testSiteProfileNormalizesURLUsernameAndStableID() {
+        let profile = SiteProfile.make(
+            name: " Local WordPress ",
+            baseURL: " http://localhost:18090/ ",
+            username: " admin ",
+            now: Date(timeIntervalSince1970: 100)
+        )
+
+        XCTAssertEqual(profile.id, "site-http-localhost-18090-admin")
+        XCTAssertEqual(profile.name, "Local WordPress")
+        XCTAssertEqual(profile.baseURL, "http://localhost:18090")
+        XCTAssertEqual(profile.username, "admin")
+        XCTAssertEqual(profile.usernameLabel, "admin")
+    }
+
+    func testSiteProfileEncodingDoesNotContainApplicationPassword() throws {
+        let profile = SiteProfile.make(
+            name: "Local WordPress",
+            baseURL: "http://localhost:18090",
+            username: "admin"
+        )
+
+        let data = try JSONEncoder().encode(profile)
+        let encoded = try XCTUnwrap(String(data: data, encoding: .utf8))
+
+        XCTAssertFalse(encoded.contains("applicationPassword"))
+        XCTAssertFalse(encoded.contains("secret-value"))
+    }
+
+    func testSiteProfileStoreSavesLoadsAndSwitchesActiveProfile() throws {
+        let suiteName = "WordPressCoreTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = SiteProfileStore(defaults: defaults)
+
+        let first = SiteProfile.make(name: "Local", baseURL: "http://localhost:18090", username: "admin")
+        let second = SiteProfile.make(name: "Staging", baseURL: "https://staging.example.test", username: "editor")
+
+        _ = store.upsert(first, into: [])
+        let saved = store.upsert(second, into: store.loadProfiles())
+
+        XCTAssertEqual(saved.first?.id, second.id)
+        XCTAssertEqual(store.loadActiveProfileID(), second.id)
+        XCTAssertEqual(store.loadProfiles().map(\.id), [second.id, first.id])
+
+        store.saveActiveProfileID(first.id)
+
+        XCTAssertEqual(store.loadActiveProfileID(), first.id)
+    }
+
+    func testSiteProfileStoreDeletesProfileAndMovesActiveSelection() throws {
+        let suiteName = "WordPressCoreTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = SiteProfileStore(defaults: defaults)
+
+        let first = SiteProfile.make(name: "Local", baseURL: "http://localhost:18090", username: "admin")
+        let second = SiteProfile.make(name: "Staging", baseURL: "https://staging.example.test", username: "editor")
+        var profiles = store.upsert(first, into: [])
+        profiles = store.upsert(second, into: profiles)
+
+        let remaining = store.deleteProfile(id: second.id, from: profiles)
+
+        XCTAssertEqual(remaining.map(\.id), [first.id])
+        XCTAssertEqual(store.loadActiveProfileID(), first.id)
+        XCTAssertEqual(store.loadProfiles().map(\.id), [first.id])
+    }
+
     func testSiteSnapshotSectionSummarizesLoadedItemsForExport() {
         let item = makeContentItem(title: "Hello world", slug: "hello-world", status: "publish", type: .posts)
         let section = SiteSnapshotSection(type: .posts, totalCount: 3, items: [item])

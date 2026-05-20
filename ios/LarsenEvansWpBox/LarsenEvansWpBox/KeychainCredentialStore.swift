@@ -20,7 +20,7 @@ struct KeychainCredentialStore {
     }
 
     private let service = "sk.larsenevans.wpbox.wordpress-connection"
-    private let account = "default"
+    private let legacyAccount = "default"
 
     static func isMissingEntitlement(_ error: Error) -> Bool {
         guard case StoreError.keychain(let status) = error else { return false }
@@ -28,7 +28,31 @@ struct KeychainCredentialStore {
     }
 
     func load() throws -> WordPressConnection? {
-        var query = baseQuery()
+        try load(account: legacyAccount)
+    }
+
+    func load(for profile: SiteProfile) throws -> WordPressConnection? {
+        try load(account: profile.id)
+    }
+
+    func save(_ connection: WordPressConnection) throws {
+        try save(connection, account: legacyAccount)
+    }
+
+    func save(_ connection: WordPressConnection, for profile: SiteProfile) throws {
+        try save(connection, account: profile.id)
+    }
+
+    func clear() throws {
+        try clear(account: legacyAccount)
+    }
+
+    func clear(for profile: SiteProfile) throws {
+        try clear(account: profile.id)
+    }
+
+    private func load(account: String) throws -> WordPressConnection? {
+        var query = baseQuery(account: account)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
@@ -50,12 +74,12 @@ struct KeychainCredentialStore {
         }
     }
 
-    func save(_ connection: WordPressConnection) throws {
+    private func save(_ connection: WordPressConnection, account: String) throws {
         guard let data = try? JSONEncoder().encode(connection) else {
             throw StoreError.encodeFailed
         }
 
-        var query = baseQuery()
+        var query = baseQuery(account: account)
         let attributes: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
@@ -76,14 +100,14 @@ struct KeychainCredentialStore {
         }
     }
 
-    func clear() throws {
-        let status = SecItemDelete(baseQuery() as CFDictionary)
+    private func clear(account: String) throws {
+        let status = SecItemDelete(baseQuery(account: account) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw StoreError.keychain(status)
         }
     }
 
-    private func baseQuery() -> [String: Any] {
+    private func baseQuery(account: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

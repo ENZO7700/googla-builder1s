@@ -68,6 +68,117 @@ struct WordPressConnection: Codable, Equatable {
     let applicationPassword: String
 }
 
+struct SiteProfile: Identifiable, Codable, Equatable, Hashable {
+    let id: String
+    var name: String
+    var baseURL: String
+    var username: String
+    var lastRefresh: Date?
+    let createdAt: Date
+    var updatedAt: Date
+
+    static func make(
+        name: String,
+        baseURL: String,
+        username: String,
+        lastRefresh: Date? = nil,
+        now: Date = Date()
+    ) -> SiteProfile {
+        let normalizedBaseURL = normalizeBaseURL(baseURL)
+        let cleanUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            ?? URL(string: normalizedBaseURL)?.host
+            ?? "WordPress site"
+
+        return SiteProfile(
+            id: stableID(baseURL: normalizedBaseURL, username: cleanUsername),
+            name: cleanName,
+            baseURL: normalizedBaseURL,
+            username: cleanUsername,
+            lastRefresh: lastRefresh,
+            createdAt: now,
+            updatedAt: now
+        )
+    }
+
+    static func normalizeBaseURL(_ baseURL: String) -> String {
+        baseURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingTrailingSlash
+    }
+
+    static func stableID(baseURL: String, username: String) -> String {
+        let rawValue = "\(normalizeBaseURL(baseURL))-\(username.trimmingCharacters(in: .whitespacesAndNewlines))"
+        let sanitized = rawValue
+            .lowercased()
+            .replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        return sanitized.isEmpty ? UUID().uuidString : "site-\(sanitized)"
+    }
+
+    var usernameLabel: String {
+        username.nonEmpty ?? "Anonymous"
+    }
+}
+
+struct SiteProfileStore {
+    private let defaults: UserDefaults
+    private let profilesKey: String
+    private let activeProfileIDKey: String
+
+    init(
+        defaults: UserDefaults = .standard,
+        profilesKey: String = "wpbox.savedSiteProfiles",
+        activeProfileIDKey: String = "wpbox.activeSiteProfileID"
+    ) {
+        self.defaults = defaults
+        self.profilesKey = profilesKey
+        self.activeProfileIDKey = activeProfileIDKey
+    }
+
+    func loadProfiles() -> [SiteProfile] {
+        guard let data = defaults.data(forKey: profilesKey),
+              let profiles = try? JSONDecoder().decode([SiteProfile].self, from: data) else {
+            return []
+        }
+        return profiles.sorted { lhs, rhs in
+            lhs.updatedAt > rhs.updatedAt
+        }
+    }
+
+    func saveProfiles(_ profiles: [SiteProfile]) {
+        guard let data = try? JSONEncoder().encode(profiles) else { return }
+        defaults.set(data, forKey: profilesKey)
+    }
+
+    func upsert(_ profile: SiteProfile, into profiles: [SiteProfile]) -> [SiteProfile] {
+        var next = profiles.filter { $0.id != profile.id }
+        next.insert(profile, at: 0)
+        saveProfiles(next)
+        saveActiveProfileID(profile.id)
+        return next
+    }
+
+    func deleteProfile(id: SiteProfile.ID, from profiles: [SiteProfile]) -> [SiteProfile] {
+        let next = profiles.filter { $0.id != id }
+        saveProfiles(next)
+        if loadActiveProfileID() == id {
+            saveActiveProfileID(next.first?.id)
+        }
+        return next
+    }
+
+    func loadActiveProfileID() -> SiteProfile.ID? {
+        defaults.string(forKey: activeProfileIDKey)?.nonEmpty
+    }
+
+    func saveActiveProfileID(_ id: SiteProfile.ID?) {
+        if let id {
+            defaults.set(id, forKey: activeProfileIDKey)
+        } else {
+            defaults.removeObject(forKey: activeProfileIDKey)
+        }
+    }
+}
+
 enum WordPressContentType: String, CaseIterable, Identifiable, Hashable {
     case posts
     case pages

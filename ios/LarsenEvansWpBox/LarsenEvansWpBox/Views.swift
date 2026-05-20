@@ -30,12 +30,19 @@ final class AppViewModel {
     var isLoadingSnapshot = false
     var lastSnapshotRefresh: Date?
     var hasLoadedSnapshot = false
+    var siteProfiles: [SiteProfile] = []
+    var selectedSiteProfileID: SiteProfile.ID?
+    var siteProfileName = "Local WordPress"
+    var siteProfileNotice: String?
+    var siteProfileError: String?
 
     private let api = WordPressAPIClient()
     private let credentialStore = KeychainCredentialStore()
+    private let siteProfileStore = SiteProfileStore()
     private var savedConnection: WordPressConnection?
 
     init() {
+        restoreSiteProfiles()
         restoreSavedConnection()
     }
 
@@ -76,11 +83,14 @@ final class AppViewModel {
             )
             connectionUser = user
             do {
+                let profile = currentSiteProfile(lastRefresh: Date())
+                try credentialStore.save(connection, for: profile)
                 try credentialStore.save(connection)
                 savedConnection = connection
                 baseURL = connection.baseURL
                 username = connection.username
                 isConnectionSaved = true
+                upsertSiteProfile(profile)
                 connectionNotice = "Connection saved securely in Keychain."
             } catch {
                 savedConnection = nil
@@ -92,7 +102,9 @@ final class AppViewModel {
             }
             healthChecks = await api.runHealthChecks(baseURL: connection.baseURL, credentials: savedConnectionForCurrentBaseURL())
             await refreshContentCounts()
-            lastOverviewRefresh = Date()
+            let refreshDate = Date()
+            lastOverviewRefresh = refreshDate
+            recordActiveSiteRefresh(refreshDate)
         } catch {
             connectionError = error.localizedDescription
         }
@@ -106,7 +118,9 @@ final class AppViewModel {
         await runHealthChecks()
         await refreshSavedConnectionUser()
         await refreshContentCounts()
-        lastOverviewRefresh = Date()
+        let refreshDate = Date()
+        lastOverviewRefresh = refreshDate
+        recordActiveSiteRefresh(refreshDate)
     }
 
     func testSavedConnection() async {
@@ -130,7 +144,9 @@ final class AppViewModel {
             connectionNotice = "Saved Keychain connection is valid."
             healthChecks = await api.runHealthChecks(baseURL: connection.baseURL, credentials: connection)
             await refreshContentCounts()
-            lastOverviewRefresh = Date()
+            let refreshDate = Date()
+            lastOverviewRefresh = refreshDate
+            recordActiveSiteRefresh(refreshDate)
         } catch {
             connectionUser = nil
             connectionError = "Saved connection test failed: \(error.localizedDescription)"
@@ -185,6 +201,9 @@ final class AppViewModel {
 
     func forgetConnection() {
         do {
+            if let profile = activeSiteProfile {
+                try credentialStore.clear(for: profile)
+            }
             try credentialStore.clear()
             username = ""
             applicationPassword = ""
@@ -208,15 +227,111 @@ final class AppViewModel {
         await refreshOverview()
     }
 
+    func saveCurrentSiteProfile() {
+        siteProfileNotice = nil
+        siteProfileError = nil
+        let profile = currentSiteProfile(lastRefresh: lastOverviewRefresh)
+
+        do {
+            if let connection = savedConnectionForCurrentBaseURL() {
+                try credentialStore.save(connection, for: profile)
+            }
+            upsertSiteProfile(profile)
+            siteProfileNotice = savedConnectionForCurrentBaseURL() == nil
+                ? "Site profile saved without credentials. Add an Application Password to authenticate it."
+                : "Site profile saved. Credentials remain only in Keychain."
+        } catch {
+            siteProfileError = keychainNotice(for: error) ?? error.localizedDescription
+        }
+    }
+
+    func selectSiteProfile(_ profile: SiteProfile) async {
+        siteProfileNotice = nil
+        siteProfileError = nil
+        selectedSiteProfileID = profile.id
+        siteProfileStore.saveActiveProfileID(profile.id)
+        siteProfileName = profile.name
+        baseURL = profile.baseURL
+        username = profile.username
+        applicationPassword = ""
+        connectionUser = nil
+        connectionError = nil
+        overviewError = nil
+        snapshotError = nil
+        resetContentExplorerFilters()
+
+        do {
+            savedConnection = try credentialStore.load(for: profile)
+            isConnectionSaved = savedConnection != nil
+            connectionNotice = savedConnection == nil
+                ? "Site profile selected. Add an Application Password to authenticate it."
+                : "Site profile selected with Keychain credentials."
+        } catch {
+            savedConnection = nil
+            isConnectionSaved = false
+            siteProfileError = keychainNotice(for: error) ?? error.localizedDescription
+        }
+
+        await refreshAll()
+    }
+
+    func forgetSiteProfile(_ profile: SiteProfile) async {
+        siteProfileNotice = nil
+        siteProfileError = nil
+
+        do {
+            try credentialStore.clear(for: profile)
+            if profile.id == selectedSiteProfileID {
+                try credentialStore.clear()
+            }
+            siteProfiles = siteProfileStore.deleteProfile(id: profile.id, from: siteProfiles)
+
+            if profile.id == selectedSiteProfileID {
+                if let nextProfile = siteProfiles.first {
+                    await selectSiteProfile(nextProfile)
+                } else {
+                    resetToAnonymousSiteState()
+                    await refreshAll()
+                }
+            }
+            siteProfileNotice = "Site profile removed locally. WordPress was not changed."
+        } catch {
+            siteProfileError = keychainNotice(for: error) ?? error.localizedDescription
+        }
+    }
+
+    private func restoreSiteProfiles() {
+        siteProfiles = siteProfileStore.loadProfiles()
+        let savedActiveID = siteProfileStore.loadActiveProfileID()
+        selectedSiteProfileID = siteProfiles.contains { $0.id == savedActiveID } ? savedActiveID : siteProfiles.first?.id
+        if let profile = activeSiteProfile {
+            siteProfileName = profile.name
+            baseURL = profile.baseURL
+            username = profile.username
+        }
+    }
+
     private func restoreSavedConnection() {
         do {
+            if let profile = activeSiteProfile {
+                if let connection = try credentialStore.load(for: profile) {
+                    applySavedConnection(connection, notice: "Saved connection loaded from Keychain.")
+                    return
+                }
+                connectionNotice = "Site profile loaded. Add an Application Password to authenticate it."
+                return
+            }
+
             guard let connection = try credentialStore.load() else { return }
-            baseURL = connection.baseURL
-            username = connection.username
-            applicationPassword = ""
-            savedConnection = connection
-            isConnectionSaved = true
-            connectionNotice = "Saved connection loaded from Keychain."
+            let profile = SiteProfile.make(
+                name: siteProfileName,
+                baseURL: connection.baseURL,
+                username: connection.username,
+                lastRefresh: lastOverviewRefresh
+            )
+            upsertSiteProfile(profile)
+            try? credentialStore.save(connection, for: profile)
+            applySavedConnection(connection, notice: "Saved connection loaded from Keychain.")
         } catch {
             if let notice = keychainNotice(for: error) {
                 connectionNotice = notice
@@ -224,6 +339,15 @@ final class AppViewModel {
                 connectionError = error.localizedDescription
             }
         }
+    }
+
+    private func applySavedConnection(_ connection: WordPressConnection, notice: String) {
+        baseURL = connection.baseURL
+        username = connection.username
+        applicationPassword = ""
+        savedConnection = connection
+        isConnectionSaved = true
+        connectionNotice = notice
     }
 
     private func savedConnectionForCurrentBaseURL() -> WordPressConnection? {
@@ -278,6 +402,15 @@ final class AppViewModel {
 
     var normalizedBaseURL: String {
         baseURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingTrailingSlash
+    }
+
+    var activeSiteProfile: SiteProfile? {
+        siteProfiles.first { $0.id == selectedSiteProfileID }
+    }
+
+    var canSaveCurrentSiteProfile: Bool {
+        !siteProfileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !normalizedBaseURL.isEmpty
     }
 
     var contentExplorerFilter: ContentExplorerFilter {
@@ -393,6 +526,48 @@ final class AppViewModel {
         }
     }
 
+    private func currentSiteProfile(lastRefresh: Date?) -> SiteProfile {
+        SiteProfile.make(
+            name: siteProfileName,
+            baseURL: baseURL,
+            username: username,
+            lastRefresh: lastRefresh
+        )
+    }
+
+    private func upsertSiteProfile(_ profile: SiteProfile) {
+        siteProfiles = siteProfileStore.upsert(profile, into: siteProfiles)
+        selectedSiteProfileID = profile.id
+        siteProfileName = profile.name
+    }
+
+    private func recordActiveSiteRefresh(_ date: Date) {
+        guard let activeID = selectedSiteProfileID,
+              let index = siteProfiles.firstIndex(where: { $0.id == activeID }) else {
+            return
+        }
+        siteProfiles[index].lastRefresh = date
+        siteProfiles[index].updatedAt = date
+        siteProfileStore.saveProfiles(siteProfiles)
+    }
+
+    private func resetToAnonymousSiteState() {
+        selectedSiteProfileID = nil
+        siteProfileStore.saveActiveProfileID(nil)
+        siteProfileName = "Local WordPress"
+        username = ""
+        applicationPassword = ""
+        savedConnection = nil
+        connectionUser = nil
+        connectionError = nil
+        overviewError = nil
+        isConnectionSaved = false
+        snapshotItems = [:]
+        hasLoadedSnapshot = false
+        lastSnapshotRefresh = nil
+        resetContentExplorerFilters()
+    }
+
     private func normalizeContentStatusFilter() {
         guard contentStatusFilter != ContentExplorerFilter.allStatuses else { return }
         if !availableContentStatuses.contains(contentStatusFilter) {
@@ -413,6 +588,7 @@ struct RootView: View {
                 VStack(spacing: 18) {
                     HeroCard()
                     ConnectionCard(model: model)
+                    SavedSitesCard(model: model)
                     SiteOverviewCard(model: model)
                     ContentBrowserCard(model: model)
                     HealthCard(model: model)
@@ -746,6 +922,139 @@ private struct ForgetConnectionButton: View {
         } message: {
             Text("This removes only the local Keychain connection. WordPress content and settings are not changed.")
         }
+    }
+}
+
+private struct SavedSitesCard: View {
+    @Bindable var model: AppViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(
+                icon: "globe.badge.chevron.backward",
+                title: "Saved Sites",
+                subtitle: "Local site profiles. Secrets stay in Keychain, never in UserDefaults."
+            )
+
+            HStack {
+                StatusPill(title: model.connectionMode.label, tint: model.connectionMode.tint)
+                StatusPill(title: "\(model.siteProfiles.count) saved", tint: .secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                TextField("Site name", text: $model.siteProfileName)
+                    .textInputAutocapitalization(.words)
+                    .fieldStyle()
+
+                Button {
+                    model.saveCurrentSiteProfile()
+                } label: {
+                    Label("Save current site profile", systemImage: "square.and.arrow.down")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!model.canSaveCurrentSiteProfile)
+            }
+
+            if model.siteProfiles.isEmpty {
+                EmptyStateRow(
+                    title: "No saved sites yet",
+                    detail: "Save the current WordPress URL as a local profile. Application Passwords stay only in Keychain after a successful connection test."
+                )
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(model.siteProfiles) { profile in
+                        SavedSiteRow(model: model, profile: profile)
+                    }
+                }
+            }
+
+            if let notice = model.siteProfileNotice {
+                NoticeResultView(message: notice)
+            }
+            if let error = model.siteProfileError {
+                ErrorResultView(message: error)
+            }
+        }
+        .cardStyle()
+    }
+}
+
+private struct SavedSiteRow: View {
+    @Bindable var model: AppViewModel
+    let profile: SiteProfile
+    @State private var isConfirmingForget = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: isActive ? "checkmark.circle.fill" : "globe")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(isActive ? .green : .blue)
+                    .frame(width: 28, height: 28)
+                    .background((isActive ? Color.green : Color.blue).opacity(0.12), in: Circle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(profile.name)
+                        .font(.subheadline.weight(.semibold))
+                    Text(profile.baseURL)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Text("User: \(profile.usernameLabel)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let lastRefresh = profile.lastRefresh {
+                        Text("Last refresh: \(OverviewDateFormatter.timestamp.string(from: lastRefresh))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+                StatusPill(title: isActive ? "Selected" : "Saved", tint: isActive ? .green : .secondary)
+            }
+
+            if isActive {
+                HStack {
+                    StatusPill(title: model.connectionMode.label, tint: model.connectionMode.tint)
+                    StatusPill(title: model.isConnectionSaved ? "Keychain" : "No credentials", tint: model.isConnectionSaved ? .blue : .secondary)
+                }
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    Task { await model.selectSiteProfile(profile) }
+                } label: {
+                    Label(isActive ? "Selected" : "Use site", systemImage: "arrow.right.circle")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(isActive)
+
+                Button(role: .destructive) {
+                    isConfirmingForget = true
+                } label: {
+                    Label("Forget site", systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+        .alert("Forget this site profile?", isPresented: $isConfirmingForget) {
+            Button("Cancel", role: .cancel) {}
+            Button("Forget site", role: .destructive) {
+                Task { await model.forgetSiteProfile(profile) }
+            }
+        } message: {
+            Text("This removes the local profile and matching Keychain credentials only. WordPress content, settings, plugins, and database are not changed.")
+        }
+    }
+
+    private var isActive: Bool {
+        profile.id == model.selectedSiteProfileID
     }
 }
 
