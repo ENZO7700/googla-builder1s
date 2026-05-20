@@ -227,6 +227,154 @@ struct WordPressContentItem: Identifiable, Hashable {
     }
 }
 
+enum ContentSortOption: String, CaseIterable, Identifiable, Equatable {
+    case newestFirst
+    case oldestFirst
+    case titleAZ
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .newestFirst: "Newest first"
+        case .oldestFirst: "Oldest first"
+        case .titleAZ: "Title A-Z"
+        }
+    }
+}
+
+struct ContentExplorerFilter: Equatable {
+    static let allStatuses = "all"
+
+    let searchQuery: String
+    let status: String
+    let sort: ContentSortOption
+
+    init(
+        searchQuery: String = "",
+        status: String = ContentExplorerFilter.allStatuses,
+        sort: ContentSortOption = .newestFirst
+    ) {
+        self.searchQuery = searchQuery
+        self.status = status
+        self.sort = sort
+    }
+
+    var normalizedSearchQuery: String {
+        searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    var normalizedStatus: String? {
+        let trimmed = status.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed == Self.allStatuses || trimmed.isEmpty ? nil : trimmed.lowercased()
+    }
+
+    var hasActiveSearchOrStatus: Bool {
+        !normalizedSearchQuery.isEmpty || normalizedStatus != nil
+    }
+
+    var isDefault: Bool {
+        !hasActiveSearchOrStatus && sort == .newestFirst
+    }
+}
+
+struct ContentExplorerResult: Equatable {
+    let items: [WordPressContentItem]
+    let totalCount: Int
+
+    var filteredCount: Int {
+        items.count
+    }
+
+    var isFiltered: Bool {
+        filteredCount != totalCount
+    }
+}
+
+enum ContentExplorer {
+    static func result(
+        for items: [WordPressContentItem],
+        filter: ContentExplorerFilter
+    ) -> ContentExplorerResult {
+        let query = filter.normalizedSearchQuery
+        let status = filter.normalizedStatus
+
+        let filtered = items.filter { item in
+            let matchesStatus = status.map { item.status.lowercased() == $0 } ?? true
+            let matchesQuery = query.isEmpty || item.matchesContentSearch(query)
+            return matchesStatus && matchesQuery
+        }
+
+        let sorted = filtered.sorted { lhs, rhs in
+            compare(lhs, rhs, using: filter.sort)
+        }
+
+        return ContentExplorerResult(items: sorted, totalCount: items.count)
+    }
+
+    static func statusOptions(for items: [WordPressContentItem]) -> [String] {
+        let statuses = Set(items.compactMap { $0.status.nonEmpty })
+        return statuses.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    private static func compare(
+        _ lhs: WordPressContentItem,
+        _ rhs: WordPressContentItem,
+        using sort: ContentSortOption
+    ) -> Bool {
+        switch sort {
+        case .newestFirst:
+            return compareDates(lhs, rhs, ascending: false)
+        case .oldestFirst:
+            return compareDates(lhs, rhs, ascending: true)
+        case .titleAZ:
+            return compareTitles(lhs, rhs)
+        }
+    }
+
+    private static func compareDates(
+        _ lhs: WordPressContentItem,
+        _ rhs: WordPressContentItem,
+        ascending: Bool
+    ) -> Bool {
+        switch (lhs.date, rhs.date) {
+        case let (left?, right?) where left != right:
+            return ascending ? left < right : left > right
+        case (.some, nil):
+            return true
+        case (nil, .some):
+            return false
+        default:
+            return compareTitles(lhs, rhs)
+        }
+    }
+
+    private static func compareTitles(_ lhs: WordPressContentItem, _ rhs: WordPressContentItem) -> Bool {
+        let comparison = lhs.title.localizedCaseInsensitiveCompare(rhs.title)
+        if comparison != .orderedSame {
+            return comparison == .orderedAscending
+        }
+        return lhs.id < rhs.id
+    }
+}
+
+private extension WordPressContentItem {
+    func matchesContentSearch(_ normalizedQuery: String) -> Bool {
+        [
+            title,
+            slug,
+            status,
+            typeLabel,
+            subtitle,
+            detail,
+            mediaType ?? "",
+            mimeType ?? ""
+        ].contains { value in
+            value.lowercased().contains(normalizedQuery)
+        }
+    }
+}
+
 struct CapabilityGroup: Identifiable {
     let id = UUID()
     let title: String

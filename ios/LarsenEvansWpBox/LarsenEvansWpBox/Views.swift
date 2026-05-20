@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 @MainActor
 @Observable
@@ -14,6 +15,9 @@ final class AppViewModel {
     var isConnectionSaved = false
     var connectionNotice: String?
     var selectedContentType: WordPressContentType = .posts
+    var contentSearchQuery = ""
+    var contentStatusFilter = ContentExplorerFilter.allStatuses
+    var contentSortOption: ContentSortOption = .newestFirst
     var contentItems: [WordPressContentItem] = []
     var contentError: String?
     var isLoadingContent = false
@@ -139,6 +143,7 @@ final class AppViewModel {
         contentError = nil
         do {
             contentItems = try await api.fetchContent(baseURL: baseURL, type: selectedContentType)
+            normalizeContentStatusFilter()
         } catch {
             contentItems = []
             contentError = error.localizedDescription
@@ -275,6 +280,40 @@ final class AppViewModel {
         baseURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingTrailingSlash
     }
 
+    var contentExplorerFilter: ContentExplorerFilter {
+        ContentExplorerFilter(
+            searchQuery: contentSearchQuery,
+            status: contentStatusFilter,
+            sort: contentSortOption
+        )
+    }
+
+    var contentExplorerResult: ContentExplorerResult {
+        ContentExplorer.result(for: contentItems, filter: contentExplorerFilter)
+    }
+
+    var filteredContentItems: [WordPressContentItem] {
+        contentExplorerResult.items
+    }
+
+    var contentFilterIsActive: Bool {
+        !contentExplorerFilter.isDefault
+    }
+
+    var availableContentStatuses: [String] {
+        ContentExplorer.statusOptions(for: contentItems)
+    }
+
+    var contentStatusFilterLabel: String {
+        contentStatusFilter == ContentExplorerFilter.allStatuses ? "All statuses" : contentStatusFilter
+    }
+
+    func resetContentExplorerFilters() {
+        contentSearchQuery = ""
+        contentStatusFilter = ContentExplorerFilter.allStatuses
+        contentSortOption = .newestFirst
+    }
+
     var snapshotSections: [SiteSnapshotSection] {
         WordPressContentType.allCases.map { type in
             SiteSnapshotSection(
@@ -351,6 +390,13 @@ final class AppViewModel {
             overviewCounts = SiteOverviewCounts(values: next)
         } catch {
             overviewError = error.localizedDescription
+        }
+    }
+
+    private func normalizeContentStatusFilter() {
+        guard contentStatusFilter != ContentExplorerFilter.allStatuses else { return }
+        if !availableContentStatuses.contains(contentStatusFilter) {
+            contentStatusFilter = ContentExplorerFilter.allStatuses
         }
     }
 }
@@ -931,6 +977,8 @@ private struct ContentBrowserCard: View {
     @Bindable var model: AppViewModel
 
     var body: some View {
+        let explorer = model.contentExplorerResult
+
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 SectionHeader(
@@ -958,25 +1006,89 @@ private struct ContentBrowserCard: View {
                 Task { await model.loadContent() }
             }
 
+            VStack(alignment: .leading, spacing: 10) {
+                TextField("Search title, slug, status", text: $model.contentSearchQuery)
+                    .textInputAutocapitalization(.never)
+                    .fieldStyle()
+
+                HStack(spacing: 10) {
+                    Menu {
+                        Button("All statuses") {
+                            model.contentStatusFilter = ContentExplorerFilter.allStatuses
+                        }
+                        ForEach(model.availableContentStatuses, id: \.self) { status in
+                            Button(status) {
+                                model.contentStatusFilter = status
+                            }
+                        }
+                    } label: {
+                        ExplorerMenuLabel(
+                            icon: "line.3.horizontal.decrease.circle",
+                            title: "Status",
+                            value: model.contentStatusFilterLabel
+                        )
+                    }
+
+                    Menu {
+                        ForEach(ContentSortOption.allCases) { option in
+                            Button(option.label) {
+                                model.contentSortOption = option
+                            }
+                        }
+                    } label: {
+                        ExplorerMenuLabel(
+                            icon: "arrow.up.arrow.down.circle",
+                            title: "Sort",
+                            value: model.contentSortOption.label
+                        )
+                    }
+                }
+
+                if model.contentFilterIsActive {
+                    Button {
+                        model.resetContentExplorerFilters()
+                    } label: {
+                        Label("Clear search/filter", systemImage: "xmark.circle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+
             HStack {
                 StatusPill(title: "Read-only", tint: .green)
                 if !model.isLoadingContent, model.contentError == nil {
-                    StatusPill(title: "\(model.contentItems.count) \(model.selectedContentType.title.lowercased())", tint: .secondary)
+                    StatusPill(title: "\(explorer.totalCount) loaded", tint: .secondary)
+                    StatusPill(title: "\(explorer.filteredCount) shown", tint: explorer.isFiltered ? .blue : .secondary)
                 }
             }
 
             if model.isLoadingContent {
                 LoadingRow(title: "Loading \(model.selectedContentType.title.lowercased())...")
             } else if let error = model.contentError {
-                ErrorResultView(message: error)
+                ErrorResultView(message: "Could not load \(model.selectedContentType.title.lowercased()): \(error)")
             } else if model.contentItems.isEmpty {
                 EmptyStateRow(
                     title: "No \(model.selectedContentType.title.lowercased()) found",
                     detail: "The endpoint responded, but there is no public content to show."
                 )
+            } else if model.filteredContentItems.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    EmptyStateRow(
+                        title: "No matching content",
+                        detail: "Try a different search, status filter, or sort option."
+                    )
+                    Button {
+                        model.resetContentExplorerFilters()
+                    } label: {
+                        Label("Clear search/filter", systemImage: "xmark.circle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
             } else {
                 VStack(spacing: 10) {
-                    ForEach(model.contentItems) { item in
+                    ForEach(model.filteredContentItems) { item in
                         NavigationLink(value: item) {
                             ContentRow(item: item)
                         }
@@ -986,6 +1098,35 @@ private struct ContentBrowserCard: View {
             }
         }
         .cardStyle()
+    }
+}
+
+private struct ExplorerMenuLabel: View {
+    let icon: String
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .foregroundStyle(.blue)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.down")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -1219,6 +1360,7 @@ private struct ContentRow: View {
 
 private struct ContentDetailView: View {
     let item: WordPressContentItem
+    @State private var copiedMessage: String?
 
     var body: some View {
         ScrollView {
@@ -1237,6 +1379,8 @@ private struct ContentDetailView: View {
                     }
                 }
                 .cardStyle()
+
+                ContentDetailActionsCard(item: item, copiedMessage: $copiedMessage)
 
                 if let mediaURL = item.mediaURL {
                     VStack(alignment: .leading, spacing: 10) {
@@ -1295,21 +1439,60 @@ private struct ContentDetailView: View {
                     }
                 }
                 .cardStyle()
-
-                if let link = item.link {
-                    Link(destination: link) {
-                        Label("Open in WordPress", systemImage: "safari")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                }
             }
             .padding(18)
         }
         .background(Color(.systemGroupedBackground))
         .navigationTitle(item.type.title)
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct ContentDetailActionsCard: View {
+    let item: WordPressContentItem
+    @Binding var copiedMessage: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Read-only actions")
+                .font(.headline)
+
+            if let link = item.link {
+                Link(destination: link) {
+                    Label("Open in WordPress", systemImage: "safari")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+
+            if let link = item.link {
+                copyButton(title: "Copy WordPress link", systemImage: "link", value: link.absoluteString)
+            }
+
+            if let slug = item.slug.nonEmpty {
+                copyButton(title: "Copy slug", systemImage: "number", value: slug)
+            }
+
+            if item.type == .media, let mediaURL = item.mediaURL {
+                copyButton(title: "Copy media source URL", systemImage: "photo", value: mediaURL.absoluteString)
+            }
+
+            if let copiedMessage {
+                NoticeResultView(message: copiedMessage)
+            }
+        }
+        .cardStyle()
+    }
+
+    private func copyButton(title: String, systemImage: String, value: String) -> some View {
+        Button {
+            UIPasteboard.general.string = value
+            copiedMessage = "\(title.replacingOccurrences(of: "Copy ", with: "")) copied."
+        } label: {
+            Label(title, systemImage: systemImage)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
     }
 }
 

@@ -242,21 +242,119 @@ final class WordPressCoreTests: XCTestCase {
         XCTAssertFalse(details.localizedCaseInsensitiveContains("warning"))
     }
 
+    func testContentExplorerSearchMatchesTitleSlugAndStatus() {
+        let items = [
+            makeContentItem(title: "Welcome Post", slug: "welcome-post", status: "publish", type: .posts),
+            makeContentItem(title: "Draft Idea", slug: "internal-note", status: "draft", type: .posts),
+            makeContentItem(title: "Brand Logo", slug: "brand-logo", status: "inherit", type: .media)
+        ]
+
+        let titleResult = ContentExplorer.result(for: items, filter: ContentExplorerFilter(searchQuery: "welcome"))
+        let slugResult = ContentExplorer.result(for: items, filter: ContentExplorerFilter(searchQuery: "brand-logo"))
+        let statusResult = ContentExplorer.result(for: items, filter: ContentExplorerFilter(searchQuery: "draft"))
+
+        XCTAssertEqual(titleResult.items.map(\.slug), ["welcome-post"])
+        XCTAssertEqual(slugResult.items.map(\.slug), ["brand-logo"])
+        XCTAssertEqual(statusResult.items.map(\.slug), ["internal-note"])
+    }
+
+    func testContentExplorerFiltersByStatusAndReportsCounts() {
+        let items = [
+            makeContentItem(title: "Live Post", slug: "live-post", status: "publish", type: .posts),
+            makeContentItem(title: "Draft Post", slug: "draft-post", status: "draft", type: .posts),
+            makeContentItem(title: "Live Page", slug: "live-page", status: "publish", type: .pages)
+        ]
+
+        let result = ContentExplorer.result(
+            for: items,
+            filter: ContentExplorerFilter(status: "publish")
+        )
+
+        XCTAssertEqual(result.totalCount, 3)
+        XCTAssertEqual(result.filteredCount, 2)
+        XCTAssertTrue(result.isFiltered)
+        XCTAssertEqual(result.items.map(\.slug), ["live-page", "live-post"])
+    }
+
+    func testContentExplorerSortsNewestOldestAndTitle() throws {
+        let older = makeContentItem(
+            id: 1,
+            title: "Beta",
+            slug: "older",
+            status: "publish",
+            type: .posts,
+            date: try XCTUnwrap(WPContentResponse.parseDate("2026-05-18T09:00:00"))
+        )
+        let newer = makeContentItem(
+            id: 2,
+            title: "Gamma",
+            slug: "newer",
+            status: "publish",
+            type: .posts,
+            date: try XCTUnwrap(WPContentResponse.parseDate("2026-05-19T09:00:00"))
+        )
+        let alpha = makeContentItem(
+            id: 3,
+            title: "Alpha",
+            slug: "undated",
+            status: "publish",
+            type: .posts
+        )
+        let items = [older, newer, alpha]
+
+        let newest = ContentExplorer.result(for: items, filter: ContentExplorerFilter(sort: .newestFirst))
+        let oldest = ContentExplorer.result(for: items, filter: ContentExplorerFilter(sort: .oldestFirst))
+        let titleAZ = ContentExplorer.result(for: items, filter: ContentExplorerFilter(sort: .titleAZ))
+
+        XCTAssertEqual(newest.items.map(\.slug), ["newer", "older", "undated"])
+        XCTAssertEqual(oldest.items.map(\.slug), ["older", "newer", "undated"])
+        XCTAssertEqual(titleAZ.items.map(\.slug), ["undated", "older", "newer"])
+    }
+
+    func testContentExplorerReturnsEmptyFilteredStateWithoutLosingTotal() {
+        let items = [
+            makeContentItem(title: "Live Post", slug: "live-post", status: "publish", type: .posts),
+            makeContentItem(title: "Draft Page", slug: "draft-page", status: "draft", type: .pages)
+        ]
+
+        let result = ContentExplorer.result(
+            for: items,
+            filter: ContentExplorerFilter(searchQuery: "missing")
+        )
+
+        XCTAssertEqual(result.totalCount, 2)
+        XCTAssertEqual(result.filteredCount, 0)
+        XCTAssertTrue(result.isFiltered)
+        XCTAssertTrue(result.items.isEmpty)
+    }
+
+    func testContentExplorerStatusOptionsAreStableAndUnique() {
+        let items = [
+            makeContentItem(title: "Live Post", slug: "live-post", status: "publish", type: .posts),
+            makeContentItem(title: "Draft Page", slug: "draft-page", status: "draft", type: .pages),
+            makeContentItem(title: "Live Page", slug: "live-page", status: "publish", type: .pages)
+        ]
+
+        XCTAssertEqual(ContentExplorer.statusOptions(for: items), ["draft", "publish"])
+    }
+
     private func makeContentItem(
+        id: Int = 1,
         title: String,
         slug: String,
         status: String,
-        type: WordPressContentType
+        type: WordPressContentType,
+        date: Date? = nil
     ) -> WordPressContentItem {
         WordPressContentItem(
-            id: 1,
+            id: id,
             type: type,
             title: title,
             slug: slug,
             subtitle: status,
             detail: "Preview",
             status: status,
-            date: nil,
+            date: date,
             link: nil,
             mediaURL: nil,
             mediaType: nil,
