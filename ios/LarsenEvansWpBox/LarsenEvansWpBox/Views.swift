@@ -35,6 +35,8 @@ final class AppViewModel {
     var siteProfileName = "Local WordPress"
     var siteProfileNotice: String?
     var siteProfileError: String?
+    var addSiteDraft = SiteProfileDraft()
+    var addSiteError: String?
 
     private let api = WordPressAPIClient()
     private let credentialStore = KeychainCredentialStore()
@@ -245,9 +247,37 @@ final class AppViewModel {
         }
     }
 
+    func prepareAddSiteProfile() {
+        addSiteError = nil
+        let defaultName = siteProfiles.isEmpty ? "Local WordPress" : "Local WordPress Anonymous"
+        addSiteDraft = SiteProfileDraft(
+            name: defaultName,
+            baseURL: normalizedBaseURL,
+            username: ""
+        )
+    }
+
+    func addSiteProfileFromDraft() async -> Bool {
+        addSiteError = nil
+        siteProfileNotice = nil
+        siteProfileError = nil
+
+        guard addSiteDraft.canSave else {
+            addSiteError = "Add a site name and WordPress URL."
+            return false
+        }
+
+        let profile = addSiteDraft.makeProfile()
+        upsertSiteProfile(profile)
+        await selectSiteProfile(profile)
+        siteProfileNotice = "Site profile added without credentials. Add an Application Password only when this site needs authenticated reads."
+        return true
+    }
+
     func selectSiteProfile(_ profile: SiteProfile) async {
         siteProfileNotice = nil
         siteProfileError = nil
+        addSiteError = nil
         selectedSiteProfileID = profile.id
         siteProfileStore.saveActiveProfileID(profile.id)
         siteProfileName = profile.name
@@ -927,6 +957,7 @@ private struct ForgetConnectionButton: View {
 
 private struct SavedSitesCard: View {
     @Bindable var model: AppViewModel
+    @State private var isShowingAddSite = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -954,6 +985,15 @@ private struct SavedSitesCard: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(!model.canSaveCurrentSiteProfile)
+
+                Button {
+                    model.prepareAddSiteProfile()
+                    isShowingAddSite = true
+                } label: {
+                    Label("Add another site", systemImage: "plus.circle")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
             }
 
             if model.siteProfiles.isEmpty {
@@ -977,6 +1017,72 @@ private struct SavedSitesCard: View {
             }
         }
         .cardStyle()
+        .sheet(isPresented: $isShowingAddSite) {
+            AddSiteProfileSheet(model: model)
+        }
+    }
+}
+
+private struct AddSiteProfileSheet: View {
+    @Bindable var model: AppViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(
+                        icon: "plus.circle.fill",
+                        title: "Add site profile",
+                        subtitle: "Create a local profile without saving any Application Password."
+                    )
+
+                    VStack(spacing: 12) {
+                        TextField("Site name", text: $model.addSiteDraft.name)
+                            .textInputAutocapitalization(.words)
+                            .fieldStyle()
+
+                        TextField("WordPress URL", text: $model.addSiteDraft.baseURL)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.URL)
+                            .textContentType(.URL)
+                            .fieldStyle()
+
+                        TextField("Username optional", text: $model.addSiteDraft.username)
+                            .textInputAutocapitalization(.never)
+                            .textContentType(.username)
+                            .fieldStyle()
+                    }
+
+                    NoticeResultView(message: "This saves only name, URL, and username. Application Passwords are added later through Safe connection setup and stored only in Keychain.")
+
+                    if let error = model.addSiteError {
+                        ErrorResultView(message: error)
+                    }
+                }
+                .padding(18)
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("Add Site")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            if await model.addSiteProfileFromDraft() {
+                                dismiss()
+                            }
+                        }
+                    }
+                    .disabled(!model.addSiteDraft.canSave)
+                }
+            }
+        }
     }
 }
 

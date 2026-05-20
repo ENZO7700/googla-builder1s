@@ -119,6 +119,43 @@ struct SiteProfile: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
+struct SiteProfileDraft: Equatable {
+    var name: String
+    var baseURL: String
+    var username: String
+
+    init(name: String = "", baseURL: String = "", username: String = "") {
+        self.name = name
+        self.baseURL = baseURL
+        self.username = username
+    }
+
+    var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var normalizedBaseURL: String {
+        SiteProfile.normalizeBaseURL(baseURL)
+    }
+
+    var trimmedUsername: String {
+        username.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var canSave: Bool {
+        !trimmedName.isEmpty && !normalizedBaseURL.isEmpty
+    }
+
+    func makeProfile(now: Date = Date()) -> SiteProfile {
+        SiteProfile.make(
+            name: trimmedName,
+            baseURL: normalizedBaseURL,
+            username: trimmedUsername,
+            now: now
+        )
+    }
+}
+
 struct SiteProfileStore {
     private let defaults: UserDefaults
     private let profilesKey: String

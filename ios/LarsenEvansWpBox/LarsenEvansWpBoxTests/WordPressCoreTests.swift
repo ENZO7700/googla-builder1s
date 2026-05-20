@@ -149,6 +149,33 @@ final class WordPressCoreTests: XCTestCase {
         XCTAssertFalse(encoded.contains("secret-value"))
     }
 
+    func testSiteProfileDraftValidatesRequiredFields() {
+        let missingName = SiteProfileDraft(name: " ", baseURL: "http://localhost:18090", username: "admin")
+        let missingURL = SiteProfileDraft(name: "Local", baseURL: " ", username: "admin")
+        let valid = SiteProfileDraft(name: "Local", baseURL: "http://localhost:18090", username: "")
+
+        XCTAssertFalse(missingName.canSave)
+        XCTAssertFalse(missingURL.canSave)
+        XCTAssertTrue(valid.canSave)
+    }
+
+    func testSiteProfileDraftCreatesProfileWithoutSecretFields() throws {
+        let draft = SiteProfileDraft(
+            name: " Local Anonymous ",
+            baseURL: " http://localhost:18090/ ",
+            username: " "
+        )
+
+        let profile = draft.makeProfile(now: Date(timeIntervalSince1970: 200))
+        let encoded = try XCTUnwrap(String(data: try JSONEncoder().encode(profile), encoding: .utf8))
+
+        XCTAssertEqual(profile.name, "Local Anonymous")
+        XCTAssertEqual(profile.baseURL, "http://localhost:18090")
+        XCTAssertEqual(profile.username, "")
+        XCTAssertEqual(profile.usernameLabel, "Anonymous")
+        XCTAssertFalse(encoded.contains("applicationPassword"))
+    }
+
     func testSiteProfileStoreSavesLoadsAndSwitchesActiveProfile() throws {
         let suiteName = "WordPressCoreTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
