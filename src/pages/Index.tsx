@@ -774,6 +774,10 @@ export default function Index() {
             tokenCount={tokenCount}
             onCopyCode={() => { addLog('[SYSTEM] Kód skopírovaný do schránky.'); showToast('Skopírované', 'success'); }}
             onToggleMobileMenu={() => setMobileMenuOpen(true)}
+            onStopGeneration={handleStopGeneration}
+            onRegenerate={handleRegenerate}
+            onContinue={handleContinue}
+            onSendToPreview={handleSendToPreview}
           />
         );
     }
