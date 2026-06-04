@@ -243,8 +243,20 @@ export default function Index() {
 
   const getSelectedModel = () => localStorage.getItem('ai-model') || 'google/gemini-3-flash-preview';
 
+  const abortRef = useRef<AbortController | null>(null);
+
+  const handleStopGeneration = useCallback(() => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      addLog('[USER] Generovanie zastavené.');
+      showToast('Generovanie zastavené', 'info');
+    }
+  }, [addLog, showToast]);
+
   // Streaming AI call with error recovery + diagnostics
   const callAIStreaming = async (msgs: Message[], systemOverride?: string): Promise<string> => {
+    const controller = new AbortController();
+    abortRef.current = controller;
     const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
     const url = `https://${projectId}.supabase.co/functions/v1/chat`;
     const { data: { session } } = await supabase.auth.getSession();
