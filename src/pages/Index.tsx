@@ -365,17 +365,27 @@ export default function Index() {
         }
       }
     } catch (streamErr: any) {
+      const aborted = streamErr?.name === 'AbortError';
       if (!fullText) setMessages(prev => prev.slice(0, -1));
+      else if (aborted) {
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: 'model', content: fullText + '\n\n_⏹ Zastavené používateľom._' };
+          return updated;
+        });
+      }
       setDiagnostics({
         ttft: firstTokenTime ? firstTokenTime - startTime : 0,
         total: performance.now() - startTime,
         chunks, model,
-        error: streamErr.message || 'Stream interrupted',
+        error: aborted ? 'Zastavené používateľom' : (streamErr.message || 'Stream interrupted'),
         timestamp: new Date(),
       });
-      throw streamErr;
+      if (!aborted) throw streamErr;
+      return fullText;
     } finally {
       setIsStreaming(false);
+      abortRef.current = null;
     }
 
     setDiagnostics({
