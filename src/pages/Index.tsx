@@ -519,6 +519,32 @@ export default function Index() {
     showToast('Nová relácia spustená', 'success');
   };
 
+  const handleRegenerate = useCallback(async () => {
+    if (isLoading) return;
+    // Find the last user message and drop the trailing model message
+    let lastUserIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') { lastUserIdx = i; break; }
+    }
+    if (lastUserIdx === -1) return;
+    const trimmed = messages.slice(0, lastUserIdx);
+    const userMsg = messages[lastUserIdx];
+    setMessages(trimmed);
+    addLog('[USER] Regenerujem poslednú odpoveď...');
+    setTimeout(() => handleSendMessage(userMsg.content), 0);
+  }, [messages, isLoading]);
+
+  const handleContinue = useCallback(() => {
+    if (isLoading) return;
+    handleSendMessage('Pokračuj v predchádzajúcej odpovedi tam, kde si skončil. Neopakuj, čo už bolo napísané.');
+  }, [isLoading]);
+
+  const handleSendToPreview = useCallback((html: string) => {
+    setLatestGeneratedCode(html);
+    setCurrentView('preview');
+    showToast('Otvorené v Live Náhľade', 'success');
+  }, [showToast]);
+
   const loadSession = async (session: Session) => {
     setActiveSessionId(session.id);
     setCurrentView('tasks');
