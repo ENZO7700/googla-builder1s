@@ -1,10 +1,105 @@
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { Check, Copy, ChevronDown, ChevronUp, WrapText } from 'lucide-react';
+import { copyToClipboard } from '@/lib/chatExport';
 
 interface MarkdownRendererProps {
   content: string;
   onCopy?: () => void;
+}
+
+const COLLAPSE_LINE_THRESHOLD = 40;
+
+function CodeBlock({ language, code, onCopy }: { language: string; code: string; onCopy?: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const [wrap, setWrap] = useState(false);
+  const lineCount = code.split('\n').length;
+  const longBlock = lineCount > COLLAPSE_LINE_THRESHOLD;
+  const [collapsed, setCollapsed] = useState(longBlock);
+
+  const handleCopy = async () => {
+    const ok = await copyToClipboard(code);
+    if (ok) {
+      setCopied(true);
+      onCopy?.();
+      setTimeout(() => setCopied(false), 1500);
+    }
+  };
+
+  return (
+    <div className="my-4 rounded-xl overflow-hidden border border-border bg-card">
+      <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-2 bg-muted/95 backdrop-blur-sm text-xs border-b border-border">
+        <div className="flex items-center gap-3">
+          <span className="text-muted-foreground font-mono font-medium">{language}</span>
+          <span className="text-muted-foreground/70 text-[11px]">{lineCount} riadkov</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setWrap(w => !w)}
+            className={`p-1.5 rounded transition-colors ${wrap ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground hover:bg-accent'}`}
+            title="Zalomenie riadkov"
+            aria-label="Toggle word wrap"
+          >
+            <WrapText size={13} />
+          </button>
+          {longBlock && (
+            <button
+              onClick={() => setCollapsed(c => !c)}
+              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors flex items-center gap-1"
+              title={collapsed ? 'Rozbaliť' : 'Zbaliť'}
+            >
+              {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+              <span className="text-[11px]">{collapsed ? 'Rozbaliť' : 'Zbaliť'}</span>
+            </button>
+          )}
+          <button
+            onClick={handleCopy}
+            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors flex items-center gap-1"
+            title="Kopírovať kód"
+            aria-label="Copy code"
+          >
+            {copied ? <Check size={13} className="text-success" /> : <Copy size={13} />}
+            <span className="text-[11px]">{copied ? 'Skopírované' : 'Kopírovať'}</span>
+          </button>
+        </div>
+      </div>
+      <div
+        className="relative overflow-auto scrollbar-hide"
+        style={{ maxHeight: collapsed ? '280px' : 'none' }}
+      >
+        <SyntaxHighlighter
+          style={oneDark}
+          language={language}
+          PreTag="div"
+          showLineNumbers
+          wrapLongLines={wrap}
+          customStyle={{
+            margin: 0,
+            borderRadius: 0,
+            fontSize: '13px',
+            background: 'hsl(var(--card))',
+          }}
+          lineNumberStyle={{ minWidth: '2.5em', paddingRight: '1em', opacity: 0.4, userSelect: 'none' }}
+        >
+          {code}
+        </SyntaxHighlighter>
+        {collapsed && (
+          <div
+            className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-card to-transparent flex items-end justify-center pb-2"
+          >
+            <button
+              onClick={() => setCollapsed(false)}
+              className="pointer-events-auto text-[11px] px-3 py-1 rounded-full bg-primary text-primary-foreground shadow-sm hover:opacity-90"
+            >
+              Zobraziť celý kód ({lineCount - 15}+ riadkov)
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function MarkdownRenderer({ content, onCopy }: MarkdownRendererProps) {
@@ -16,30 +111,7 @@ export function MarkdownRenderer({ content, onCopy }: MarkdownRendererProps) {
           const codeStr = String(children).replace(/\n$/, '');
 
           if (match) {
-            return (
-              <div className="my-4 rounded-xl overflow-hidden border border-border">
-                <div className="flex items-center justify-between px-4 py-2 bg-muted text-xs">
-                  <span className="text-muted-foreground font-mono font-medium">{match[1]}</span>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(codeStr);
-                      onCopy?.();
-                    }}
-                    className="text-muted-foreground hover:text-foreground transition-colors font-medium"
-                  >
-                    Kopírovať
-                  </button>
-                </div>
-                <SyntaxHighlighter
-                  style={oneDark}
-                  language={match[1]}
-                  PreTag="div"
-                  customStyle={{ margin: 0, borderRadius: 0, fontSize: '13px' }}
-                >
-                  {codeStr}
-                </SyntaxHighlighter>
-              </div>
-            );
+            return <CodeBlock language={match[1]} code={codeStr} onCopy={onCopy} />;
           }
 
           return (

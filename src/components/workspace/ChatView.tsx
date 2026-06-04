@@ -1,9 +1,11 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import {
   Sparkles, Loader2, Send, Paperclip, Mic,
-  FileText, X, Search, Menu, AlertCircle, CheckCircle2
+  FileText, X, Search, Menu, AlertCircle, CheckCircle2,
+  ArrowDown, Square,
 } from 'lucide-react';
 import { MarkdownRenderer } from '@/lib/formatMarkdown';
+import MessageActions from './MessageActions';
 
 interface Message {
   role: string;
@@ -88,12 +90,17 @@ interface ChatViewProps {
   tokenCount: string;
   onCopyCode: () => void;
   onToggleMobileMenu?: () => void;
+  onStopGeneration?: () => void;
+  onRegenerate?: () => void;
+  onContinue?: () => void;
+  onSendToPreview?: (html: string) => void;
 }
 
 export default function ChatView({
   messages, isLoading, isStreaming, inputValue, onInputChange, onSend,
   attachments, onFileUpload, onRemoveAttachment,
-  isRecording, onMicClick, isDragging, tokenCount, onCopyCode, onToggleMobileMenu
+  isRecording, onMicClick, isDragging, tokenCount, onCopyCode, onToggleMobileMenu,
+  onStopGeneration, onRegenerate, onContinue, onSendToPreview,
 }: ChatViewProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -101,23 +108,64 @@ export default function ChatView({
   const inputAreaRef = useRef<HTMLTextAreaElement>(null);
   const [activeCategory, setActiveCategory] = useState('WordPress FSE');
   const [autoScroll, setAutoScroll] = useState(true);
+  const [newSinceScroll, setNewSinceScroll] = useState(0);
+  const [streamStart, setStreamStart] = useState<number | null>(null);
+  const [elapsed, setElapsed] = useState(0);
 
-  // Disable auto-scroll the moment user scrolls up; re-enable when they reach bottom
+  const rafRef = useRef<number | null>(null);
+  const lastLenRef = useRef(0);
+
+  // Smooth scroll using rAF (no jank during streaming)
+  const scrollToBottom = useCallback((smooth = false) => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      const el = scrollContainerRef.current;
+      if (!el) return;
+      el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+    });
+  }, []);
+
+  // Detect user scroll
   useEffect(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
     const onScroll = () => {
-      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-      setAutoScroll(distanceFromBottom < 80);
+      const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const atBottom = distance < 120;
+      setAutoScroll(atBottom);
+      if (atBottom) setNewSinceScroll(0);
     };
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
 
+  // Track streaming content updates
   useEffect(() => {
-    if (!autoScroll) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading, autoScroll]);
+    const last = messages[messages.length - 1];
+    const lastLen = last?.content?.length ?? 0;
+
+    if (autoScroll) {
+      scrollToBottom(!isStreaming);
+    } else if (isStreaming && lastLen > lastLenRef.current) {
+      // count NEW lines added since user scrolled up
+      const delta = (last?.content ?? '').slice(lastLenRef.current).split('\n').length - 1;
+      if (delta > 0) setNewSinceScroll(n => n + delta);
+    }
+    lastLenRef.current = lastLen;
+  }, [messages, isLoading, isStreaming, autoScroll, scrollToBottom]);
+
+  // Streaming timer
+  useEffect(() => {
+    if (isStreaming) {
+      const start = performance.now();
+      setStreamStart(start);
+      setElapsed(0);
+      const id = setInterval(() => setElapsed((performance.now() - start) / 1000), 100);
+      return () => clearInterval(id);
+    } else {
+      setStreamStart(null);
+    }
+  }, [isStreaming]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -126,10 +174,20 @@ export default function ChatView({
         e.preventDefault();
         inputAreaRef.current?.focus();
       }
+      if (e.key === 'End' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setAutoScroll(true);
+        scrollToBottom(true);
+      }
+      if (e.key === 'Escape' && isStreaming && onStopGeneration) {
+        onStopGeneration();
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [scrollToBottom, isStreaming, onStopGeneration]);
+
+  const lastMsgIdx = messages.length - 1;
 
   return (
     <>
@@ -166,15 +224,49 @@ export default function ChatView({
       )}
 
       {/* Messages */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 lg:px-24 pt-10 pb-48 scrollbar-hide relative flex flex-col">
-        {!autoScroll && isLoading && (
+      <div
+        ref={scrollContainerRef}
+        data-testid="chat-scroll"
+        className="flex-1 overflow-y-auto overscroll-contain px-4 lg:px-24 pt-10 pb-48 scrollbar-hide relative flex flex-col scroll-smooth"
+      >
+        {/* Floating jump-to-bottom */}
+        {!autoScroll && messages.length > 0 && (
           <button
-            onClick={() => { setAutoScroll(true); messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
-            className="fixed bottom-40 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:opacity-90"
+            data-testid="jump-to-bottom"
+            onClick={() => { setAutoScroll(true); setNewSinceScroll(0); scrollToBottom(true); }}
+            className="fixed bottom-44 left-1/2 -translate-x-1/2 z-40 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:opacity-90 flex items-center gap-1.5 animate-fade-in"
           >
-            ↓ Skočiť na koniec
+            <ArrowDown size={12} />
+            {newSinceScroll > 0 ? `${newSinceScroll} nových riadkov` : 'Skočiť na koniec'}
           </button>
         )}
+
+        {/* Streaming indicator */}
+        {isStreaming && (
+          <div
+            data-testid="stream-indicator"
+            className="fixed bottom-44 right-6 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border shadow-lg text-xs animate-fade-in"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+            </span>
+            <span className="text-muted-foreground">
+              Generujem · {elapsed.toFixed(1)}s
+            </span>
+            {onStopGeneration && (
+              <button
+                onClick={onStopGeneration}
+                className="ml-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+                title="Zastaviť (Esc)"
+              >
+                <Square size={10} className="fill-current" />
+                Stop
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="max-w-3xl mx-auto w-full flex-1">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full min-h-[50vh] animate-fade-in">
@@ -202,31 +294,46 @@ export default function ChatView({
             </div>
           ) : (
             <div className="space-y-8 pb-10 pt-4">
-              {messages.map((msg, idx) => (
-                <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
-                  {msg.role === 'model' && (
-                    <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center shrink-0 mt-1">
-                      <Sparkles size={16} className="text-primary" />
-                    </div>
-                  )}
-                  <div className={`max-w-[85%] rounded-2xl p-5 ${
-                    msg.role === 'user'
-                      ? 'bg-primary text-primary-foreground rounded-tr-sm shadow-sm'
-                      : 'bg-card border border-border text-foreground shadow-sm'
-                  }`}>
-                    {msg.role === 'user' ? (
-                      <div className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.content}</div>
-                    ) : (
-                      <div className="text-[15px]">
-                        <MarkdownRenderer content={msg.content} onCopy={onCopyCode} />
-                        {isStreaming && idx === messages.length - 1 && (
-                          <span className="inline-block w-2 h-4 bg-primary ml-1 animate-blink" />
-                        )}
+              {messages.map((msg, idx) => {
+                const isLast = idx === lastMsgIdx;
+                const isCompletedModel = msg.role === 'model' && msg.content && !(isLast && isStreaming);
+                return (
+                  <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
+                    {msg.role === 'model' && (
+                      <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center shrink-0 mt-1">
+                        <Sparkles size={16} className="text-primary" />
                       </div>
                     )}
+                    <div
+                      data-testid={msg.role === 'model' ? 'model-message' : 'user-message'}
+                      className={`max-w-[85%] rounded-2xl p-5 ${
+                        msg.role === 'user'
+                          ? 'bg-primary text-primary-foreground rounded-tr-sm shadow-sm'
+                          : 'bg-card border border-border text-foreground shadow-sm'
+                      }`}
+                    >
+                      {msg.role === 'user' ? (
+                        <div className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.content}</div>
+                      ) : (
+                        <div className="text-[15px]">
+                          <MarkdownRenderer content={msg.content} onCopy={onCopyCode} />
+                          {isStreaming && isLast && (
+                            <span className="inline-block w-2 h-4 bg-primary ml-1 animate-blink align-middle" />
+                          )}
+                          {isCompletedModel && (
+                            <MessageActions
+                              content={msg.content}
+                              onRegenerate={isLast ? onRegenerate : undefined}
+                              onContinue={isLast ? onContinue : undefined}
+                              onSendToPreview={onSendToPreview}
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {isLoading && !isStreaming && (
                 <div className="flex gap-4 justify-start pt-2">
@@ -317,18 +424,29 @@ export default function ChatView({
                 <button onClick={onMicClick} className={`p-2 rounded-full transition-colors ${isRecording ? 'bg-destructive/10 text-destructive' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}>
                   <Mic size={18} />
                 </button>
-                <button
-                  onClick={() => onSend()}
-                  disabled={(!inputValue.trim() && attachments.length === 0) || isLoading || isRecording}
-                  className="p-2 bg-primary text-primary-foreground rounded-full hover:bg-google-blue-hover transition-colors disabled:opacity-50 disabled:bg-muted shadow-sm"
-                >
-                  <Send size={18} className="ml-0.5" />
-                </button>
+                {isStreaming && onStopGeneration ? (
+                  <button
+                    onClick={onStopGeneration}
+                    data-testid="stop-button"
+                    className="p-2 bg-destructive text-destructive-foreground rounded-full hover:opacity-90 transition-colors shadow-sm"
+                    title="Zastaviť generovanie (Esc)"
+                  >
+                    <Square size={16} className="fill-current" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => onSend()}
+                    disabled={(!inputValue.trim() && attachments.length === 0) || isLoading || isRecording}
+                    className="p-2 bg-primary text-primary-foreground rounded-full hover:bg-google-blue-hover transition-colors disabled:opacity-50 disabled:bg-muted shadow-sm"
+                  >
+                    <Send size={18} className="ml-0.5" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
           <div className="text-center mt-3">
-            <p className="text-[11px] text-muted-foreground">AI môže zobraziť nepresné informácie. Vždy si overte dôležité fakty.</p>
+            <p className="text-[11px] text-muted-foreground">AI môže zobraziť nepresné informácie. Vždy si overte dôležité fakty. Stlačte <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Esc</kbd> pre zastavenie generovania alebo <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Ctrl+End</kbd> pre skok na koniec.</p>
           </div>
         </div>
       </div>

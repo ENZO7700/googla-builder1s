@@ -243,8 +243,20 @@ export default function Index() {
 
   const getSelectedModel = () => localStorage.getItem('ai-model') || 'google/gemini-3-flash-preview';
 
+  const abortRef = useRef<AbortController | null>(null);
+
+  const handleStopGeneration = useCallback(() => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      addLog('[USER] Generovanie zastavené.');
+      showToast('Generovanie zastavené', 'info');
+    }
+  }, [addLog, showToast]);
+
   // Streaming AI call with error recovery + diagnostics
   const callAIStreaming = async (msgs: Message[], systemOverride?: string): Promise<string> => {
+    const controller = new AbortController();
+    abortRef.current = controller;
     const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
     const url = `https://${projectId}.supabase.co/functions/v1/chat`;
     const { data: { session } } = await supabase.auth.getSession();
@@ -266,6 +278,7 @@ export default function Index() {
           'apikey': anonKey,
         },
         body: JSON.stringify({ messages: msgs, systemOverride, model }),
+        signal: controller.signal,
       });
     } catch (netErr: any) {
       setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: netErr.message || 'Network error', timestamp: new Date() });
@@ -352,17 +365,27 @@ export default function Index() {
         }
       }
     } catch (streamErr: any) {
+      const aborted = streamErr?.name === 'AbortError';
       if (!fullText) setMessages(prev => prev.slice(0, -1));
+      else if (aborted) {
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: 'model', content: fullText + '\n\n_⏹ Zastavené používateľom._' };
+          return updated;
+        });
+      }
       setDiagnostics({
         ttft: firstTokenTime ? firstTokenTime - startTime : 0,
         total: performance.now() - startTime,
         chunks, model,
-        error: streamErr.message || 'Stream interrupted',
+        error: aborted ? 'Zastavené používateľom' : (streamErr.message || 'Stream interrupted'),
         timestamp: new Date(),
       });
-      throw streamErr;
+      if (!aborted) throw streamErr;
+      return fullText;
     } finally {
       setIsStreaming(false);
+      abortRef.current = null;
     }
 
     setDiagnostics({
@@ -495,6 +518,32 @@ export default function Index() {
     addLog('[SYSTEM] Nový pracovný priestor alokovaný.');
     showToast('Nová relácia spustená', 'success');
   };
+
+  const handleRegenerate = useCallback(async () => {
+    if (isLoading) return;
+    // Find the last user message and drop the trailing model message
+    let lastUserIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') { lastUserIdx = i; break; }
+    }
+    if (lastUserIdx === -1) return;
+    const trimmed = messages.slice(0, lastUserIdx);
+    const userMsg = messages[lastUserIdx];
+    setMessages(trimmed);
+    addLog('[USER] Regenerujem poslednú odpoveď...');
+    setTimeout(() => handleSendMessage(userMsg.content), 0);
+  }, [messages, isLoading]);
+
+  const handleContinue = useCallback(() => {
+    if (isLoading) return;
+    handleSendMessage('Pokračuj v predchádzajúcej odpovedi tam, kde si skončil. Neopakuj, čo už bolo napísané.');
+  }, [isLoading]);
+
+  const handleSendToPreview = useCallback((html: string) => {
+    setLatestGeneratedCode(html);
+    setCurrentView('preview');
+    showToast('Otvorené v Live Náhľade', 'success');
+  }, [showToast]);
 
   const loadSession = async (session: Session) => {
     setActiveSessionId(session.id);
@@ -725,6 +774,10 @@ export default function Index() {
             tokenCount={tokenCount}
             onCopyCode={() => { addLog('[SYSTEM] Kód skopírovaný do schránky.'); showToast('Skopírované', 'success'); }}
             onToggleMobileMenu={() => setMobileMenuOpen(true)}
+            onStopGeneration={handleStopGeneration}
+            onRegenerate={handleRegenerate}
+            onContinue={handleContinue}
+            onSendToPreview={handleSendToPreview}
           />
         );
     }
