@@ -278,6 +278,7 @@ export default function Index() {
           'apikey': anonKey,
         },
         body: JSON.stringify({ messages: msgs, systemOverride, model }),
+        signal: controller.signal,
       });
     } catch (netErr: any) {
       setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: netErr.message || 'Network error', timestamp: new Date() });
