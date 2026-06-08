@@ -232,14 +232,14 @@ export default function ChatView({
       <div
         ref={scrollContainerRef}
         data-testid="chat-scroll"
-        className="flex-1 overflow-y-auto overscroll-contain px-4 lg:px-24 pt-10 pb-48 scrollbar-hide relative flex flex-col scroll-smooth"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 lg:px-24 pt-8 pb-6 scrollbar-hide flex flex-col scroll-smooth"
       >
         {/* Floating jump-to-bottom */}
         {!autoScroll && messages.length > 0 && (
           <button
             data-testid="jump-to-bottom"
             onClick={() => { setAutoScroll(true); setNewSinceScroll(0); scrollToBottom(true); }}
-            className="fixed bottom-44 left-1/2 -translate-x-1/2 z-40 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:opacity-90 flex items-center gap-1.5 animate-fade-in"
+            className="sticky bottom-3 self-center z-40 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:opacity-90 flex items-center gap-1.5 animate-fade-in"
           >
             <ArrowDown size={12} />
             {newSinceScroll > 0 ? `${newSinceScroll} nových riadkov` : 'Skočiť na koniec'}
@@ -250,7 +250,7 @@ export default function ChatView({
         {isStreaming && (
           <div
             data-testid="stream-indicator"
-            className="fixed bottom-44 right-6 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border shadow-lg text-xs animate-fade-in"
+            className="sticky bottom-3 ml-auto z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border shadow-lg text-xs animate-fade-in"
           >
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping" />
@@ -258,6 +258,7 @@ export default function ChatView({
             </span>
             <span className="text-muted-foreground">
               Generujem · {elapsed.toFixed(1)}s
+
             </span>
             {onStopGeneration && (
               <button
