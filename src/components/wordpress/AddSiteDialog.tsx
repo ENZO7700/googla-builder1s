@@ -69,12 +69,9 @@ export default function AddSiteDialog({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Nie ste prihlásený');
 
-      const insertData: any = {
-        user_id: user.id,
+      const payload: Record<string, unknown> = {
         label: data.label,
-        base_url: data.base_url.endsWith('/') 
-          ? data.base_url.slice(0, -1) 
-          : data.base_url,
+        base_url: data.base_url.endsWith('/') ? data.base_url.slice(0, -1) : data.base_url,
         site_type: data.site_type,
       };
 
@@ -82,15 +79,15 @@ export default function AddSiteDialog({
         if (!data.username || !data.app_password) {
           throw new Error('Username a Application Password sú povinné');
         }
-        insertData.username = data.username;
-        insertData.app_password_encrypted = btoa(data.app_password);
+        payload.username = data.username;
+        payload.app_password = data.app_password;
       }
 
-      const { error } = await supabase
-        .from('wp_sites')
-        .insert([insertData]);
-
+      // Server-side encrypts credentials with AES-256-GCM before insert.
+      const { data: res, error } = await supabase.functions.invoke('wp-sites-create', { body: payload });
       if (error) throw error;
+      if (res?.error) throw new Error(res.error);
+
       onSuccess();
       form.reset();
     } catch (err: any) {

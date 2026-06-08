@@ -276,14 +276,68 @@ function scoreFromFindings(findings: Finding[], dim: Dimension): number {
   return clamp(score);
 }
 
+// SSRF guard: block private / loopback / link-local / multicast IPs and disallowed schemes.
+function isBlockedHost(host: string): boolean {
+  const h = host.toLowerCase();
+  if (!h) return true;
+  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.internal') || h.endsWith('.local')) return true;
+  // IPv6 quick blocks
+  if (h.includes(':')) {
+    if (h === '::1' || h.startsWith('fc') || h.startsWith('fd') || h.startsWith('fe80') || h.startsWith('::ffff:')) return true;
+  }
+  // IPv4 ranges
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const [a, b] = [parseInt(m[1]), parseInt(m[2])];
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 0) return true;
+    if (a === 169 && b === 254) return true; // link-local (AWS metadata)
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a >= 224) return true; // multicast / reserved
+  }
+  return false;
+}
+
+async function authenticateRequest(req: Request): Promise<{ ok: true; userId: string } | { ok: false; status: number; error: string }> {
+  const auth = req.headers.get('Authorization');
+  if (!auth?.startsWith('Bearer ')) return { ok: false, status: 401, error: 'Unauthorized' };
+  const url = Deno.env.get('SUPABASE_URL');
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !key) return { ok: false, status: 500, error: 'Server misconfigured' };
+  const resp = await fetch(`${url}/auth/v1/user`, {
+    headers: { Authorization: auth, apikey: key },
+  });
+  if (!resp.ok) return { ok: false, status: 401, error: 'Invalid token' };
+  const u = await resp.json().catch(() => null);
+  if (!u?.id) return { ok: false, status: 401, error: 'Invalid token' };
+  return { ok: true, userId: u.id };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
+    const authResult = await authenticateRequest(req);
+    if (!authResult.ok) {
+      return new Response(JSON.stringify({ error: authResult.error }), { status: authResult.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     const body = await req.json().catch(() => ({}));
     const url: string = body?.url;
     const projectId: string = body?.projectId ?? 'unknown';
     if (!url || !/^https?:\/\//i.test(url)) {
       return new Response(JSON.stringify({ error: 'Invalid url' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    let parsed: URL;
+    try { parsed = new URL(url); } catch {
+      return new Response(JSON.stringify({ error: 'Invalid url' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return new Response(JSON.stringify({ error: 'Only http/https URLs are allowed' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    if (isBlockedHost(parsed.hostname)) {
+      return new Response(JSON.stringify({ error: 'Target host is not allowed' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const t0 = Date.now();

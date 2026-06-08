@@ -8,6 +8,30 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ENC_KEY_B64 = Deno.env.get("WP_CREDS_ENCRYPTION_KEY") ?? "";
+
+let _aesKey: CryptoKey | null = null;
+async function _getAesKey() {
+  if (_aesKey) return _aesKey;
+  const bin = atob(ENC_KEY_B64);
+  const raw = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) raw[i] = bin.charCodeAt(i);
+  if (raw.length !== 32) throw new Error("WP_CREDS_ENCRYPTION_KEY must decode to 32 bytes");
+  _aesKey = await crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["decrypt"]);
+  return _aesKey;
+}
+async function decryptCred(stored: string | null | undefined): Promise<string | undefined> {
+  if (!stored) return undefined;
+  if (!stored.startsWith("enc:v1:")) { try { return atob(stored); } catch { return undefined; } }
+  const key = await _getAesKey();
+  const bin = atob(stored.slice(7));
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  const iv = buf.slice(0, 12);
+  const ct = buf.slice(12);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+  return new TextDecoder().decode(pt);
+}
 
 interface SyncReq { siteId: string; entity: 'about' | 'service' | 'reference' | 'news'; recordId: string }
 
@@ -67,7 +91,9 @@ Deno.serve(async (req) => {
     const path = ENTITY_WP_PATH[body.entity];
     const wpPostId = (row as { wp_post_id?: number | null }).wp_post_id;
     const url = wpPostId ? `${base}/wp-json/wp/v2/${path}/${wpPostId}` : `${base}/wp-json/wp/v2/${path}`;
-    const credentials = btoa(`${site.username}:${atob(site.app_password_encrypted)}`);
+    const appPassword = await decryptCred(site.app_password_encrypted);
+    if (!appPassword) return new Response(JSON.stringify({ error: 'Nepodarilo sa dešifrovať app password.' }), { status: 500, headers: corsHeaders });
+    const credentials = btoa(`${site.username}:${appPassword}`);
 
     const wpRes = await fetch(url, {
       method: wpPostId ? 'POST' : 'POST', // WP REST accepts POST for both create + update via /id
