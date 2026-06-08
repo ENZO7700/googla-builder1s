@@ -358,10 +358,10 @@ export default function ChatView({
       </div>
 
       {/* Input area */}
-      <div className="absolute bottom-0 left-0 right-0 p-3 lg:px-24 lg:pb-8 bg-gradient-to-t from-background via-background to-transparent z-40">
-        <div className="max-w-3xl mx-auto w-full relative">
+      <div className="shrink-0 border-t border-border/50 bg-background px-3 pt-3 pb-3 lg:px-24 lg:pb-5">
+        <div className="max-w-3xl mx-auto w-full flex flex-col gap-2">
           {attachments.length > 0 && (
-            <div className="absolute -top-16 left-0 flex gap-2 w-full overflow-x-auto pb-2 scrollbar-hide z-30">
+            <div className="flex gap-2 w-full overflow-x-auto pb-1 scrollbar-hide">
               {attachments.map((file, i) => {
                 const isErr = !!file.error;
                 const isUp = !!file.uploading;
@@ -451,11 +451,13 @@ export default function ChatView({
               </div>
             </div>
           </div>
-          <div className="text-center mt-3">
-            <p className="text-[11px] text-muted-foreground">AI môže zobraziť nepresné informácie. Vždy si overte dôležité fakty. Stlačte <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Esc</kbd> pre zastavenie generovania alebo <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Ctrl+End</kbd> pre skok na koniec.</p>
-          </div>
+          <p className="text-[11px] text-muted-foreground text-center text-balance max-w-2xl mx-auto leading-snug">
+            AI môže zobraziť nepresné informácie. Vždy si overte dôležité fakty. Stlačte <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Esc</kbd> pre zastavenie alebo <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Ctrl+End</kbd> pre skok na koniec.
+          </p>
         </div>
       </div>
-    </>
+      </div>
+    </div>
   );
 }
+
