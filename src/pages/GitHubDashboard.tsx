@@ -673,11 +673,15 @@ function PRReviewWebhookCard() {
     setTesting(true);
     setPreview(null);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error('Musíte byť prihlásení');
       const res = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-dry-run': 'true',
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           repo: 'h4ck3d-ent/web-dashboard',
