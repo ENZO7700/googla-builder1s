@@ -190,7 +190,7 @@ export default function ChatView({
   const lastMsgIdx = messages.length - 1;
 
   return (
-    <>
+    <div className="flex flex-col h-full min-h-0 relative">
       {/* Header */}
       <header className="h-14 border-b border-border bg-card flex items-center justify-between px-4 lg:px-6 shrink-0 z-30">
         <div className="flex items-center gap-3">
@@ -212,6 +212,9 @@ export default function ChatView({
         </div>
       </header>
 
+      {/* Scroll + input wrapper */}
+      <div className="flex-1 flex flex-col min-h-0 relative">
+
       {/* Drag overlay */}
       {isDragging && (
         <div className="absolute inset-0 z-50 bg-primary/5 backdrop-blur-sm flex items-center justify-center border-2 border-dashed border-primary/40 rounded-2xl m-4">
@@ -223,18 +226,20 @@ export default function ChatView({
         </div>
       )}
 
+
+
       {/* Messages */}
       <div
         ref={scrollContainerRef}
         data-testid="chat-scroll"
-        className="flex-1 overflow-y-auto overscroll-contain px-4 lg:px-24 pt-10 pb-48 scrollbar-hide relative flex flex-col scroll-smooth"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 lg:px-24 pt-8 pb-6 scrollbar-hide flex flex-col scroll-smooth"
       >
         {/* Floating jump-to-bottom */}
         {!autoScroll && messages.length > 0 && (
           <button
             data-testid="jump-to-bottom"
             onClick={() => { setAutoScroll(true); setNewSinceScroll(0); scrollToBottom(true); }}
-            className="fixed bottom-44 left-1/2 -translate-x-1/2 z-40 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:opacity-90 flex items-center gap-1.5 animate-fade-in"
+            className="sticky bottom-3 self-center z-40 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:opacity-90 flex items-center gap-1.5 animate-fade-in"
           >
             <ArrowDown size={12} />
             {newSinceScroll > 0 ? `${newSinceScroll} nových riadkov` : 'Skočiť na koniec'}
@@ -245,7 +250,7 @@ export default function ChatView({
         {isStreaming && (
           <div
             data-testid="stream-indicator"
-            className="fixed bottom-44 right-6 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border shadow-lg text-xs animate-fade-in"
+            className="sticky bottom-3 ml-auto z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border shadow-lg text-xs animate-fade-in"
           >
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping" />
@@ -253,6 +258,7 @@ export default function ChatView({
             </span>
             <span className="text-muted-foreground">
               Generujem · {elapsed.toFixed(1)}s
+
             </span>
             {onStopGeneration && (
               <button
@@ -352,10 +358,10 @@ export default function ChatView({
       </div>
 
       {/* Input area */}
-      <div className="absolute bottom-0 left-0 right-0 p-3 lg:px-24 lg:pb-8 bg-gradient-to-t from-background via-background to-transparent z-40">
-        <div className="max-w-3xl mx-auto w-full relative">
+      <div className="shrink-0 border-t border-border/50 bg-background px-3 pt-3 pb-3 lg:px-24 lg:pb-5">
+        <div className="max-w-3xl mx-auto w-full flex flex-col gap-2">
           {attachments.length > 0 && (
-            <div className="absolute -top-16 left-0 flex gap-2 w-full overflow-x-auto pb-2 scrollbar-hide z-30">
+            <div className="flex gap-2 w-full overflow-x-auto pb-1 scrollbar-hide">
               {attachments.map((file, i) => {
                 const isErr = !!file.error;
                 const isUp = !!file.uploading;
@@ -445,11 +451,13 @@ export default function ChatView({
               </div>
             </div>
           </div>
-          <div className="text-center mt-3">
-            <p className="text-[11px] text-muted-foreground">AI môže zobraziť nepresné informácie. Vždy si overte dôležité fakty. Stlačte <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Esc</kbd> pre zastavenie generovania alebo <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Ctrl+End</kbd> pre skok na koniec.</p>
-          </div>
+          <p className="text-[11px] text-muted-foreground text-center text-balance max-w-2xl mx-auto leading-snug">
+            AI môže zobraziť nepresné informácie. Vždy si overte dôležité fakty. Stlačte <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Esc</kbd> pre zastavenie alebo <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Ctrl+End</kbd> pre skok na koniec.
+          </p>
         </div>
       </div>
-    </>
+      </div>
+    </div>
   );
 }
+
