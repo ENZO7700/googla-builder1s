@@ -158,7 +158,39 @@ serve(async (req) => {
     const isDryRun = req.headers.get("x-dry-run") === "true";
 
     // Dry-run: lets the dashboard test the AI prompt without any GitHub calls.
+    // Authenticated admins only — prevents anonymous AI credit drain.
     if (isDryRun) {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (!supabaseUrl || !serviceKey) {
+        return new Response(JSON.stringify({ error: "Server misconfigured" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const userResp = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        headers: { Authorization: authHeader, apikey: serviceKey },
+      });
+      if (!userResp.ok) {
+        return new Response(JSON.stringify({ error: "Invalid token" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const u = await userResp.json().catch(() => null);
+      const email: string | undefined = u?.email?.toLowerCase();
+      const adminCsv = (Deno.env.get("ADMIN_EMAILS") ?? "").toLowerCase();
+      const adminEmails = adminCsv.split(",").map((s) => s.trim()).filter(Boolean);
+      if (!email || adminEmails.length === 0 || !adminEmails.includes(email)) {
+        return new Response(JSON.stringify({ error: "Forbidden: admin only" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const { repo, prNumber, prTitle, author, diff } = JSON.parse(rawBody || "{}");
       if (!repo || !prNumber) {
         return new Response(JSON.stringify({ error: "Missing repo/prNumber" }), {
