@@ -18,8 +18,32 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 const WORDPRESS_COM_API_KEY = Deno.env.get("WORDPRESS_COM_API_KEY");
+const ENC_KEY_B64 = Deno.env.get("WP_CREDS_ENCRYPTION_KEY") ?? "";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+let _aesKey: CryptoKey | null = null;
+async function _getAesKey() {
+  if (_aesKey) return _aesKey;
+  const bin = atob(ENC_KEY_B64);
+  const raw = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) raw[i] = bin.charCodeAt(i);
+  if (raw.length !== 32) throw new Error("WP_CREDS_ENCRYPTION_KEY must decode to 32 bytes");
+  _aesKey = await crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["decrypt"]);
+  return _aesKey;
+}
+async function decryptCred(stored: string | null | undefined): Promise<string | undefined> {
+  if (!stored) return undefined;
+  if (!stored.startsWith("enc:v1:")) { try { return atob(stored); } catch { return undefined; } }
+  const key = await _getAesKey();
+  const bin = atob(stored.slice(7));
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  const iv = buf.slice(0, 12);
+  const ct = buf.slice(12);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+  return new TextDecoder().decode(pt);
+}
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -84,9 +108,11 @@ Deno.serve(async (req) => {
       const base = String(site.base_url).replace(/\/+$/, "");
       targetUrl = `${base}/wp-json/wp/v2/${path}`;
       if (site.username && site.app_password_encrypted) {
-        const appPassword = atob(site.app_password_encrypted);
-        const credentials = btoa(`${site.username}:${appPassword}`);
-        headers["Authorization"] = `Basic ${credentials}`;
+        const appPassword = await decryptCred(site.app_password_encrypted);
+        if (appPassword) {
+          const credentials = btoa(`${site.username}:${appPassword}`);
+          headers["Authorization"] = `Basic ${credentials}`;
+        }
       }
     } else {
       // WordPress.com via Lovable connector gateway

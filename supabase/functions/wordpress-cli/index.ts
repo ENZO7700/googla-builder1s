@@ -9,6 +9,32 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ENC_KEY_B64 = Deno.env.get("WP_CREDS_ENCRYPTION_KEY") ?? "";
+
+// AES-256-GCM decrypt for credentials stored as "enc:v1:<base64(iv||ct)>".
+// Legacy rows stored as plain base64 still decode via atob() fallback.
+let _aesKey: CryptoKey | null = null;
+async function _getAesKey() {
+  if (_aesKey) return _aesKey;
+  const bin = atob(ENC_KEY_B64);
+  const raw = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) raw[i] = bin.charCodeAt(i);
+  if (raw.length !== 32) throw new Error("WP_CREDS_ENCRYPTION_KEY must decode to 32 bytes");
+  _aesKey = await crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["decrypt"]);
+  return _aesKey;
+}
+async function decryptCred(stored: string | null | undefined): Promise<string | undefined> {
+  if (!stored) return undefined;
+  if (!stored.startsWith("enc:v1:")) { try { return atob(stored); } catch { return undefined; } }
+  const key = await _getAesKey();
+  const bin = atob(stored.slice(7));
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  const iv = buf.slice(0, 12);
+  const ct = buf.slice(12);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+  return new TextDecoder().decode(pt);
+}
 
 // Whitelist of allowed WP-CLI commands. Map -> actual `wp ...` arguments.
 // IMPORTANT: never accept arbitrary commands from the client.
@@ -127,8 +153,8 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "SSH not configured for this site." }, 400);
     }
 
-    const password = site.ssh_password_encrypted ? atob(site.ssh_password_encrypted) : undefined;
-    const privateKey = site.ssh_private_key_encrypted ? atob(site.ssh_private_key_encrypted) : undefined;
+    const password = await decryptCred(site.ssh_password_encrypted);
+    const privateKey = await decryptCred(site.ssh_private_key_encrypted);
     if (!password && !privateKey) {
       return jsonResponse({ error: "SSH password or private key required." }, 400);
     }
