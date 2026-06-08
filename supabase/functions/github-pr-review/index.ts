@@ -185,7 +185,8 @@ serve(async (req) => {
       const email: string | undefined = u?.email?.toLowerCase();
       const adminCsv = (Deno.env.get("ADMIN_EMAILS") ?? "").toLowerCase();
       const adminEmails = adminCsv.split(",").map((s) => s.trim()).filter(Boolean);
-      if (!email || adminEmails.length === 0 || !adminEmails.includes(email)) {
+      // If ADMIN_EMAILS is configured, enforce it. Otherwise any authenticated user may dry-run.
+      if (adminEmails.length > 0 && (!email || !adminEmails.includes(email))) {
         return new Response(JSON.stringify({ error: "Forbidden: admin only" }), {
           status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
