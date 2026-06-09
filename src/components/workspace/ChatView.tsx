@@ -111,6 +111,7 @@ export default function ChatView({
   const [newSinceScroll, setNewSinceScroll] = useState(0);
   const [streamStart, setStreamStart] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [overlaysHidden, setOverlaysHidden] = useState(false);
 
   const rafRef = useRef<number | null>(null);
   const lastLenRef = useRef(0);
@@ -235,16 +236,21 @@ export default function ChatView({
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 lg:px-24 pt-8 pb-6 scrollbar-hide flex flex-col scroll-smooth"
       >
         {/* Floating overlay row: stays above last message, never overlaps input bar (input is sibling) */}
-        {(isStreaming || (!autoScroll && messages.length > 0)) && (
-          <div className="sticky bottom-2 z-40 flex items-center justify-between gap-2 pointer-events-none mt-2">
-            <div className="flex-1 flex justify-center">
+        {!overlaysHidden && (isStreaming || (!autoScroll && messages.length > 0)) && (
+          <div
+            className="sticky bottom-2 z-40 flex flex-col-reverse sm:flex-row items-center sm:justify-between gap-2 pointer-events-none mt-2"
+            role="region"
+            aria-label="Stav chatu"
+          >
+            <div className="flex-1 flex justify-center w-full sm:w-auto">
               {!autoScroll && messages.length > 0 && (
                 <button
                   data-testid="jump-to-bottom"
                   onClick={() => { setAutoScroll(true); setNewSinceScroll(0); scrollToBottom(true); }}
-                  className="pointer-events-auto px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:opacity-90 flex items-center gap-1.5 animate-fade-in"
+                  aria-label={newSinceScroll > 0 ? `Skočiť na koniec, ${newSinceScroll} nových riadkov` : 'Skočiť na koniec konverzácie'}
+                  className="pointer-events-auto px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:opacity-90 flex items-center gap-1.5 animate-fade-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
-                  <ArrowDown size={12} />
+                  <ArrowDown size={12} aria-hidden="true" />
                   {newSinceScroll > 0 ? `${newSinceScroll} nových riadkov` : 'Skočiť na koniec'}
                 </button>
               )}
@@ -252,9 +258,12 @@ export default function ChatView({
             {isStreaming && (
               <div
                 data-testid="stream-indicator"
+                role="status"
+                aria-live="polite"
+                aria-label={`Generujem odpoveď, uplynulo ${elapsed.toFixed(1)} sekúnd`}
                 className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border shadow-lg text-xs animate-fade-in"
               >
-                <span className="relative flex h-2 w-2">
+                <span className="relative flex h-2 w-2" aria-hidden="true">
                   <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
                 </span>
@@ -264,15 +273,29 @@ export default function ChatView({
                 {onStopGeneration && (
                   <button
                     onClick={onStopGeneration}
-                    className="ml-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
-                    title="Zastaviť (Esc)"
+                    aria-label="Zastaviť generovanie (Esc)"
+                    className="ml-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-1"
                   >
-                    <Square size={10} className="fill-current" />
+                    <Square size={10} className="fill-current" aria-hidden="true" />
                     Stop
                   </button>
                 )}
               </div>
             )}
+          </div>
+        )}
+        {(isStreaming || (!autoScroll && messages.length > 0)) && inputValue.length > 0 && (
+          <div className="sticky bottom-2 z-40 flex justify-end pointer-events-none mt-1">
+            <button
+              type="button"
+              onClick={() => setOverlaysHidden(v => !v)}
+              data-testid="overlays-toggle"
+              aria-pressed={overlaysHidden}
+              aria-label={overlaysHidden ? 'Zobraziť indikátory chatu' : 'Skryť indikátory chatu pre nerušené písanie'}
+              className="pointer-events-auto text-[10px] px-2 py-0.5 rounded-full bg-muted/80 text-muted-foreground hover:bg-muted border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {overlaysHidden ? 'Zobraziť' : 'Skryť'} indikátory
+            </button>
           </div>
         )}
 
