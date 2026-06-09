@@ -53,6 +53,12 @@ function PromptCard({ text, onClick }: { text: string; onClick: () => void }) {
   );
 }
 
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  const tagName = target.tagName.toLowerCase();
+  return target.isContentEditable || tagName === 'textarea' || tagName === 'input' || tagName === 'select';
+}
+
 const promptData: Record<string, string[]> = {
   'WordPress FSE': [
     'Vygeneruj komplexný theme.json s definíciou rozmerov (layout, spacing) a vlastných farebných formátov.',
@@ -126,6 +132,18 @@ export default function ChatView({
     });
   }, []);
 
+  const scrollChatBy = useCallback((delta: number) => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.scrollBy({ top: delta, behavior: 'smooth' });
+  }, []);
+
+  const scrollChatToTop = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   // Detect user scroll
   useEffect(() => {
     const el = scrollContainerRef.current;
@@ -183,10 +201,39 @@ export default function ChatView({
       if (e.key === 'Escape' && isStreaming && onStopGeneration) {
         onStopGeneration();
       }
+
+      if (!isEditableTarget(e.target)) {
+        const el = scrollContainerRef.current;
+        if (!el) return;
+
+        const pageStep = Math.max(el.clientHeight - 96, 240);
+        if (e.key === 'PageDown') {
+          e.preventDefault();
+          scrollChatBy(pageStep);
+        } else if (e.key === 'PageUp') {
+          e.preventDefault();
+          scrollChatBy(-pageStep);
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          scrollChatBy(96);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          scrollChatBy(-96);
+        } else if (e.key === 'Home' && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          setAutoScroll(false);
+          scrollChatToTop();
+        } else if (e.key === 'End' && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          setAutoScroll(true);
+          setNewSinceScroll(0);
+          scrollToBottom(true);
+        }
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [scrollToBottom, isStreaming, onStopGeneration]);
+  }, [scrollToBottom, scrollChatBy, scrollChatToTop, isStreaming, onStopGeneration]);
 
   const lastMsgIdx = messages.length - 1;
 
@@ -233,7 +280,9 @@ export default function ChatView({
       <div
         ref={scrollContainerRef}
         data-testid="chat-scroll"
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 lg:px-24 pt-8 pb-6 scrollbar-hide flex flex-col scroll-smooth"
+        tabIndex={0}
+        aria-label="História konverzácie, rolovateľná oblasť"
+        className="flex-1 min-h-0 overflow-y-scroll overscroll-contain px-4 lg:px-24 pt-8 pb-6 flex flex-col scroll-smooth outline-none focus-visible:ring-2 focus-visible:ring-primary/50 [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--border))_transparent] [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-track]:bg-background/40 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/60"
       >
         {/* Floating overlay row: stays above last message, never overlaps input bar (input is sibling) */}
         {!overlaysHidden && (isStreaming || (!autoScroll && messages.length > 0)) && (
