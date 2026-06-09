@@ -61,13 +61,12 @@ function isEditableTarget(target: EventTarget | null) {
 
 function shouldKeepKeyInsideEditable(e: KeyboardEvent) {
   if (!isEditableTarget(e.target)) return false;
-  if (e.target === document.activeElement && inputValueIsEmptyTarget(e.target)) {
-    return !['PageDown', 'PageUp', 'Home', 'End'].includes(e.key);
-  }
+  if (['PageDown', 'PageUp'].includes(e.key)) return false;
+  if (['Home', 'End'].includes(e.key) && !editableHasValue(e.target)) return false;
   return true;
 }
 
-function inputValueIsEmptyTarget(target: EventTarget | null) {
+function editableHasValue(target: EventTarget | null) {
   if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLTextAreaElement)) return false;
   return target.value.length > 0;
 }
