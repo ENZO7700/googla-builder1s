@@ -234,41 +234,44 @@ export default function ChatView({
         data-testid="chat-scroll"
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 lg:px-24 pt-8 pb-6 scrollbar-hide flex flex-col scroll-smooth"
       >
-        {/* Floating jump-to-bottom */}
-        {!autoScroll && messages.length > 0 && (
-          <button
-            data-testid="jump-to-bottom"
-            onClick={() => { setAutoScroll(true); setNewSinceScroll(0); scrollToBottom(true); }}
-            className="sticky bottom-3 self-center z-40 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:opacity-90 flex items-center gap-1.5 animate-fade-in"
-          >
-            <ArrowDown size={12} />
-            {newSinceScroll > 0 ? `${newSinceScroll} nových riadkov` : 'Skočiť na koniec'}
-          </button>
-        )}
-
-        {/* Streaming indicator */}
-        {isStreaming && (
-          <div
-            data-testid="stream-indicator"
-            className="sticky bottom-3 ml-auto z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border shadow-lg text-xs animate-fade-in"
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-            </span>
-            <span className="text-muted-foreground">
-              Generujem · {elapsed.toFixed(1)}s
-
-            </span>
-            {onStopGeneration && (
-              <button
-                onClick={onStopGeneration}
-                className="ml-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
-                title="Zastaviť (Esc)"
+        {/* Floating overlay row: stays above last message, never overlaps input bar (input is sibling) */}
+        {(isStreaming || (!autoScroll && messages.length > 0)) && (
+          <div className="sticky bottom-2 z-40 flex items-center justify-between gap-2 pointer-events-none mt-2">
+            <div className="flex-1 flex justify-center">
+              {!autoScroll && messages.length > 0 && (
+                <button
+                  data-testid="jump-to-bottom"
+                  onClick={() => { setAutoScroll(true); setNewSinceScroll(0); scrollToBottom(true); }}
+                  className="pointer-events-auto px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:opacity-90 flex items-center gap-1.5 animate-fade-in"
+                >
+                  <ArrowDown size={12} />
+                  {newSinceScroll > 0 ? `${newSinceScroll} nových riadkov` : 'Skočiť na koniec'}
+                </button>
+              )}
+            </div>
+            {isStreaming && (
+              <div
+                data-testid="stream-indicator"
+                className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border shadow-lg text-xs animate-fade-in"
               >
-                <Square size={10} className="fill-current" />
-                Stop
-              </button>
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                </span>
+                <span className="text-muted-foreground whitespace-nowrap">
+                  Generujem · {elapsed.toFixed(1)}s
+                </span>
+                {onStopGeneration && (
+                  <button
+                    onClick={onStopGeneration}
+                    className="ml-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+                    title="Zastaviť (Esc)"
+                  >
+                    <Square size={10} className="fill-current" />
+                    Stop
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}
