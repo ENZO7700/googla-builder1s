@@ -59,6 +59,19 @@ function isEditableTarget(target: EventTarget | null) {
   return target.isContentEditable || tagName === 'textarea' || tagName === 'input' || tagName === 'select';
 }
 
+function shouldKeepKeyInsideEditable(e: KeyboardEvent) {
+  if (!isEditableTarget(e.target)) return false;
+  if (e.target === document.activeElement && inputValueIsEmptyTarget(e.target)) {
+    return !['PageDown', 'PageUp', 'Home', 'End'].includes(e.key);
+  }
+  return true;
+}
+
+function inputValueIsEmptyTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLTextAreaElement)) return false;
+  return target.value.length > 0;
+}
+
 const promptData: Record<string, string[]> = {
   'WordPress FSE': [
     'Vygeneruj komplexný theme.json s definíciou rozmerov (layout, spacing) a vlastných farebných formátov.',
@@ -202,7 +215,7 @@ export default function ChatView({
         onStopGeneration();
       }
 
-      if (!isEditableTarget(e.target)) {
+      if (!shouldKeepKeyInsideEditable(e)) {
         const el = scrollContainerRef.current;
         if (!el) return;
 
