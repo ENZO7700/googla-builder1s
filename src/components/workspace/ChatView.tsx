@@ -111,6 +111,7 @@ export default function ChatView({
   const [newSinceScroll, setNewSinceScroll] = useState(0);
   const [streamStart, setStreamStart] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [overlaysHidden, setOverlaysHidden] = useState(false);
 
   const rafRef = useRef<number | null>(null);
   const lastLenRef = useRef(0);
