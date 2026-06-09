@@ -841,7 +841,7 @@ export default function Index() {
         />
       </div>
 
-      <main className="flex-1 flex flex-col relative overflow-hidden">
+      <main className="flex-1 min-h-0 flex flex-col relative overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentView}
@@ -849,7 +849,7 @@ export default function Index() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.15 }}
-            className="flex-1 flex flex-col"
+            className="flex-1 min-h-0 flex flex-col"
           >
             {viewContent()}
           </motion.div>
