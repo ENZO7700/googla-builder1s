@@ -66,7 +66,7 @@ function CodeBlock({ language, code, onCopy }: { language: string; code: string;
         </div>
       </div>
       <div
-        className="relative overflow-auto scrollbar-hide"
+        className="relative overflow-x-auto overflow-y-hidden [scrollbar-width:thin] [scrollbar-color:hsl(var(--border))_transparent] [&::-webkit-scrollbar]:h-3 [&::-webkit-scrollbar-track]:bg-background/40 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/60"
         style={{ maxHeight: collapsed ? '280px' : 'none' }}
       >
         <SyntaxHighlighter
