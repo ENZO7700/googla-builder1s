@@ -62,7 +62,7 @@ function isEditableTarget(target: EventTarget | null) {
 function shouldKeepKeyInsideEditable(e: KeyboardEvent) {
   if (!isEditableTarget(e.target)) return false;
   if (['PageDown', 'PageUp'].includes(e.key)) return false;
-  if (['Home', 'End'].includes(e.key) && !editableHasValue(e.target)) return false;
+  if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key) && !editableHasValue(e.target)) return false;
   return true;
 }
 
