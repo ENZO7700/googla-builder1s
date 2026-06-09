@@ -29,6 +29,9 @@ test.describe('Chat overlays do not overlap input bar', () => {
         test.skip(true, 'Workspace not authed in CI');
       }
 
+      await expect(scroll).toHaveClass(/overflow-y-scroll/);
+      await expect(scroll).not.toHaveClass(/scrollbar-hide/);
+
       const textarea = page.locator('textarea').first();
       const jump = page.locator('[data-testid="jump-to-bottom"]').first();
 
@@ -48,4 +51,31 @@ test.describe('Chat overlays do not overlap input bar', () => {
       expect(jb.y + jb.height).toBeLessThanOrEqual(tb.y + 1);
     });
   }
+
+  test('chat transcript accepts keyboard scrolling when focused', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    const scroll = page.locator('[data-testid="chat-scroll"]').first();
+    if (!(await scroll.isVisible().catch(() => false))) {
+      test.skip(true, 'Workspace not authed in CI');
+    }
+
+    const canScroll = await scroll.evaluate(el => el.scrollHeight > el.clientHeight + 4);
+    if (!canScroll) {
+      test.skip(true, 'No long transcript present – keyboard scroll not meaningful');
+    }
+
+    await scroll.focus();
+    await page.keyboard.press('Home');
+    await expect.poll(() => scroll.evaluate(el => el.scrollTop)).toBeLessThan(4);
+
+    await page.keyboard.press('PageDown');
+    await expect.poll(() => scroll.evaluate(el => el.scrollTop)).toBeGreaterThan(20);
+
+    await page.keyboard.press('End');
+    const atBottom = await scroll.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight < 8);
+    expect(atBottom).toBe(true);
+  });
 });
