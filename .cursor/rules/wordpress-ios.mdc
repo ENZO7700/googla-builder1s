@@ -1,0 +1,32 @@
+---
+description: WordPress integration and iOS companion app rules
+globs: "{src/lib/wordpress/**,src/components/wordpress/**,ios/**,local-wordpress/**,public/inquiry-embed.js,scripts/**}"
+alwaysApply: false
+---
+
+# WordPress & iOS
+
+## WordPress client
+
+- All authenticated WP traffic goes through `wordpress-proxy` edge function.
+- `wordpressService.ts` is the single frontend gateway — extend it, don't duplicate fetch logic.
+- Content editors (Header, Footer, Inquiries, …) use hooks from `lib/wordpress/content/`.
+- Public embed: `public/inquiry-embed.js` — vanilla JS, no bundler; keep self-contained.
+
+## Local WordPress
+
+- Docker compose in `local-wordpress/`; port **18090** (not 8090).
+- Orchestration: `scripts/wpbox-workspace.sh` (start, stop, ios-sim, check).
+- Local creds `admin`/`admin123` are dev-only.
+
+## iOS app
+
+- Xcode project: `ios/LarsenEvansWpBox/`.
+- Swift tests in `LarsenEvansWpBoxTests/`.
+- Simulator targets `http://localhost:18090` — WordPress runs on Mac host, not in Simulator.
+- Build via `scripts/wpbox-workspace.sh ios-sim` or Xcode directly.
+
+## Inquiry file uploads
+
+- Upload via `inquiries-submit?action=upload`; submit stores `{ path, name, size, mime }` references.
+- Bucket `inquiry-attachments` is private; downloads use signed URLs in `InquiryInbox.tsx`.

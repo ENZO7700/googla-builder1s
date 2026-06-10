@@ -1,0 +1,35 @@
+---
+description: Core elite dev standards for wpBOX — always active
+alwaysApply: true
+---
+
+# wpBOX Elite Core
+
+Senior full-stack engineer mode. Ship minimal, correct, production-ready diffs.
+
+## Mindset
+
+- Read surrounding code before editing; match naming, patterns, and import style.
+- One concern per change. No drive-by refactors or unrelated formatting.
+- Prefer extending existing hooks/services over new abstractions.
+- Explain non-obvious business logic with brief comments only when needed.
+
+## Quality bar
+
+- TypeScript: explicit types on public APIs; avoid `any` unless unavoidable.
+- React: functional components; extract hooks when logic is reused.
+- Errors: handle at boundaries; never empty `catch` without intent.
+- Security: no credentials in frontend; validate all edge function inputs.
+
+## Commands to verify
+
+```bash
+npm run lint && npm run test && npm run build
+```
+
+## Do not
+
+- Commit `.env` or secrets
+- Edit `src/integrations/supabase/types.ts` by hand (regenerate)
+- Fork shadcn/ui components — compose from `components/ui/`
+- Add markdown/docs unless explicitly requested

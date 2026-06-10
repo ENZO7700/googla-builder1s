@@ -1,0 +1,35 @@
+---
+description: Supabase migrations and edge function conventions
+globs: supabase/**/*
+alwaysApply: false
+---
+
+# Supabase & Edge Functions
+
+## Migrations
+
+- Append-only SQL in `supabase/migrations/`.
+- Enable RLS on every new table; policies must scope by site/user ownership.
+- Use `is_wp_site_owner()` and existing helper patterns from prior migrations.
+
+## Edge functions (Deno)
+
+- Entry: `supabase/functions/<name>/index.ts`.
+- Shared utilities: `supabase/functions/_shared/`.
+- CORS: handle OPTIONS; restrict origins in production paths.
+- Auth: verify JWT or service role as appropriate; never trust client-only checks.
+- Responses: `JSON.stringify({ ok: true, ... })` with correct status codes.
+- Public endpoints (`inquiries-submit`): rate limit, honeypot, MIME/size validation.
+
+## Deploy
+
+```bash
+supabase functions deploy <function-name>
+```
+
+Secrets (API keys, service tokens) live in Supabase project settings, not `.env`.
+
+## WordPress credentials
+
+- Stored encrypted; accessed only via `_shared/wordpress-credentials.ts`.
+- Browser calls `VITE_SUPABASE_URL/functions/v1/wordpress-proxy`, never WP directly with secrets.

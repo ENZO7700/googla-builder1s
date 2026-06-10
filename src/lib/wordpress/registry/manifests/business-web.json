@@ -1,0 +1,73 @@
+{
+  "id": "business-web",
+  "version": "4.0",
+  "label": "BUSINESS WEB",
+  "family": "core",
+  "extends": ["base-core", "base-content"],
+  "entities": [
+    "company",
+    "header",
+    "footer",
+    "about",
+    "inquiry_forms",
+    "services",
+    "service_categories",
+    "news",
+    "members",
+    "references",
+    "faq",
+    "gallery"
+  ],
+  "pages": [
+    {
+      "id": "home",
+      "path": "/",
+      "slots": ["hero", "services-preview", "references", "news", "cta"]
+    },
+    {
+      "id": "services",
+      "path": "/services",
+      "slots": ["categories", "grid", "detail"]
+    },
+    {
+      "id": "blog",
+      "path": "/blog",
+      "slots": ["featured", "list", "detail"]
+    },
+    {
+      "id": "team",
+      "path": "/team",
+      "slots": ["grid", "member-detail"]
+    },
+    {
+      "id": "references",
+      "path": "/references",
+      "slots": ["featured", "grid", "detail"]
+    },
+    {
+      "id": "faq",
+      "path": "/faq",
+      "slots": ["categories", "accordion"]
+    },
+    {
+      "id": "gallery",
+      "path": "/gallery",
+      "slots": ["grid", "lightbox"]
+    },
+    {
+      "id": "contact",
+      "path": "/contact",
+      "slots": ["form", "map", "company-info"]
+    },
+    {
+      "id": "about",
+      "path": "/about",
+      "slots": ["content", "team-preview"]
+    }
+  ],
+  "integrations": ["inquiries-submit", "wordpress-sync", "launch-audit"],
+  "wp": {
+    "cpts": ["services", "team-member", "reference", "faq"],
+    "taxonomies": ["service_category"]
+  }
+}

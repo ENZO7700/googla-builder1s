@@ -1,0 +1,39 @@
+---
+description: React + TypeScript patterns for wpBOX frontend
+globs: src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# React & TypeScript
+
+## Structure
+
+- Pages in `src/pages/` — route shells only.
+- Feature UI in `src/components/<feature>/`.
+- Data logic in `src/lib/` or colocated `use*.ts` hooks.
+
+## Patterns
+
+```tsx
+// ✅ Query hook in lib/, thin component
+const { data, isLoading } = useSiteContent(siteId);
+
+// ❌ fetch inside render/effect in a page component
+useEffect(() => { fetch('/api/...') }, []);
+```
+
+- Use `@/` imports: `import { Button } from "@/components/ui/button"`.
+- Forms: `react-hook-form` + `zod` resolvers (see existing editors).
+- Toasts: `sonner` for ephemeral; `use-toast` where already used in file.
+- Routes: add above the `*` catch-all in `App.tsx`.
+
+## UI
+
+- shadcn primitives from `components/ui/`; use `cn()` from `@/lib/utils`.
+- Loading/error states: reuse `components/dashboard/States.tsx` patterns.
+- Icons: `lucide-react` only.
+
+## Types
+
+- WordPress types: `src/lib/wordpress/types.ts` and `content/types.ts`.
+- Supabase row types: `integrations/supabase/types.ts`.
