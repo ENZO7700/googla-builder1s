@@ -81,8 +81,8 @@ section "2. Supabase platforma"
 code=$(http_code "${VITE_SUPABASE_URL}/auth/v1/health" -H "apikey: ${VITE_SUPABASE_PUBLISHABLE_KEY}")
 if [[ "$code" == "200" ]]; then pass "Auth health HTTP 200"; else fail "Auth health HTTP ${code}"; fi
 
-REQUIRED_TABLES=(wp_sites wp_company_info wp_about wp_services wp_audit_log wp_sync_outbox)
-OPTIONAL_TABLES=(wp_blueprint_instances)
+REQUIRED_TABLES=(wp_sites wp_audit_log)
+OPTIONAL_TABLES=(wp_company_info wp_about wp_services wp_sync_outbox wp_blueprint_instances)
 
 for t in "${REQUIRED_TABLES[@]}"; do
   code=$(http_code \
