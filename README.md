@@ -19,15 +19,31 @@ This repo is configured for Cursor **elite developer mode**:
 - `npm run ci` — lint + test + build (same gate as GitHub Actions)
 - `npm run test:schemas` — WordPress REST contract tests (Zod fixtures)
 
-## CI/CD (GitHub Actions)
+## CI/CD Golden Standard
 
-| Workflow | Trigger | Čo robí |
-|----------|---------|---------|
-| `wpbox-ci.yml` | PR + push `main` | lint → vitest → build |
-| `wpbox-ci.yml` integration | push `main` | + `npm run healthcheck` proti live Supabase/WP |
-| `wpbox-deploy-smoke.yml` | daily 06:00 UTC, manual | `healthcheck:write` + issue pri zlyhaní |
+```
+Push/PR ─┬─ quality-gate: lint → typecheck → test (12) → schemas → audit → build → bundle budget
+         │
+         └─ (PR + migrations) supabase-migrations: local db reset
 
-**GitHub Secrets** (Settings → Secrets → Actions):
+main ──── integration: + live WP contract (4 tests) + healthcheck (28 checks)
+
+Vercel deploy success ─── deployment_status ─┬─ smoke:preview (HTTP 200 + timing + brand)
+                                             └─ healthcheck:write (Supabase + WP proxy + draft create/delete)
+
+Daily 06:00 UTC ─── healthcheck:write ─── auto GitHub issue on failure
+```
+
+### Workflows
+
+| File | Trigger | Čo robí |
+|------|---------|---------|
+| `wpbox-ci.yml` | PR + push `main` | lint → typecheck → test → schemas → build → bundle budget |
+| `wpbox-ci.yml` integration | push `main` | + live WP contract tests + `npm run healthcheck` |
+| `wpbox-deploy-smoke.yml` | Vercel `deployment_status`, daily cron, manual | smoke:preview + healthcheck:write |
+| `wpbox-supabase-migrations.yml` | PR (migrations changed) | `supabase db reset` on local DB |
+
+### GitHub Secrets (Settings → Secrets → Actions)
 
 | Secret | Popis |
 |--------|-------|
@@ -40,8 +56,6 @@ This repo is configured for Cursor **elite developer mode**:
 | `WP_APP_PASSWORD` | WP Application Password (nie Supabase) |
 
 Voliteľné **Variables**: `WPBOX_PROD_URL`, `WP_HEALTH_WEB24`, `WP_HEALTH_ROOT`.
-
-**Workflowy:** `wpbox-ci.yml` (gate + integration), `wpbox-deploy-smoke.yml` (Vercel `deployment_status` + daily cron), `wpbox-supabase-migrations.yml` (PR: local `db reset`).
 
 ## GitHub
 
@@ -66,6 +80,9 @@ npm install
 | `npm run ci` | Lint + test + build (CI gate) |
 | `npm run healthcheck` | Full-stack smoke test (Supabase + WP + Vercel) |
 | `npm run healthcheck:write` | Healthcheck + draft post create/delete |
+| `npm run smoke:preview [url]` | Quick HTTP/timing/brand smoke on deployed URL |
+| `npm run test:live` | Live WP contract tests (needs `WP_APP_*` env) |
+| `npm run typecheck` | TypeScript type-check (no emit) |
 | `scripts/wpbox-workspace.sh start` | Local WordPress (:18090) |
 | `scripts/wpbox-workspace.sh ios-sim` | iOS Simulator + local WP |
 

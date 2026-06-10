@@ -44,7 +44,12 @@ jobs:
 
       - run: npm ci
 
-      - name: Smoke-test deployed wpBOX + WordPress stack
+      - name: Quick smoke (HTTP 200 + timing + brand check)
+        run: npm run smoke:preview -- "$DEPLOY_URL"
+        env:
+          DEPLOY_URL: ${{ github.event.deployment_status.environment_url || github.event.inputs.prod_url || vars.WPBOX_PROD_URL || 'https://larsenevans-wpbox.vercel.app' }}
+
+      - name: Full-stack healthcheck (Supabase + WP proxy)
         run: |
           if [[ "${{ github.event.inputs.write_test }}" == "false" ]]; then
             npm run healthcheck

@@ -16,7 +16,8 @@
     "typecheck": "tsc -b --noEmit",
     "ci": "npm run lint && npm run typecheck && npm run test && npm run build",
     "healthcheck": "bash scripts/wpbox-healthcheck.sh",
-    "healthcheck:write": "WP_WRITE_TEST=1 bash scripts/wpbox-healthcheck.sh"
+    "healthcheck:write": "WP_WRITE_TEST=1 bash scripts/wpbox-healthcheck.sh",
+    "smoke:preview": "bash scripts/smoke-preview.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
