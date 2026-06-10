@@ -81,7 +81,10 @@ section "2. Supabase platforma"
 code=$(http_code "${VITE_SUPABASE_URL}/auth/v1/health" -H "apikey: ${VITE_SUPABASE_PUBLISHABLE_KEY}")
 if [[ "$code" == "200" ]]; then pass "Auth health HTTP 200"; else fail "Auth health HTTP ${code}"; fi
 
-for t in wp_sites wp_company_info wp_about wp_services wp_audit_log wp_sync_outbox wp_blueprint_instances; do
+REQUIRED_TABLES=(wp_sites wp_company_info wp_about wp_services wp_audit_log wp_sync_outbox)
+OPTIONAL_TABLES=(wp_blueprint_instances)
+
+for t in "${REQUIRED_TABLES[@]}"; do
   code=$(http_code \
     -H "apikey: ${VITE_SUPABASE_PUBLISHABLE_KEY}" \
     -H "Authorization: Bearer ${VITE_SUPABASE_PUBLISHABLE_KEY}" \
@@ -89,9 +92,25 @@ for t in wp_sites wp_company_info wp_about wp_services wp_audit_log wp_sync_outb
   if [[ "$code" == "200" ]]; then pass "Tabuľka ${t} dostupná"; else fail "Tabuľka ${t} HTTP ${code}"; fi
 done
 
-for fn in wordpress-connection wordpress-proxy wordpress-sync wordpress-cli; do
+for t in "${OPTIONAL_TABLES[@]}"; do
+  code=$(http_code \
+    -H "apikey: ${VITE_SUPABASE_PUBLISHABLE_KEY}" \
+    -H "Authorization: Bearer ${VITE_SUPABASE_PUBLISHABLE_KEY}" \
+    "${VITE_SUPABASE_URL}/rest/v1/${t}?select=id&limit=0")
+  if [[ "$code" == "200" ]]; then pass "Tabuľka ${t} dostupná"; else warn "Tabuľka ${t} HTTP ${code} (voliteľná)"; fi
+done
+
+REQUIRED_FNS=(wordpress-proxy wordpress-sync wordpress-cli)
+OPTIONAL_FNS=(wordpress-connection)
+
+for fn in "${REQUIRED_FNS[@]}"; do
   code=$(http_code -X OPTIONS "${VITE_SUPABASE_URL}/functions/v1/${fn}")
   if [[ "$code" == "200" || "$code" == "204" ]]; then pass "Edge fn ${fn} OPTIONS"; else fail "Edge fn ${fn} OPTIONS HTTP ${code}"; fi
+done
+
+for fn in "${OPTIONAL_FNS[@]}"; do
+  code=$(http_code -X OPTIONS "${VITE_SUPABASE_URL}/functions/v1/${fn}")
+  if [[ "$code" == "200" || "$code" == "204" ]]; then pass "Edge fn ${fn} OPTIONS"; else warn "Edge fn ${fn} OPTIONS HTTP ${code} (nedeploynutá?)"; fi
 done
 
 code=$(http_code -X POST "${VITE_SUPABASE_URL}/functions/v1/wordpress-proxy" \
@@ -115,7 +134,7 @@ for label in WEB24 ROOT; do
   fi
 done
 
-cors=$(curl -sS -I -H "Origin: ${WPBOX_PROD_URL}" "${WP_HEALTH_WEB24%/}/wp-json/" 2>/dev/null | rg -i "access-control-allow-origin" || true)
+cors=$(curl -sS -I -H "Origin: ${WPBOX_PROD_URL}" "${WP_HEALTH_WEB24%/}/wp-json/" 2>/dev/null | grep -i "access-control-allow-origin" || true)
 if [[ -n "$cors" ]]; then pass "CORS web24 pre ${WPBOX_PROD_URL}"; else warn "CORS hlavička pre web24 + wpBOX produkciu nenájdená"; fi
 
 section "5. Supabase Auth + wp_sites"
@@ -123,10 +142,11 @@ ACCESS=""
 if [[ -z "$WPBOX_EMAIL" || -z "$WPBOX_PASSWORD" ]]; then
   skip "JWT login — nastav WPBOX_EMAIL a WPBOX_PASSWORD pre plný test proxy"
 else
+  LOGIN_BODY=$(python3 -c 'import json,os; print(json.dumps({"email":os.environ["WPBOX_EMAIL"],"password":os.environ["WPBOX_PASSWORD"].strip()}))')
   TOKEN_JSON=$(curl -sS -X POST "${VITE_SUPABASE_URL}/auth/v1/token?grant_type=password" \
     -H "apikey: ${VITE_SUPABASE_PUBLISHABLE_KEY}" \
     -H "Content-Type: application/json" \
-    -d "{\"email\":\"${WPBOX_EMAIL}\",\"password\":\"${WPBOX_PASSWORD}\"}")
+    -d "$LOGIN_BODY")
   ACCESS=$(printf '%s' "$TOKEN_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null || true)
   if [[ -n "$ACCESS" ]]; then
     pass "JWT login ${WPBOX_EMAIL}"

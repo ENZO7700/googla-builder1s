@@ -44,12 +44,26 @@ jobs:
 
       - run: npm ci
 
-      - name: Quick smoke (HTTP 200 + timing + brand check)
-        run: npm run smoke:preview -- "$DEPLOY_URL"
+      - name: Resolve deploy URL
+        id: url
+        run: |
+          URL="${DEPLOY_URL}"
+          echo "deploy_url=${URL}" >> "$GITHUB_OUTPUT"
+          if [[ "$URL" != *"larsenevans-wpbox"* && "$URL" != *"larsenevans.com"* && "$GITHUB_EVENT_NAME" == "deployment_status" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "⚠ Skipping non-wpBOX deploy: ${URL}"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
         env:
           DEPLOY_URL: ${{ github.event.deployment_status.environment_url || github.event.inputs.prod_url || vars.WPBOX_PROD_URL || 'https://larsenevans-wpbox.vercel.app' }}
 
+      - name: Quick smoke (HTTP 200 + timing + brand check)
+        if: steps.url.outputs.skip != 'true'
+        run: npm run smoke:preview -- "${{ steps.url.outputs.deploy_url }}"
+
       - name: Full-stack healthcheck (Supabase + WP proxy)
+        if: steps.url.outputs.skip != 'true'
         run: |
           if [[ "${{ github.event.inputs.write_test }}" == "false" ]]; then
             npm run healthcheck
@@ -62,12 +76,12 @@ jobs:
           VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID }}
           WPBOX_EMAIL: ${{ secrets.WPBOX_EMAIL }}
           WPBOX_PASSWORD: ${{ secrets.WPBOX_PASSWORD }}
-          WPBOX_PROD_URL: ${{ github.event.deployment_status.environment_url || github.event.inputs.prod_url || vars.WPBOX_PROD_URL || 'https://larsenevans-wpbox.vercel.app' }}
+          WPBOX_PROD_URL: ${{ steps.url.outputs.deploy_url }}
           WP_HEALTH_WEB24: ${{ vars.WP_HEALTH_WEB24 || 'https://larsenevans.com/web24' }}
           WP_HEALTH_ROOT: ${{ vars.WP_HEALTH_ROOT || 'https://larsenevans.com' }}
 
       - name: Open issue on failure
-        if: failure() && github.event_name == 'schedule'
+        if: failure() && github.event_name == 'schedule' && steps.url.outputs.skip != 'true'
         uses: actions/github-script@v7
         with:
           script: |
