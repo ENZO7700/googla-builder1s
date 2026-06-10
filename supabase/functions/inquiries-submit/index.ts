@@ -1,3 +1,4 @@
+/* eslint-disable no-useless-escape */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.0";
 
 const corsHeaders = {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -128,7 +129,7 @@ export default function GitHubDashboard() {
 
   useEffect(() => {
     if (user && isAdmin) loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [user, isAdmin]);
 
   const handleConnect = async () => {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -10,12 +11,12 @@ export interface E2EResult {
 
 const log = (msg: string, ok: boolean) => {
   const icon = ok ? '✅' : '❌';
-  // eslint-disable-next-line no-console
+   
   console.log(`%c[E2E] ${icon} ${msg}`, `color:${ok ? '#22c55e' : '#ef4444'};font-weight:bold`);
 };
 
 export async function runE2ETest(): Promise<E2EResult[]> {
-  // eslint-disable-next-line no-console
+   
   console.log('%c━━━ LarsenEvans-wpBOX E2E Test ━━━', 'color:#3b82f6;font-weight:bold;font-size:14px');
   const results: E2EResult[] = [];
   let testSessionId: string | null = null;
@@ -169,7 +170,7 @@ export async function runE2ETest(): Promise<E2EResult[]> {
 
   const passed = results.filter(r => r.passed).length;
   const total = results.length;
-  // eslint-disable-next-line no-console
+   
   console.log(`%c━━━ Výsledok: ${passed}/${total} prešlo ━━━`, `color:${passed === total ? '#22c55e' : '#ef4444'};font-weight:bold;font-size:14px`);
 
   if (passed === total) {

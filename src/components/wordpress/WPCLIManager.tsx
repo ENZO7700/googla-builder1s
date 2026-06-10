@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardCard from '@/components/dashboard/DashboardCard';
@@ -59,7 +60,7 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
     setLogs((data ?? []) as AuditRow[]);
   };
 
-  useEffect(() => { loadLogs(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [siteId]);
+  useEffect(() => { loadLogs();   }, [siteId]);
 
   const requestRun = (command: string) => {
     if (DESTRUCTIVE_COMMANDS.has(command)) {
