@@ -396,7 +396,7 @@ function ConnectionResult({ result }: { result: AuthenticatedWpConnectionResult 
     );
   }
 
-  if (!result.ok) {
+  if (result.ok === false) {
     return (
       <div className="mt-4 rounded-xl border border-destructive/20 bg-destructive/10 p-3">
         <div className="flex items-center gap-2 text-sm font-medium text-destructive">

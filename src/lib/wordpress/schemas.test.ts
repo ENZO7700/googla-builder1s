@@ -5,6 +5,7 @@ import {
   PostListResponseSchema,
   PostSchema,
   SettingsSchema,
+  UserSchema,
 } from './types';
 import samples from './__fixtures__/wp-api-samples.json';
 
@@ -47,5 +48,39 @@ describe('WordPress REST Zod schemas (real API shapes)', () => {
       total: 1,
     });
     expect(list.total).toBe(1);
+  });
+
+  it('parses users/me from web24 (administrator)', () => {
+    const user = UserSchema.parse(samples.userMe);
+    expect(user.roles).toContain('administrator');
+    expect(user.username).toBe('magnusevans');
+  });
+
+  it('derives active=true from status when active flag is missing', () => {
+    const plugin = PluginSchema.parse(samples.pluginActive);
+    expect(plugin.active).toBe(true);
+    expect(plugin.status).toBe('active');
+  });
+});
+
+describe('WordPress REST contract guards', () => {
+  it('rejects post without slug (API regression)', () => {
+    const broken = { ...samples.post, slug: undefined };
+    expect(() => PostSchema.parse(broken)).toThrow();
+  });
+
+  it('rejects settings when posts_per_page is non-numeric string', () => {
+    const broken = { ...samples.settings, posts_per_page: 'ten' };
+    expect(() => SettingsSchema.parse(broken)).toThrow();
+  });
+
+  it('rejects plugin without version', () => {
+    const { version: _v, ...broken } = samples.plugin;
+    expect(() => PluginSchema.parse(broken)).toThrow();
+  });
+
+  it('rejects users/me without roles array', () => {
+    const broken = { ...samples.userMe, roles: undefined };
+    expect(() => UserSchema.parse(broken)).toThrow();
   });
 });

@@ -11,6 +11,10 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:schemas": "vitest run src/lib/wordpress/schemas.test.ts",
+    "test:live": "vitest run src/lib/wordpress/schemas.live.test.ts",
+    "typecheck": "tsc -b --noEmit",
+    "ci": "npm run lint && npm run typecheck && npm run test && npm run build",
     "healthcheck": "bash scripts/wpbox-healthcheck.sh",
     "healthcheck:write": "WP_WRITE_TEST=1 bash scripts/wpbox-healthcheck.sh"
   },

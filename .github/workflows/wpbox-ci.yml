@@ -1,0 +1,89 @@
+name: wpBOX CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: wpbox-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gate:
+    name: Lint, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm run test
+
+      - run: npm run test:schemas
+
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - run: npm run build
+        env:
+          # Vite inlines env at build time; placeholders satisfy CI without real secrets.
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: placeholder-publishable-key
+          VITE_SUPABASE_PROJECT_ID: placeholder-project
+          VITE_FIREBASE_API_KEY: placeholder
+          VITE_FIREBASE_AUTH_DOMAIN: placeholder.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: placeholder
+          VITE_FIREBASE_STORAGE_BUCKET: placeholder.appspot.com
+          VITE_FIREBASE_MESSAGING_SENDER_ID: "000000000000"
+          VITE_FIREBASE_APP_ID: "1:000000000000:web:placeholder"
+
+      - name: Bundle size budget
+        run: bash scripts/check-bundle-budget.sh
+
+  integration:
+    name: Full-stack healthcheck
+    needs: quality-gate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Live WordPress API contract (web24)
+        run: npm run test:live
+        env:
+          WP_HEALTH_WEB24: ${{ vars.WP_HEALTH_WEB24 || 'https://larsenevans.com/web24' }}
+          WP_APP_USER: ${{ secrets.WP_APP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+
+      - name: Run wpBOX healthcheck (read-only)
+        run: npm run healthcheck
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID }}
+          WPBOX_EMAIL: ${{ secrets.WPBOX_EMAIL }}
+          WPBOX_PASSWORD: ${{ secrets.WPBOX_PASSWORD }}
+          WPBOX_PROD_URL: ${{ vars.WPBOX_PROD_URL || 'https://larsenevans-wpbox.vercel.app' }}
+          WP_HEALTH_WEB24: ${{ vars.WP_HEALTH_WEB24 || 'https://larsenevans.com/web24' }}
+          WP_HEALTH_ROOT: ${{ vars.WP_HEALTH_ROOT || 'https://larsenevans.com' }}

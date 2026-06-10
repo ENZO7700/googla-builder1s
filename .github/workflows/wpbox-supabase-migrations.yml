@@ -1,0 +1,26 @@
+name: wpBOX Supabase Migrations
+
+# Validates SQL migrations on isolated local DB — never touches qytsiddrksybwpqldjfj.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/config.toml'
+
+jobs:
+  migrate-local:
+    name: supabase db reset (local)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase and apply migrations
+        run: |
+          supabase start -x edge-runtime,logflare
+          supabase db reset --no-seed

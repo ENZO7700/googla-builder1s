@@ -16,7 +16,32 @@ This repo is configured for Cursor **elite developer mode**:
 
 - `AGENTS.md` — full project context for AI agents
 - `.cursor/rules/` — architecture, React/TS, Supabase, WordPress/iOS rules
-- `npm run lint && npm run test && npm run build` — pre-ship gate
+- `npm run ci` — lint + test + build (same gate as GitHub Actions)
+- `npm run test:schemas` — WordPress REST contract tests (Zod fixtures)
+
+## CI/CD (GitHub Actions)
+
+| Workflow | Trigger | Čo robí |
+|----------|---------|---------|
+| `wpbox-ci.yml` | PR + push `main` | lint → vitest → build |
+| `wpbox-ci.yml` integration | push `main` | + `npm run healthcheck` proti live Supabase/WP |
+| `wpbox-deploy-smoke.yml` | daily 06:00 UTC, manual | `healthcheck:write` + issue pri zlyhaní |
+
+**GitHub Secrets** (Settings → Secrets → Actions):
+
+| Secret | Popis |
+|--------|-------|
+| `VITE_SUPABASE_URL` | `https://qytsiddrksybwpqldjfj.supabase.co` |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | anon key |
+| `VITE_SUPABASE_PROJECT_ID` | `qytsiddrksybwpqldjfj` |
+| `WPBOX_EMAIL` | Supabase test user (nie WP user) |
+| `WPBOX_PASSWORD` | heslo test usera |
+| `WP_APP_USER` | WordPress user (`magnusevans`) — live API contract |
+| `WP_APP_PASSWORD` | WP Application Password (nie Supabase) |
+
+Voliteľné **Variables**: `WPBOX_PROD_URL`, `WP_HEALTH_WEB24`, `WP_HEALTH_ROOT`.
+
+**Workflowy:** `wpbox-ci.yml` (gate + integration), `wpbox-deploy-smoke.yml` (Vercel `deployment_status` + daily cron), `wpbox-supabase-migrations.yml` (PR: local `db reset`).
 
 ## GitHub
 
@@ -37,6 +62,8 @@ npm install
 | `npm run build` | Production build |
 | `npm run lint` | ESLint |
 | `npm run test` | Vitest unit tests |
+| `npm run test:schemas` | WordPress API Zod contract tests |
+| `npm run ci` | Lint + test + build (CI gate) |
 | `npm run healthcheck` | Full-stack smoke test (Supabase + WP + Vercel) |
 | `npm run healthcheck:write` | Healthcheck + draft post create/delete |
 | `scripts/wpbox-workspace.sh start` | Local WordPress (:18090) |
