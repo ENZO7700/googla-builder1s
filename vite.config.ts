@@ -41,7 +41,13 @@ export default defineConfig(({ mode }) => ({
             if (id.includes("react-markdown") || id.includes("react-syntax-highlighter")) {
               return "vendor-markdown";
             }
-            if (id.includes("react") || id.includes("react-dom") || id.includes("react-router")) {
+            if (
+              id.includes("node_modules/react/") ||
+              id.includes("node_modules/react-dom/") ||
+              id.includes("node_modules/react-router/") ||
+              id.includes("node_modules/react-router-dom/") ||
+              id.includes("node_modules/@remix-run/router/")
+            ) {
               return "vendor-react";
             }
             return "vendor";
