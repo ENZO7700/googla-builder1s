@@ -26,6 +26,7 @@ import InquiryFormBuilder from '@/components/wordpress/content/InquiryFormBuilde
 import WPCLIManager from '@/components/wordpress/WPCLIManager';
 import WordPressApiTester from '@/components/wordpress/WordPressApiTester';
 import WordPressAdvancedActions from '@/components/wordpress/WordPressAdvancedActions';
+import ServicesCctManager from '@/components/wordpress/cct/ServicesCctManager';
 
 interface WPSite {
   id: string;
@@ -185,6 +186,7 @@ export default function WordPressDashboard() {
                       <TabsTrigger value="form">Form & Embed</TabsTrigger>
                       <TabsTrigger value="admin">Admin</TabsTrigger>
                       <TabsTrigger value="wpcli">WP-CLI</TabsTrigger>
+                      <TabsTrigger value="cct-services">CCT Services</TabsTrigger>
                     </TabsList>
                     <TabsContent value="company"><CompanyInfoEditor siteId={selectedSite.id} /></TabsContent>
                     <TabsContent value="about"><AboutEditor siteId={selectedSite.id} /></TabsContent>
@@ -198,6 +200,7 @@ export default function WordPressDashboard() {
                     <TabsContent value="form"><InquiryFormBuilder siteId={selectedSite.id} /></TabsContent>
                     <TabsContent value="admin"><WordPressAdvancedActions siteId={selectedSite.id} /></TabsContent>
                     <TabsContent value="wpcli"><WPCLIManager siteId={selectedSite.id} /></TabsContent>
+                    <TabsContent value="cct-services"><ServicesCctManager siteId={selectedSite.id} /></TabsContent>
                   </Tabs>
                 )}
               </>
