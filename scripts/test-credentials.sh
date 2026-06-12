@@ -99,7 +99,7 @@ else
   echo "$response_body"
   echo -e "\n${YELLOW}Riešenie:${NC}"
   echo "1. Uistite sa, že používateľ '$WPBOX_EMAIL' existuje v Supabase Dashboard -> Authentication -> Users."
-  echo "2. Skontrolujte, či je heslo správne (aktuálne zadané v .env: '$WPBOX_PASSWORD')."
+  echo "2. Skontrolujte, či je heslo správne zadané v prostredí alebo v .env."
   echo "3. Overte, či v GitHub Secrets nie sú uložené staré kľúče/heslá."
   exit 1
 fi
