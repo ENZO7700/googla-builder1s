@@ -312,21 +312,44 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
               Citlivé údaje sa šifrujú AES-256-GCM serverovo a nikdy sa nevracajú späť do prehliadača.
             </p>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
               <button
                 onClick={saveSsh}
-                disabled={savingSsh}
+                disabled={savingSsh || testingSsh}
                 className="text-xs px-4 py-2 rounded-md bg-primary text-primary-foreground disabled:opacity-50"
               >
                 {savingSsh ? 'Ukladám…' : 'Uložiť SSH'}
               </button>
               <button
-                onClick={() => setShowForm(false)}
+                onClick={testSsh}
+                disabled={savingSsh || testingSsh}
+                className="text-xs px-4 py-2 rounded-md border border-border bg-muted/40 hover:bg-muted disabled:opacity-50"
+              >
+                {testingSsh ? 'Testujem…' : 'Otestovať SSH'}
+              </button>
+              <button
+                onClick={() => { setShowForm(false); setTestResult(null); }}
                 className="text-xs px-4 py-2 rounded-md border border-border"
               >
                 Zrušiť
               </button>
             </div>
+
+            {testResult && (
+              <div
+                role="status"
+                className={`text-xs rounded-md px-3 py-2 border ${
+                  testResult.ok
+                    ? 'border-green-500/40 bg-green-500/10 text-green-300'
+                    : 'border-red-500/40 bg-red-500/10 text-red-300'
+                }`}
+              >
+                <div className="font-medium">{testResult.ok ? '✓ ' : '✗ '}{testResult.message}</div>
+                {testResult.details && (
+                  <pre className="mt-1 whitespace-pre-wrap text-[10px] opacity-80">{testResult.details}</pre>
+                )}
+              </div>
+            )}
           </div>
         )}
 
