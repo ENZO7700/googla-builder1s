@@ -28,3 +28,13 @@ googla-builder1s-main.zip
 *.sln
 *.sw?
 .vercel
+
+# Build artifacts
+tsconfig.*.tsbuildinfo
+Arch*.zip
+
+# Test results
+test-results/
+
+# E2E tests
+e2e/
