@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import type { Variants } from 'framer-motion';
 import { Rocket, Plug, MessageSquareCode, UploadCloud, ArrowRight, CheckCircle2, Terminal } from 'lucide-react';
 import { useState } from 'react';
 
@@ -45,12 +46,12 @@ const containerVariants = {
       delayChildren: 0.1
     }
   }
-};
+} satisfies Variants;
 
 const itemVariants = {
   hidden: { opacity: 0, y: 30, scale: 0.95 },
   show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', bounce: 0.4 } }
-};
+} satisfies Variants;
 
 export default function OnboardingGuide({ onNavigate }: OnboardingGuideProps) {
   const [hoveredStep, setHoveredStep] = useState<string | null>(null);

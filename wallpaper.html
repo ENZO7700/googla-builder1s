@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome - Larsen Evans</title>
+  <style>
+    :root {
+      --bg-dark: #111111;
+      --bg-deep: #07080b;
+      --glass-bg: rgba(10, 59, 92, 0.36);
+      --glass-border: rgba(255, 255, 255, 0.14);
+      --accent: #00bcd4;
+      --text: rgba(255, 255, 255, 0.96);
+      --text-muted: rgba(255, 255, 255, 0.68);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      min-height: 100dvh;
+      background:
+        radial-gradient(circle at 15% 18%, rgba(0, 188, 212, 0.14), transparent 24%),
+        radial-gradient(circle at 80% 18%, rgba(66, 133, 244, 0.16), transparent 22%),
+        radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.08), transparent 30%),
+        linear-gradient(145deg, var(--bg-deep) 0%, #0b0d12 48%, var(--bg-dark) 100%);
+      color: var(--text);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    body {
+      position: relative;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      isolation: isolate;
+    }
+
+    body::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 120px 120px;
+      mask-image: radial-gradient(circle at center, black, transparent 82%);
+      opacity: 0.28;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(64px);
+      opacity: 0.55;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .orb.teal {
+      top: 9%;
+      left: 8%;
+      width: 280px;
+      height: 280px;
+      background: rgba(0, 188, 212, 0.24);
+    }
+
+    .orb.blue {
+      right: 6%;
+      bottom: 8%;
+      width: 320px;
+      height: 320px;
+      background: rgba(66, 133, 244, 0.18);
+    }
+
+    .dust {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .dust span {
+      position: absolute;
+      border-radius: 999px;
+      background: currentColor;
+      box-shadow: 0 0 14px currentColor;
+      animation: float 11s ease-in-out infinite;
+      opacity: 0.78;
+    }
+
+    .screen {
+      position: relative;
+      z-index: 2;
+      width: min(100%, 420px);
+      padding: 36px 28px 30px;
+      border-radius: 28px;
+      background:
+        linear-gradient(165deg, rgba(18, 25, 36, 0.72), rgba(7, 10, 16, 0.6)),
+        var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      box-shadow:
+        0 28px 80px rgba(0, 0, 0, 0.42),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(18px);
+      text-align: center;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 18px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.76);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 14px rgba(0, 188, 212, 0.8);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 2.6rem);
+      font-weight: 650;
+      letter-spacing: 0.04em;
+    }
+
+    p {
+      margin: 16px auto 0;
+      max-width: 28ch;
+      color: var(--text-muted);
+      font-size: 0.98rem;
+      line-height: 1.65;
+    }
+
+    .google-btn {
+      display: inline-flex;
+      width: 100%;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 28px;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px 18px;
+      background: #ffffff;
+      color: #4a4a4a;
+      font-size: 0.98rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+      transition: transform 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .google-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 28px rgba(0, 0, 0, 0.28);
+    }
+
+    .google-btn:focus-visible {
+      outline: 3px solid rgba(0, 188, 212, 0.28);
+      outline-offset: 3px;
+    }
+
+    .google-btn svg {
+      width: 20px;
+      height: 20px;
+      flex: 0 0 20px;
+    }
+
+    .footnote {
+      margin-top: 18px;
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.46);
+      letter-spacing: 0.04em;
+    }
+
+    @keyframes float {
+      0%, 100% {
+        transform: translate3d(0, 0, 0);
+        opacity: 0.24;
+      }
+      35% {
+        transform: translate3d(18px, -26px, 0);
+        opacity: 0.92;
+      }
+      70% {
+        transform: translate3d(-14px, 20px, 0);
+        opacity: 0.56;
+      }
+    }
+
+    @media (max-width: 520px) {
+      body {
+        padding: 16px;
+      }
+
+      .screen {
+        width: min(100%, 100vw - 32px);
+        padding: 30px 20px 24px;
+        border-radius: 24px;
+      }
+
+      p {
+        font-size: 0.94rem;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .dust span,
+      .google-btn {
+        animation: none;
+        transition: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="orb teal" aria-hidden="true"></div>
+  <div class="orb blue" aria-hidden="true"></div>
+
+  <div class="dust" aria-hidden="true">
+    <span style="left: 13%; top: 16%; width: 10px; height: 10px; color: rgba(0, 188, 212, 0.82);"></span>
+    <span style="left: 78%; top: 22%; width: 7px; height: 7px; color: rgba(255, 255, 255, 0.76); animation-delay: 1.2s;"></span>
+    <span style="left: 61%; top: 66%; width: 12px; height: 12px; color: rgba(66, 133, 244, 0.52); animation-delay: 0.8s; animation-duration: 13s;"></span>
+    <span style="left: 28%; top: 76%; width: 8px; height: 8px; color: rgba(255, 255, 255, 0.58); animation-delay: 2.1s; animation-duration: 9s;"></span>
+    <span style="left: 46%; top: 30%; width: 6px; height: 6px; color: rgba(52, 168, 83, 0.66); animation-delay: 1.6s;"></span>
+  </div>
+
+  <main class="screen">
+    <div class="eyebrow">Welcome screen concept</div>
+    <h1>LARSEN EVANS</h1>
+    <p>
+      Liquid-glass landing card with a Google-style sign-in CTA.
+      This mock is self-contained and ready to share as a visual reference.
+    </p>
+
+    <button class="google-btn" id="googleSignIn" type="button">
+      <svg viewBox="0 0 533.5 544.3" aria-hidden="true" focusable="false">
+        <path fill="#4285F4" d="M533.5 278.4c0-17.4-1.5-34.1-4.3-50.2H272v95h147.5c-6.4 34-25.7 62.8-54.8 82v68h88.5c51.9-47.8 81.8-118.4 81.8-194.8" />
+        <path fill="#34A853" d="M272 544c73.8 0 135.7-24.5 180.9-66.5l-88.5-68c-24.6 16.5-56.2 26.2-92.4 26.2-71 0-131.1-47.9-152.6-112.2h-90v70.6C78.5 471.6 170.4 544 272 544" />
+        <path fill="#FBBC04" d="M119.4 323.5c-10.6-31.6-10.6-65.7 0-97.3v-70.6h-90c-37.8 73.5-37.8 160.5 0 234z" />
+        <path fill="#EA4335" d="M272 107.5c40 0 76.2 13.8 104.6 40.9l78.5-78.5C414.1 24.4 347.8 0 272 0 170.4 0 78.5 72.4 61.5 172.4l90 70.6C140.9 155.4 201 107.5 272 107.5" />
+      </svg>
+      Sign in with Google
+    </button>
+
+    <div class="footnote">Mock only. Replace the stub with your real auth flow.</div>
+  </main>
+
+  <script>
+    document.getElementById('googleSignIn').addEventListener('click', function () {
+      console.log('Google sign-in clicked');
+    });
+  </script>
+</body>
+</html>
