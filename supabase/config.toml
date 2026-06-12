@@ -1,5 +1,12 @@
 project_id = "qytsiddrksybwpqldjfj"
 
+[auth]
+site_url = "https://larsenevans-wpbox.vercel.app"
+additional_redirect_urls = [
+  "https://larsenevans-wpbox.vercel.app/**",
+  "http://localhost:8080/**"
+]
+
 [functions.github-pr-review]
 verify_jwt = false
 
