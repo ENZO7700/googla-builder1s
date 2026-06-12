@@ -35,15 +35,72 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
   const [logs, setLogs] = useState<AuditRow[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [sshReady, setSshReady] = useState<boolean | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [savingSsh, setSavingSsh] = useState(false);
+  const [authMode, setAuthMode] = useState<'password' | 'key'>('password');
+  const [sshForm, setSshForm] = useState({
+    ssh_host: '',
+    ssh_port: 22,
+    ssh_username: '',
+    ssh_password: '',
+    ssh_private_key: '',
+    wp_path: '',
+  });
 
   const checkSsh = async () => {
     const { data } = await supabase
       .from('wp_sites')
-      .select('ssh_host, ssh_username, ssh_password_encrypted, ssh_private_key_encrypted')
+      .select('ssh_host, ssh_port, ssh_username, ssh_password_encrypted, ssh_private_key_encrypted, wp_path')
       .eq('id', siteId)
       .maybeSingle();
     const ok = !!(data?.ssh_host && data?.ssh_username && (data?.ssh_password_encrypted || data?.ssh_private_key_encrypted));
     setSshReady(ok);
+    setSshForm(f => ({
+      ...f,
+      ssh_host: data?.ssh_host ?? '',
+      ssh_port: data?.ssh_port ?? 22,
+      ssh_username: data?.ssh_username ?? '',
+      wp_path: data?.wp_path ?? '',
+    }));
+  };
+
+  const saveSsh = async () => {
+    if (!sshForm.ssh_host || !sshForm.ssh_username) {
+      toast.error('Vyplňte host a username');
+      return;
+    }
+    if (authMode === 'password' && !sshForm.ssh_password && !sshReady) {
+      toast.error('Vyplňte heslo');
+      return;
+    }
+    if (authMode === 'key' && !sshForm.ssh_private_key && !sshReady) {
+      toast.error('Vložte privátny kľúč');
+      return;
+    }
+    setSavingSsh(true);
+    try {
+      const payload: Record<string, unknown> = {
+        id: siteId,
+        ssh_host: sshForm.ssh_host,
+        ssh_port: Number(sshForm.ssh_port) || 22,
+        ssh_username: sshForm.ssh_username,
+        wp_path: sshForm.wp_path || undefined,
+      };
+      if (authMode === 'password' && sshForm.ssh_password) payload.ssh_password = sshForm.ssh_password;
+      if (authMode === 'key' && sshForm.ssh_private_key) payload.ssh_private_key = sshForm.ssh_private_key;
+
+      const { data, error } = await supabase.functions.invoke('wp-sites-create', { body: payload });
+      if (error) throw error;
+      if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+      toast.success('SSH uložené');
+      setSshForm(f => ({ ...f, ssh_password: '', ssh_private_key: '' }));
+      setShowForm(false);
+      await checkSsh();
+    } catch (e) {
+      toast.error('Chyba ukladania', { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setSavingSsh(false);
+    }
   };
 
   const loadLogs = async () => {
