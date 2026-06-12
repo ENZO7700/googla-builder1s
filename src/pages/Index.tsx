@@ -24,6 +24,7 @@ const AnalyzerView = lazy(() => import('@/components/workspace/AnalyzerView'));
 const GeneratorView = lazy(() => import('@/components/workspace/GeneratorView'));
 const PreviewView = lazy(() => import('@/components/workspace/PreviewView'));
 const ConnectorsView = lazy(() => import('@/components/workspace/ConnectorsView'));
+const OnboardingGuide = lazy(() => import('@/components/workspace/OnboardingGuide'));
 
 const LOCAL_ACCESS_KEY = 'wpbox.localAccess';
 const LOCAL_USER_ID = 'local-wpbox-user';
@@ -55,7 +56,7 @@ const ALLOWED_EXT = /\.(txt|md|json|csv|js|ts|tsx|jsx|py|html|css|xml|yml|yaml|l
 export default function Index() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [currentView, setCurrentView] = useState('tasks');
+  const [currentView, setCurrentView] = useState('welcome');
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -975,6 +976,18 @@ export default function Index() {
 
   const viewContent = () => {
     switch (currentView) {
+      case 'welcome':
+        return (
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+            <OnboardingGuide onNavigate={(v) => {
+              if (v === 'wordpress') {
+                window.location.href = '/dashboard/wordpress';
+              } else {
+                setCurrentView(v);
+              }
+            }} />
+          </Suspense>
+        );
       case 'files':
         return (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>

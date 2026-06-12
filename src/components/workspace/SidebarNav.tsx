@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, LayoutGrid, ShieldAlert, Code2, Plug, Layout,
-  Settings, History, LogOut, Sun, Moon, Trash2, Search, Pencil, Check, X, Github, Rocket
+  Settings, History, LogOut, Sun, Moon, Trash2, Search, Pencil, Check, X, Github, Rocket, FileText
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isAdminEmail } from '@/lib/admin';
@@ -148,13 +148,55 @@ export default function SidebarNav({
           <Plus size={18} /> Nová Relácia
         </button>
 
-        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pt-2 pb-1">Nástroje</p>
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pt-2 pb-1">Navigácia</p>
 
-        <SidebarItem icon={<LayoutGrid size={18} />} label="Workspace" active={currentView === 'tasks'} onClick={() => onViewChange('tasks')} />
-        <SidebarItem icon={<ShieldAlert size={18} />} label="Analyzátor" active={currentView === 'files'} onClick={() => onViewChange('files')} />
-        <SidebarItem icon={<Plug size={18} />} label="Integrácie" active={currentView === 'connectors'} status="online" onClick={() => onViewChange('connectors')} />
-        <SidebarItem icon={<Code2 size={18} />} label="Generátor" active={currentView === 'skills'} onClick={() => onViewChange('skills')} />
-        <SidebarItem icon={<Layout size={18} />} label="Náhľad" active={currentView === 'preview'} indicator={hasPreviewCode} onClick={() => onViewChange('preview')} />
+        <SidebarItem 
+          icon={<Rocket size={18} className="text-purple-500" />} 
+          label="Štart (Návod)" 
+          active={currentView === 'welcome'} 
+          onClick={() => onViewChange('welcome')} 
+        />
+        
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pt-4 pb-1">Nástroje</p>
+
+        <SidebarItem 
+          icon={<Plug size={18} />} 
+          label="Integrácie" 
+          active={currentView === 'connectors'} 
+          status="online" 
+          onClick={() => onViewChange('connectors')} 
+        />
+        <SidebarItem 
+          icon={<FileText size={18} />} 
+          label="WordPress Manager" 
+          active={false} 
+          onClick={() => navigate('/dashboard/wordpress')} 
+        />
+        <SidebarItem 
+          icon={<LayoutGrid size={18} />} 
+          label="Workspace (Chat)" 
+          active={currentView === 'tasks'} 
+          onClick={() => onViewChange('tasks')} 
+        />
+        <SidebarItem 
+          icon={<Code2 size={18} />} 
+          label="Generátor" 
+          active={currentView === 'skills'} 
+          onClick={() => onViewChange('skills')} 
+        />
+        <SidebarItem 
+          icon={<ShieldAlert size={18} />} 
+          label="Analyzátor" 
+          active={currentView === 'files'} 
+          onClick={() => onViewChange('files')} 
+        />
+        <SidebarItem 
+          icon={<Layout size={18} />} 
+          label="Náhľad" 
+          active={currentView === 'preview'} 
+          indicator={hasPreviewCode} 
+          onClick={() => onViewChange('preview')} 
+        />
         {isAdminEmail(userEmail) && (
           <>
             <SidebarItem
