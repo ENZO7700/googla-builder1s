@@ -2,8 +2,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardCard from '@/components/dashboard/DashboardCard';
-import { Terminal, Play, RefreshCw } from 'lucide-react';
+import { Terminal, Play, RefreshCw, Settings2, ChevronDown, ChevronUp, Save, KeyRound, Lock } from 'lucide-react';
 import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 
 const DESTRUCTIVE_COMMANDS = new Set([
   'cron-run-due',
@@ -39,12 +43,55 @@ interface AuditRow {
   details: Record<string, unknown> | null;
 }
 
+interface SshConfig {
+  ssh_host: string | null;
+  ssh_port: number | null;
+  ssh_username: string | null;
+  ssh_password_encrypted: string | null;
+  ssh_private_key_encrypted: string | null;
+  wp_path: string | null;
+}
+
 export default function WPCLIManager({ siteId }: { siteId: string }) {
   const [running, setRunning] = useState<string | null>(null);
   const [output, setOutput] = useState<string>('');
   const [logs, setLogs] = useState<AuditRow[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
+
+  // SSH config state
+  const [showSshForm, setShowSshForm] = useState(false);
+  const [existingSshConfig, setExistingSshConfig] = useState<SshConfig | null>(null);
+  const [sshHost, setSshHost] = useState('');
+  const [sshPort, setSshPort] = useState('22');
+  const [sshUsername, setSshUsername] = useState('');
+  const [authMethod, setAuthMethod] = useState<'password' | 'key'>('password');
+  const [sshPassword, setSshPassword] = useState('');
+  const [sshPrivateKey, setSshPrivateKey] = useState('');
+  const [wpPath, setWpPath] = useState('');
+  const [savingSSH, setSavingSSH] = useState(false);
+
+  const loadSshConfig = async () => {
+    const { data, error } = await supabase
+      .from('wp_sites')
+      .select('ssh_host, ssh_port, ssh_username, ssh_password_encrypted, ssh_private_key_encrypted, wp_path')
+      .eq('id', siteId)
+      .single();
+    if (error || !data) return;
+    const cfg = data as SshConfig;
+    setExistingSshConfig(cfg);
+    setSshHost(cfg.ssh_host ?? '');
+    setSshPort(String(cfg.ssh_port ?? 22));
+    setSshUsername(cfg.ssh_username ?? '');
+    setWpPath(cfg.wp_path ?? '');
+    // Detect which method was used
+    if (cfg.ssh_private_key_encrypted) {
+      setAuthMethod('key');
+    } else {
+      setAuthMethod('password');
+    }
+    // Never pre-fill password/key fields – keep them blank
+  };
 
   const loadLogs = async () => {
     setLoadingLogs(true);
@@ -60,7 +107,10 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
     setLogs((data ?? []) as AuditRow[]);
   };
 
-  useEffect(() => { loadLogs();   }, [siteId]);
+  useEffect(() => {
+    loadLogs();
+    void loadSshConfig();
+  }, [siteId]);
 
   const requestRun = (command: string) => {
     if (DESTRUCTIVE_COMMANDS.has(command)) {
@@ -92,6 +142,59 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
     }
   };
 
+  const handleSaveSSH = async () => {
+    if (!sshHost.trim() || !sshUsername.trim()) {
+      toast.error('SSH Host a Username sú povinné');
+      return;
+    }
+
+    setSavingSSH(true);
+    try {
+      const updates: Record<string, unknown> = {
+        ssh_host: sshHost.trim() || null,
+        ssh_port: parseInt(sshPort, 10) || 22,
+        ssh_username: sshUsername.trim() || null,
+        wp_path: wpPath.trim() || null,
+      };
+
+      // Only update credential fields if the user entered something new
+      if (authMethod === 'password') {
+        if (sshPassword.trim()) {
+          updates.ssh_password_encrypted = btoa(sshPassword);
+          updates.ssh_private_key_encrypted = null; // clear old key if switching
+        }
+      } else {
+        if (sshPrivateKey.trim()) {
+          updates.ssh_private_key_encrypted = btoa(sshPrivateKey);
+          updates.ssh_password_encrypted = null; // clear old password if switching
+        }
+      }
+
+      const { error } = await supabase
+        .from('wp_sites')
+        .update(updates)
+        .eq('id', siteId);
+
+      if (error) throw error;
+
+      // Clear sensitive fields from form after save
+      setSshPassword('');
+      setSshPrivateKey('');
+      await loadSshConfig();
+      toast.success('SSH nastavenia uložené');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error('Chyba pri ukladaní SSH', { description: msg });
+    } finally {
+      setSavingSSH(false);
+    }
+  };
+
+  const hasExistingSSH = Boolean(existingSshConfig?.ssh_host);
+  const hasExistingCred = Boolean(
+    existingSshConfig?.ssh_password_encrypted || existingSshConfig?.ssh_private_key_encrypted
+  );
+
   const grid = useMemo(() => COMMANDS, []);
 
   return (
@@ -101,11 +204,195 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
       icon={<Terminal size={16} />}
     >
       <div className="px-6 py-5 space-y-4">
+
+        {/* SSH Configuration Section */}
+        <div className="rounded-xl border border-border bg-muted/20">
+          <button
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/40 transition rounded-xl"
+            onClick={() => setShowSshForm(v => !v)}
+          >
+            <span className="flex items-center gap-2">
+              <Settings2 size={14} className="text-primary" />
+              SSH Konfigurácia
+              {hasExistingSSH && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 border border-green-500/30 px-2 py-0.5 text-[10px] font-medium text-green-600">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                  {existingSshConfig?.ssh_username}@{existingSshConfig?.ssh_host}:{existingSshConfig?.ssh_port ?? 22}
+                </span>
+              )}
+              {hasExistingCred && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 border border-blue-500/30 px-2 py-0.5 text-[10px] font-medium text-blue-600">
+                  <Lock size={10} />
+                  {existingSshConfig?.ssh_private_key_encrypted ? 'Kľúč' : 'Heslo'} uložené
+                </span>
+              )}
+            </span>
+            {showSshForm ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </button>
+
+          {showSshForm && (
+            <div className="px-4 pb-4 pt-1 space-y-4 border-t border-border">
+              <p className="text-xs text-muted-foreground">
+                Údaje sú zakódované pred uložením. Ak necháte pole hesla/kľúča prázdne, existujúce prihlásenie zostane zachované.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* SSH Host */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="ssh-host" className="text-xs">SSH Host</Label>
+                  <Input
+                    id="ssh-host"
+                    value={sshHost}
+                    onChange={e => setSshHost(e.target.value)}
+                    placeholder="example.com alebo 123.45.67.89"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </div>
+
+                {/* SSH Port */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="ssh-port" className="text-xs">Port</Label>
+                  <Input
+                    id="ssh-port"
+                    value={sshPort}
+                    onChange={e => setSshPort(e.target.value)}
+                    placeholder="22"
+                    type="number"
+                    min={1}
+                    max={65535}
+                  />
+                </div>
+
+                {/* SSH Username */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="ssh-username" className="text-xs">SSH Username</Label>
+                  <Input
+                    id="ssh-username"
+                    value={sshUsername}
+                    onChange={e => setSshUsername(e.target.value)}
+                    placeholder="root alebo deploy"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </div>
+
+                {/* WP Path */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="wp-path" className="text-xs">Cesta k WordPress</Label>
+                  <Input
+                    id="wp-path"
+                    value={wpPath}
+                    onChange={e => setWpPath(e.target.value)}
+                    placeholder="/var/www/html alebo /home/user/public_html"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </div>
+              </div>
+
+              {/* Auth method toggle */}
+              <div className="space-y-2">
+                <Label className="text-xs">Metóda overenia</Label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAuthMethod('password')}
+                    className={`flex-1 flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                      authMethod === 'password'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border bg-background text-muted-foreground hover:bg-muted/40'
+                    }`}
+                  >
+                    <Lock size={12} />
+                    Heslo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuthMethod('key')}
+                    className={`flex-1 flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                      authMethod === 'key'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border bg-background text-muted-foreground hover:bg-muted/40'
+                    }`}
+                  >
+                    <KeyRound size={12} />
+                    Privátny kľúč
+                  </button>
+                </div>
+              </div>
+
+              {/* Password or Private Key input */}
+              {authMethod === 'password' ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="ssh-password" className="text-xs">
+                    Heslo
+                    {existingSshConfig?.ssh_password_encrypted && (
+                      <span className="ml-2 text-muted-foreground font-normal">(prázdne = zachovať existujúce)</span>
+                    )}
+                  </Label>
+                  <Input
+                    id="ssh-password"
+                    type="password"
+                    value={sshPassword}
+                    onChange={e => setSshPassword(e.target.value)}
+                    placeholder={existingSshConfig?.ssh_password_encrypted ? '••••••••' : 'SSH heslo'}
+                    autoComplete="off"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label htmlFor="ssh-private-key" className="text-xs">
+                    Privátny kľúč (PEM)
+                    {existingSshConfig?.ssh_private_key_encrypted && (
+                      <span className="ml-2 text-muted-foreground font-normal">(prázdne = zachovať existujúci)</span>
+                    )}
+                  </Label>
+                  <Textarea
+                    id="ssh-private-key"
+                    value={sshPrivateKey}
+                    onChange={e => setSshPrivateKey(e.target.value)}
+                    placeholder={existingSshConfig?.ssh_private_key_encrypted
+                      ? '••••••••  (kľúč je uložený, vložte nový len ak chcete zmeniť)'
+                      : '-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----'}
+                    className="font-mono text-[11px] min-h-[120px]"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </div>
+              )}
+
+              {/* Save button */}
+              <Button
+                onClick={handleSaveSSH}
+                disabled={savingSSH || !sshHost.trim() || !sshUsername.trim()}
+                className="w-full rounded-lg"
+                size="sm"
+              >
+                {savingSSH ? (
+                  <RefreshCw size={13} className="animate-spin" />
+                ) : (
+                  <Save size={13} />
+                )}
+                Uložiť SSH nastavenia
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* No SSH config warning */}
+        {!hasExistingSSH && (
+          <div className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-xs text-muted-foreground">
+            ⚠️ SSH nie je nakonfigurované pre tento web. Vyplňte SSH nastavenia vyššie, aby mohli príkazy fungovať.
+          </div>
+        )}
+
+        {/* Command Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           {grid.map(c => (
             <button
               key={c.id}
-              disabled={!!running}
+              disabled={!!running || !hasExistingSSH}
               onClick={() => requestRun(c.id)}
               className="flex flex-col items-start gap-1 p-3 rounded-lg border border-border bg-muted/30 hover:bg-muted text-left disabled:opacity-50 transition"
             >
