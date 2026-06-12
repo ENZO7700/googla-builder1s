@@ -13,4 +13,8 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
   },
+  define: {
+    "import.meta.env.VITE_SUPABASE_URL": JSON.stringify("https://test.supabase.co"),
+    "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": JSON.stringify("test-anon-key"),
+  },
 });
