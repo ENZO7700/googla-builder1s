@@ -154,11 +154,132 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
       icon={<Terminal size={16} />}
     >
       <div className="px-6 py-5 space-y-4">
-        {sshReady === false && (
-          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-200 text-xs px-3 py-2">
-            SSH pre túto site nie je nastavené (chýba <code>ssh_host</code>, <code>ssh_username</code> alebo heslo/kľúč). WP-CLI príkazy sú zakázané, kým nedoplníte prístupy.
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-xs text-muted-foreground">
+            SSH stav: {sshReady === null ? '…' : sshReady ? <span className="text-green-500">nakonfigurované</span> : <span className="text-amber-400">nenastavené</span>}
+          </div>
+          <button
+            onClick={() => setShowForm(v => !v)}
+            className="text-xs px-3 py-1.5 rounded-md border border-border bg-muted/40 hover:bg-muted"
+          >
+            {showForm ? 'Zavrieť' : sshReady ? 'Upraviť SSH' : 'Nastaviť SSH'}
+          </button>
+        </div>
+
+        {showForm && (
+          <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <label className="text-xs space-y-1 md:col-span-2">
+                <span className="text-muted-foreground">SSH host</span>
+                <input
+                  type="text"
+                  value={sshForm.ssh_host}
+                  onChange={e => setSshForm(f => ({ ...f, ssh_host: e.target.value }))}
+                  placeholder="ssh.example.com"
+                  className="w-full px-3 py-2 rounded-md bg-background border border-border text-sm"
+                />
+              </label>
+              <label className="text-xs space-y-1">
+                <span className="text-muted-foreground">Port</span>
+                <input
+                  type="number"
+                  value={sshForm.ssh_port}
+                  onChange={e => setSshForm(f => ({ ...f, ssh_port: Number(e.target.value) }))}
+                  className="w-full px-3 py-2 rounded-md bg-background border border-border text-sm"
+                />
+              </label>
+              <label className="text-xs space-y-1">
+                <span className="text-muted-foreground">SSH username</span>
+                <input
+                  type="text"
+                  value={sshForm.ssh_username}
+                  onChange={e => setSshForm(f => ({ ...f, ssh_username: e.target.value }))}
+                  placeholder="root"
+                  className="w-full px-3 py-2 rounded-md bg-background border border-border text-sm"
+                />
+              </label>
+              <label className="text-xs space-y-1 md:col-span-2">
+                <span className="text-muted-foreground">WordPress cesta (wp_path)</span>
+                <input
+                  type="text"
+                  value={sshForm.wp_path}
+                  onChange={e => setSshForm(f => ({ ...f, wp_path: e.target.value }))}
+                  placeholder="/var/www/html"
+                  className="w-full px-3 py-2 rounded-md bg-background border border-border text-sm"
+                />
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground">Autentifikácia:</span>
+              <button
+                type="button"
+                onClick={() => setAuthMode('password')}
+                className={`px-2 py-1 rounded border ${authMode === 'password' ? 'border-primary text-primary' : 'border-border text-muted-foreground'}`}
+              >
+                Heslo
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMode('key')}
+                className={`px-2 py-1 rounded border ${authMode === 'key' ? 'border-primary text-primary' : 'border-border text-muted-foreground'}`}
+              >
+                Privátny kľúč
+              </button>
+            </div>
+
+            {authMode === 'password' ? (
+              <label className="text-xs space-y-1 block">
+                <span className="text-muted-foreground">SSH heslo {sshReady && <em>(nechajte prázdne, ak nemeníte)</em>}</span>
+                <input
+                  type="password"
+                  value={sshForm.ssh_password}
+                  onChange={e => setSshForm(f => ({ ...f, ssh_password: e.target.value }))}
+                  autoComplete="new-password"
+                  className="w-full px-3 py-2 rounded-md bg-background border border-border text-sm"
+                />
+              </label>
+            ) : (
+              <label className="text-xs space-y-1 block">
+                <span className="text-muted-foreground">Privátny kľúč (PEM) {sshReady && <em>(nechajte prázdne, ak nemeníte)</em>}</span>
+                <textarea
+                  value={sshForm.ssh_private_key}
+                  onChange={e => setSshForm(f => ({ ...f, ssh_private_key: e.target.value }))}
+                  rows={6}
+                  placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
+                  className="w-full px-3 py-2 rounded-md bg-background border border-border text-xs font-mono"
+                />
+              </label>
+            )}
+
+            <p className="text-[11px] text-muted-foreground">
+              Citlivé údaje sa šifrujú AES-256-GCM serverovo a nikdy sa nevracajú späť do prehliadača.
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                onClick={saveSsh}
+                disabled={savingSsh}
+                className="text-xs px-4 py-2 rounded-md bg-primary text-primary-foreground disabled:opacity-50"
+              >
+                {savingSsh ? 'Ukladám…' : 'Uložiť SSH'}
+              </button>
+              <button
+                onClick={() => setShowForm(false)}
+                className="text-xs px-4 py-2 rounded-md border border-border"
+              >
+                Zrušiť
+              </button>
+            </div>
           </div>
         )}
+
+        {sshReady === false && !showForm && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-200 text-xs px-3 py-2">
+            SSH pre túto site nie je nastavené. Kliknite na <strong>Nastaviť SSH</strong> a vyplňte prístupy.
+          </div>
+        )}
+
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           {grid.map(c => (
             <button
