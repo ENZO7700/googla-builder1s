@@ -140,7 +140,7 @@ if [[ -n "$cors" ]]; then pass "CORS web24 pre ${WPBOX_PROD_URL}"; else warn "CO
 section "5. Supabase Auth + wp_sites"
 ACCESS=""
 if [[ -z "$WPBOX_EMAIL" || -z "$WPBOX_PASSWORD" ]]; then
-  skip "JWT login — nastav WPBOX_EMAIL a WPBOX_PASSWORD pre plný test proxy"
+  skip "JWT login — nastav WPBOX_EMAIL a WPBOX_PASSWORD (GitHub Actions secrets) pre plný test proxy"
 else
   LOGIN_BODY=$(python3 -c 'import json,os; print(json.dumps({"email":os.environ["WPBOX_EMAIL"],"password":os.environ["WPBOX_PASSWORD"].strip()}))')
   TOKEN_JSON=$(curl -sS -X POST "${VITE_SUPABASE_URL}/auth/v1/token?grant_type=password" \
@@ -165,8 +165,7 @@ for s in json.load(sys.stdin):
       warn "Žiadne wp_sites — pripoj WordPress v dashboarde"
     fi
   else
-    fail "JWT login zlyhal pre ${WPBOX_EMAIL}"
-    printf '%s\n' "$TOKEN_JSON" | head -3
+    fail "JWT login zlyhal: WPBOX_EMAIL/WPBOX_PASSWORD are present but invalid. Update GitHub Actions secrets."
   fi
 fi
 
