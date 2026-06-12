@@ -1,135 +1,56 @@
-# LarsenEvans wpBOX
+# wpBOX Elite
 
-WordPress workspace dashboard with Supabase-backed content tools, Firebase Google Sign-In, GitHub PR review, launch audit, and an iOS companion app.
+wpBOX Elite je komplexná cloudová platforma a vývojové prostredie pre správu, analýzu a nasadzovanie WordPress projektov a repozitárov. Je postavená na modernom stacku a exkluzívne využíva **Mistral API** pre AI analýzu a generovanie kódu.
 
-## Quick start
+## 🚀 Kľúčové Vlastnosti
 
-```bash
-cp .env.example .env   # fill in Supabase + Firebase keys
-npm install
-npm run dev            # http://localhost:8080
-```
+1. **WordPress Manager:**
+   - Priame napojenie cez REST API na produkčné weby.
+   - Správa FSE (Full Site Editing) Blueprints.
+   - Správa Headless (Next.js/React) architektúr.
+   - Integrovaný WP-CLI manažér s podporou SSH a PEM kľúčov.
+2. **Mistral AI Integrácia:**
+   - Plne integrované modely od Mistral AI (`mistral-large`, `codestral`, atď.).
+   - Analýza chýb z logov, code reviews a generovanie komplexných skriptov.
+3. **Deploy Pipeline:**
+   - Možnosť jedným kliknutím nasadiť vygenerovaný HTML/Block kód priamo z chatu do pripojeného WordPressu (ako Draft stránku).
+4. **Nezničiteľná Architektúra:**
+   - Aplikácia je chránená globálnymi `Error Boundaries`.
+   - Všetky požiadavky na API majú zabudovaný `Exponential Backoff` (automatické opakovanie pri zlyhaní) a prísne časové limity (`AbortController`).
+   - Prísna validácia JSON dát cez Edge Funkcie.
 
-## Elite dev workflow
+## 🛠️ Stack
 
-This repo is configured for Cursor **elite developer mode**:
+- **Frontend:** React (Vite), Tailwind CSS, Framer Motion, TypeScript
+- **Backend / Databáza:** Supabase (PostgreSQL), Edge Functions (Deno)
+- **AI Integrácia:** Mistral API (via Supabase Edge Functions)
+- **Testovanie:** Vitest, Testing Library, vitest-axe (a11y)
 
-- `AGENTS.md` — full project context for AI agents
-- `.cursor/rules/` — architecture, React/TS, Supabase, WordPress/iOS rules
-- `npm run ci` — lint + test + build (same gate as GitHub Actions)
-- `npm run test:schemas` — WordPress REST contract tests (Zod fixtures)
+## 📦 Inštalácia & Lokálny Vývoj
 
-## CI/CD Golden Standard
+1. Klonovanie repozitára:
+   ```bash
+   git clone https://github.com/ENZO7700/googla-builder1s.git
+   cd googla-builder1s
+   ```
+2. Inštalácia závislostí:
+   ```bash
+   npm install
+   ```
+3. Nastavenie `.env` podľa vzoru `.env.example`.
+4. Spustenie vývojového servera:
+   ```bash
+   npm run dev
+   ```
 
-```
-Push/PR ─┬─ quality-gate: lint → typecheck → test (12) → schemas → audit → build → bundle budget
-         │
-         └─ (PR + migrations) supabase-migrations: local db reset
+## ☁️ Deployment na Vercel (Zero-Error Guide)
 
-main ──── integration: + live WP contract (4 tests) + healthcheck (28 checks)
+1. Prepoj Vercel projekt s týmto GitHub repozitárom.
+2. Nastav v záložke **Environment Variables** všetky `VITE_SUPABASE_*` premenné.
+3. Skontroluj, že máš v Supabase Authentication pridanú produkčnú doménu medzi **Redirect URLs** (vrátane dvojitých hviezdičiek: `https://tvojadomena.vercel.app/**`).
+4. Uisti sa, že tvoje Supabase Edge Funkcie sú nasadené a obsahujú tajný kľúč `MISTRAL_API_KEY`.
+5. Klikni na **Deploy** vo Verceli.
 
-Vercel deploy success ─── deployment_status ─┬─ smoke:preview (HTTP 200 + timing + brand)
-                                             └─ healthcheck:write (Supabase + WP proxy + draft create/delete)
+## 🔒 Lokálne Testovanie (Dev-Free-Entry)
 
-Daily 06:00 UTC ─── healthcheck:write ─── auto GitHub issue on failure
-```
-
-### Workflows
-
-| File | Trigger | Čo robí |
-|------|---------|---------|
-| `wpbox-ci.yml` | PR + push `main` | lint → typecheck → test → schemas → build → bundle budget |
-| `wpbox-ci.yml` integration | push `main` | + live WP contract tests + `npm run healthcheck` |
-| `wpbox-deploy-smoke.yml` | Vercel `deployment_status`, daily cron, manual | smoke:preview + healthcheck:write |
-| `wpbox-supabase-migrations.yml` | PR (migrations changed) | `supabase db reset` on local DB |
-
-### GitHub Secrets (Settings → Secrets → Actions)
-
-| Secret | Popis |
-|--------|-------|
-| `VITE_SUPABASE_URL` | `https://qytsiddrksybwpqldjfj.supabase.co` |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | anon key |
-| `VITE_SUPABASE_PROJECT_ID` | `qytsiddrksybwpqldjfj` |
-| `VITE_SUPABASE_JWKS_URL` | `https://qytsiddrksybwpqldjfj.supabase.co/auth/v1/.well-known/jwks.json` |
-| `WPBOX_EMAIL` | Supabase test user (nie WP user) |
-| `WPBOX_PASSWORD` | heslo test usera |
-| `WP_APP_USER` | WordPress user (`magnusevans`) — live API contract |
-| `WP_APP_PASSWORD` | WP Application Password (nie Supabase) |
-
-Voliteľné **Variables**: `WPBOX_PROD_URL`, `WP_HEALTH_WEB24`, `WP_HEALTH_ROOT`.
-
-## GitHub
-
-**Repo:** https://github.com/ENZO7700/googla-builder1s
-
-```bash
-git clone https://github.com/ENZO7700/googla-builder1s.git
-cd googla-builder1s
-cp .env.example .env   # Supabase keys + optional WPBOX_EMAIL for healthcheck
-npm install
-```
-
-## Scripts
-
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Vite dev server (:8080) |
-| `npm run build` | Production build |
-| `npm run lint` | ESLint |
-| `npm run test` | Vitest unit tests |
-| `npm run test:schemas` | WordPress API Zod contract tests |
-| `npm run ci` | Lint + test + build (CI gate) |
-| `npm run healthcheck` | Full-stack smoke test (Supabase + WP + Vercel) |
-| `npm run healthcheck:write` | Healthcheck + draft post create/delete |
-| `npm run smoke:preview [url]` | Quick HTTP/timing/brand smoke on deployed URL |
-| `npm run test:live` | Live WP contract tests (needs `WP_APP_*` env) |
-| `npm run typecheck` | TypeScript type-check (no emit) |
-| `scripts/wpbox-workspace.sh start` | Local WordPress (:18090) |
-| `scripts/wpbox-workspace.sh ios-sim` | iOS Simulator + local WP |
-
-See `local-wordpress/README.md` for Docker WordPress details.
-
-## Produkcia & sync
-
-| Služba | URL / ref |
-|--------|-----------|
-| wpBOX (Vercel) | https://larsenevans-wpbox.vercel.app |
-| Supabase | `qytsiddrksybwpqldjfj` |
-| JWKS URL | `https://qytsiddrksybwpqldjfj.supabase.co/auth/v1/.well-known/jwks.json` |
-| JWKS Key ID | `098f705a-44d5-4d28-9fd1-f8f2618465b6` |
-| WordPress web24 | https://larsenevans.com/web24 |
-
-**Po zmene kódu:**
-
-```bash
-# 1. Supabase (ak meníš SQL alebo edge functions)
-supabase link --project-ref qytsiddrksybwpqldjfj
-supabase db push
-supabase functions deploy wordpress-connection --project-ref qytsiddrksybwpqldjfj
-supabase functions deploy wordpress-proxy --project-ref qytsiddrksybwpqldjfj
-supabase functions deploy wordpress-sync --project-ref qytsiddrksybwpqldjfj
-
-# 2. GitHub
-git add -A && git commit -m "popis" && git push origin main
-
-# 3. Frontend — Vercel auto-deploy po prepojení GitHubu, alebo:
-vercel deploy --prod
-
-# 4. Overenie
-WPBOX_EMAIL=you@mail.com WPBOX_PASSWORD='...' npm run healthcheck
-```
-
-**Vercel ↔ GitHub:** Vercel Dashboard → Project `larsenevans-wpbox` → Settings → Git → Connect `ENZO7700/googla-builder1s` (vyžaduje Vercel GitHub App na účte ENZO7700).
-
-## Stack
-
-- **Frontend**: React 18, TypeScript, Vite, Tailwind, shadcn/ui
-- **Auth**: Firebase
-- **Backend**: Supabase (Postgres, Edge Functions, Storage)
-- **Mobile**: Swift iOS app (`ios/LarsenEvansWpBox/`)
-
-## Environment
-
-All frontend secrets use `VITE_` prefix. See `.env.example`. Never commit `.env`.
-
-Edge function secrets are configured in the Supabase project dashboard.
+Ak spúšťaš aplikáciu lokálne (`import.meta.env.DEV`), na prihlasovacej obrazovke nájdeš modré tlačidlo **"Dev-Free-Entry"**. Toto tlačidlo ťa pustí priamo do aplikácie pod lokálnym demo účtom bez nutnosti reálnej registrácie. Poznámka: V demo režime sú operácie s reálnou databázou a úložiskom v E2E testoch bezpečne preskočené.
