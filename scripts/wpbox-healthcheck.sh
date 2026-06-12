@@ -20,7 +20,7 @@ fi
 : "${VITE_SUPABASE_URL:?Chýba VITE_SUPABASE_URL v .env}"
 : "${VITE_SUPABASE_PUBLISHABLE_KEY:?Chýba VITE_SUPABASE_PUBLISHABLE_KEY v .env}"
 
-WPBOX_PROD_URL="${WPBOX_PROD_URL:-https://larsenevans-wpbox.vercel.app}"
+WPBOX_PROD_URL="${WPBOX_PROD_URL:-https://larsenevans-wpbox-prod.vercel.app}"
 WP_HEALTH_WEB24="${WP_HEALTH_WEB24:-https://larsenevans.com/web24}"
 WP_HEALTH_ROOT="${WP_HEALTH_ROOT:-https://larsenevans.com}"
 WPBOX_EMAIL="${WPBOX_EMAIL:-}"

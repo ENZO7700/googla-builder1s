@@ -1,9 +1,9 @@
 project_id = "qytsiddrksybwpqldjfj"
 
 [auth]
-site_url = "https://larsenevans-wpbox.vercel.app"
+site_url = "https://larsenevans-wpbox-prod.vercel.app"
 additional_redirect_urls = [
-  "https://larsenevans-wpbox.vercel.app/**",
+  "https://larsenevans-wpbox-prod.vercel.app/**",
   "http://localhost:8080/**"
 ]
 

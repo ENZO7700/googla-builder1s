@@ -17,7 +17,7 @@ export default function PromptsBlueprintsManager({ siteId }: { siteId: string })
   return (
     <DashboardCard
       title="📐 Prompts & Blueprints"
-      description="Generovanie FSE (Full Site Editing) tém, theme.json a Gutenberg patternov."
+      description="Generovanie deployovateľných WordPress HTML/CSS blokov pre funkciu Poslať na WP."
       icon={<LayoutTemplate size={16} />}
     >
       <div className="px-6 py-5 space-y-6">
@@ -28,7 +28,7 @@ export default function PromptsBlueprintsManager({ siteId }: { siteId: string })
             </div>
             <div>
               <h3 className="text-lg font-semibold text-foreground">{BLUEPRINT_STRUCTURE_TEMPLATE.name}</h3>
-              <p className="text-sm text-muted-foreground">Najčistejší prístup k WordPress šablónam</p>
+              <p className="text-sm text-muted-foreground">Najrýchlejší výstup pre WordPress page deploy</p>
             </div>
           </div>
           

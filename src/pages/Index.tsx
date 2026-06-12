@@ -52,6 +52,92 @@ interface Attachment {
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 const MAX_FILES = 10;
 const ALLOWED_EXT = /\.(txt|md|json|csv|js|ts|tsx|jsx|py|html|css|xml|yml|yaml|log|pdf|png|jpg|jpeg|webp|gif|svg)$/i;
+const WORDPRESS_HTML_DEPLOY_SYSTEM_HINT = [
+  'For WordPress page, section, block, landing page, services, CTA, or layout generation, return exactly one ```html code block.',
+  'The html block must contain deployable WordPress Gutenberg/FSE-compatible HTML and CSS only.',
+  'Do not include React, JSX, PHP, npm/build steps, full <html>/<head>/<body> documents, or explanation outside the html block.',
+  'Adapt content and structure to the user request while keeping the output deployable through the WordPress page deploy button.',
+].join('\n');
+
+function getLastUserMessage(msgs: Message[]): string {
+  for (let i = msgs.length - 1; i >= 0; i -= 1) {
+    if (msgs[i]?.role === 'user') return msgs[i].content;
+  }
+  return '';
+}
+
+function buildLocalDemoHtml(prompt: string): string {
+  const safeTitle = prompt.trim().slice(0, 72) || 'AI Landing Page Draft';
+  return `\`\`\`html
+<style>
+  .wpbox-demo-shell{--wpbox-bg:#f6f4ee;--wpbox-ink:#18181b;--wpbox-accent:#0f766e;--wpbox-card:#ffffff;padding:32px;border-radius:24px;background:var(--wpbox-bg);color:var(--wpbox-ink);font-family:Georgia,"Times New Roman",serif}
+  .wpbox-demo-grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-top:24px}
+  .wpbox-demo-card{background:var(--wpbox-card);padding:18px;border-radius:18px;border:1px solid rgba(24,24,27,.08)}
+  .wpbox-demo-cta{display:inline-block;margin-top:18px;padding:12px 18px;border-radius:999px;background:var(--wpbox-accent);color:#fff;text-decoration:none;font-weight:700}
+</style>
+<!-- wp:group {"layout":{"type":"constrained"}} -->
+<div class="wp-block-group"><div class="wpbox-demo-shell">
+  <!-- wp:heading {"level":1} -->
+  <h1>${safeTitle}</h1>
+  <!-- /wp:heading -->
+  <!-- wp:paragraph -->
+  <p>Toto je lokálny demo HTML draft z Dev-Free-Entry režimu. Po prihlásení cez Supabase dostanete live Mistral generovanie a produkčný WordPress deploy flow.</p>
+  <!-- /wp:paragraph -->
+  <!-- wp:columns -->
+  <div class="wpbox-demo-grid">
+    <div class="wpbox-demo-card"><strong>Hero</strong><p>Jasný headline, stručný value proposition a CTA.</p></div>
+    <div class="wpbox-demo-card"><strong>Offer</strong><p>Prehľad služieb alebo benefitov v čistej mriežke.</p></div>
+    <div class="wpbox-demo-card"><strong>Proof</strong><p>Dôvera cez referencie, výsledky alebo proces.</p></div>
+  </div>
+  <!-- /wp:columns -->
+  <!-- wp:buttons -->
+  <div><a class="wpbox-demo-cta" href="{{CTA_URL}}">Poslať na WP</a></div>
+  <!-- /wp:buttons -->
+</div></div>
+<!-- /wp:group -->
+\`\`\``;
+}
+
+function buildLocalDemoResponse(msgs: Message[], systemOverride?: string): string {
+  const prompt = getLastUserMessage(msgs);
+  const lowerPrompt = prompt.toLowerCase();
+  const lowerOverride = (systemOverride ?? '').toLowerCase();
+
+  if (lowerOverride.includes('wordpress') || /wordpress|landing|hero|cta|gutenberg|deploy|html/.test(lowerPrompt)) {
+    return buildLocalDemoHtml(prompt);
+  }
+
+  if (/analyzuj tieto logy|log analysis|identifikuj hrozby|threat/i.test(prompt)) {
+    return [
+      '## Lokálna Demo Analýza',
+      '',
+      '- Bez live Supabase session je AI backend vypnutý, preto ide o lokálny fallback.',
+      '- Skontroluj opakované 401/403 odpovede, chýbajúci bearer token a nesprávne REST endpointy.',
+      '- Po prihlásení sa znova spustí plná Mistral analýza.',
+    ].join('\n');
+  }
+
+  if (/napíš skript|script generation|cloud funkciu|function/i.test(prompt)) {
+    return [
+      '```ts',
+      'export function handler() {',
+      "  console.log('Local demo fallback active. Sign in for live Mistral generation.');",
+      '}',
+      '```',
+    ].join('\n');
+  }
+
+  return [
+    'Lokálny demo režim je aktívny.',
+    '',
+    'Live AI chat cez Mistral potrebuje Supabase prihlásenie, preto sa teraz nepoužil vzdialený backend.',
+    'Pre ostré generovanie sa prihláste a potom skúste prompt znova.',
+  ].join('\n');
+}
+
+function isLocalSessionId(sessionId: string | null | undefined): boolean {
+  return typeof sessionId === 'string' && sessionId.startsWith('local_');
+}
 
 export default function Index() {
   const [user, setUser] = useState<User | null>(null);
@@ -334,6 +420,22 @@ export default function Index() {
     setDiagnostics(null);
     setWorkflowStep('ai', { status: 'running', detail: 'Odosielam request do AI Core', progress: 30 });
 
+    if (user?.id === LOCAL_USER_ID || !session?.access_token) {
+      const localText = buildLocalDemoResponse(msgs, systemOverride);
+      setWorkflowStep('ai', { status: 'done', detail: 'Lokálny fallback bez Supabase session', progress: 100 });
+      setWorkflowStep('stream', { status: 'done', detail: 'Lokálna odpoveď pripravená', progress: 100 });
+      setWorkflowStep('save', { status: 'skipped', detail: 'Demo režim bez serverového uloženia', progress: 100 });
+      setDiagnostics({
+        ttft: 0,
+        total: performance.now() - startTime,
+        chunks: 0,
+        model: `local-demo:${model}`,
+        timestamp: new Date(),
+      });
+      addLog('[LOCAL] Chat beží v demo fallback režime bez Supabase session.');
+      return localText;
+    }
+
     let response: Response | null = null;
     let lastError: any = null;
     const MAX_RETRIES = 3;
@@ -352,7 +454,7 @@ export default function Index() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token || anonKey}`,
+            'Authorization': `Bearer ${session.access_token}`,
             'apikey': anonKey,
           },
           body: JSON.stringify({ messages: msgs, systemOverride, model }),
@@ -585,16 +687,23 @@ export default function Index() {
     }
 
     try {
-      const replyText = await callAIStreaming(updatedMessages);
+      const replyText = await callAIStreaming(updatedMessages, WORDPRESS_HTML_DEPLOY_SYSTEM_HINT);
       addLog('[API] Požiadavka úspešne vybavená.');
       extractCodeForPreview(replyText);
 
       if (sessionId) {
-        setWorkflowStep('save', { status: 'running', detail: 'Ukladám reláciu', progress: 45 });
+        const isLocalSession = isLocalSessionId(sessionId) || user?.id === LOCAL_USER_ID;
+        setWorkflowStep('save', {
+          status: isLocalSession ? 'done' : 'running',
+          detail: isLocalSession ? 'Lokálna relácia aktualizovaná' : 'Ukladám reláciu',
+          progress: isLocalSession ? 100 : 45,
+        });
         saveMessageToDB(sessionId, 'model', replyText);
-        // Update session title and timestamp
-        await supabase.from('chat_sessions').update({ updated_at: new Date().toISOString() }).eq('id', sessionId);
-        setWorkflowStep('save', { status: 'done', detail: 'Relácia uložená', progress: 100 });
+        if (!isLocalSession) {
+          // Update session title and timestamp
+          await supabase.from('chat_sessions').update({ updated_at: new Date().toISOString() }).eq('id', sessionId);
+          setWorkflowStep('save', { status: 'done', detail: 'Relácia uložená', progress: 100 });
+        }
       } else {
         setWorkflowStep('save', { status: 'skipped', detail: 'Bez aktívnej relácie', progress: 100 });
       }

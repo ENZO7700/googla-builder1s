@@ -5,6 +5,9 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  define: {
+    __BUNDLED_DEV__: false,
+  },
   server: {
     host: "::",
     port: 8080,
@@ -25,7 +28,7 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks(id) {
           if (id.includes("node_modules")) {
-            // Let Rollup split these dynamically imported libraries on-demand
+            // Let Rollup split these dynamically imported libraries on-demand.
             if (
               id.includes("jspdf") ||
               id.includes("html2canvas") ||

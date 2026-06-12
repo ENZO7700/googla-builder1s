@@ -8,7 +8,7 @@
 # Falls back to WPBOX_PROD_URL when no argument given.
 set -Eeuo pipefail
 
-URL="${1:-${WPBOX_PROD_URL:-https://larsenevans-wpbox.vercel.app}}"
+URL="${1:-${WPBOX_PROD_URL:-https://larsenevans-wpbox-prod.vercel.app}}"
 URL="${URL%/}"
 
 printf 'Smoke-testing %s\n' "$URL"

@@ -75,6 +75,9 @@ export default function ServicesCctManager({ siteId }: Props) {
   const [lastResponse, setLastResponse] = useState<unknown>(null);
   const [showDebug, setShowDebug] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ServiceCctItem | null>(null);
+  const routeMissing = typeof listError === 'object' && listError !== null
+    ? String((listError as Error).message || '').includes('/wp-json/jet-cct/services')
+    : false;
 
   // --- AI Draft generator state ---
   const [aiBrief, setAiBrief] = useState('');
@@ -298,6 +301,16 @@ export default function ServicesCctManager({ siteId }: Props) {
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm">
               <p className="font-medium text-destructive">Chyba pri načítaní CCT services</p>
               <p className="mt-1 text-muted-foreground">{(listError as Error).message}</p>
+              {routeMissing && (
+                <div className="mt-3 rounded-md border border-amber-300/40 bg-amber-50 p-3 text-xs text-amber-950">
+                  <p className="font-medium">JetEngine route chýba na WordPress webe.</p>
+                  <p className="mt-1">
+                    Na tomto webe nie je registrovaný `wp-json/jet-cct/services`. V WordPress admin
+                    sekcii JetEngine / Custom Content Types / services zapni REST API endpointy,
+                    inak CCT proxy nebude mať kam smerovať požiadavky.
+                  </p>
+                </div>
+              )}
             </div>
           ) : items.length === 0 ? (
             <EmptyState

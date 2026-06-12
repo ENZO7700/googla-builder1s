@@ -50,7 +50,7 @@ const CAPABILITY_GROUPS: CapabilityGroup[] = [
     icon: <CheckCircle2 size={16} />,
     items: [
       { name: 'Posts, pages, media', detail: 'GET cez /wp/v2 funguje priamo z browsera.', status: 'ready' },
-      { name: 'Comments, users, types', detail: 'Read-only endpointy vracajú reálne dáta.', status: 'ready' },
+      { name: 'Comments, types', detail: 'Bezpečné read-only endpointy vracajú reálne dáta.', status: 'ready' },
       { name: 'Custom namespace', detail: '/webdo24h/v1 — voliteľný plugin, ak nie je nainštalovaný, zobrazí sa ako optional.', status: 'optional' },
     ],
   },
@@ -60,7 +60,7 @@ const CAPABILITY_GROUPS: CapabilityGroup[] = [
     icon: <KeyRound size={16} />,
     items: [
       { name: '/users/me', detail: 'Testuje username + Application Password bez uloženia secretu.', status: 'auth' },
-      { name: 'Settings a plugins', detail: 'Čítanie je dostupné až po WP admin oprávnení.', status: 'auth' },
+      { name: 'Users, settings a plugins', detail: 'Čítanie je dostupné až po WP admin oprávnení cez proxy.', status: 'auth' },
       { name: 'Upload media', detail: 'Service už má uploadMedia cez wordpress-proxy.', status: 'auth' },
     ],
   },

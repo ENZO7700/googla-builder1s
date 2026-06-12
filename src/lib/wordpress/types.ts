@@ -49,7 +49,7 @@ export const UserSchema = z.object({
   first_name: z.string().optional(),
   last_name: z.string().optional(),
   email: z.string().email(),
-  url: z.string().url().optional(),
+  url: z.union([z.string().url(), z.literal('')]).optional(),
   description: z.string().optional(),
   link: z.string().url(),
   locale: z.string().optional(),
