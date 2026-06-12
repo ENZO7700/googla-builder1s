@@ -32,7 +32,7 @@ export default function ConnectorsView({ onBack, onOpenMobileMenu }: ConnectorsV
   const [apiKeyInput, setApiKeyInput] = useState('');
 
   return (
-    <div className="flex-1 flex flex-col p-6 lg:p-12 overflow-y-auto scrollbar-hide animate-fade-in">
+    <div className="flex-1 flex flex-col p-6 pb-20 lg:p-12 overflow-y-auto scrollbar-hide animate-fade-in min-h-0">
       <div className="max-w-4xl mx-auto w-full">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -105,7 +105,7 @@ export default function ConnectorsView({ onBack, onOpenMobileMenu }: ConnectorsV
       {/* Detail dialog */}
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm p-4" onClick={() => setSelected(null)}>
-          <div className="bg-card border border-border rounded-2xl shadow-2xl p-8 max-w-md w-full" onClick={e => e.stopPropagation()}>
+          <div className="bg-card border border-border rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-6">
               <div className="flex items-center gap-3">
                 <span className="text-4xl">{selected.icon}</span>

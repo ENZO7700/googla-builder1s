@@ -57,9 +57,9 @@ const READ_ENDPOINTS = [
   { label: 'Pages', endpoint: '/wp/v2/pages?per_page=1&_fields=id,slug,title,status', protectedOk: false },
   { label: 'Media', endpoint: '/wp/v2/media?per_page=1&_fields=id,slug,title,source_url', protectedOk: false },
   { label: 'Comments', endpoint: '/wp/v2/comments?per_page=1&_fields=id,post,author_name,status', protectedOk: false },
-  { label: 'Users', endpoint: '/wp/v2/users?per_page=1&_fields=id,name,slug', protectedOk: false },
+  { label: 'Users', endpoint: '/wp/v2/users?per_page=1&_fields=id,name,slug', protectedOk: true },
   { label: 'Types', endpoint: '/wp/v2/types', protectedOk: false },
-  { label: 'Custom namespace', endpoint: '/webdo24h/v1', protectedOk: false },
+  { label: 'Custom namespace', endpoint: '/webdo24h/v1', protectedOk: true },
   { label: 'Custom schema', endpoint: '/webdo24h/v1/schema', protectedOk: true },
   { label: 'Settings', endpoint: '/wp/v2/settings', protectedOk: true },
   { label: 'Plugins', endpoint: '/wp/v2/plugins', protectedOk: true },
@@ -285,6 +285,76 @@ function authenticatedWpErrorMessage(status: number, body: WpMeResponse | WpErro
 
 function stripHtml(value: string) {
   return value.replace(/<[^>]*>/g, '').trim();
+}
+
+// Test WordPress credentials via Supabase Edge Function (no direct browser calls)
+export async function testWordPressConnectionViaProxy(
+  baseUrl: string,
+  username: string,
+  applicationPassword: string,
+  accessToken: string
+): Promise<AuthenticatedWpConnectionResult> {
+  const startedAt = performance.now();
+  
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-connection`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({
+          action: 'test',
+          baseUrl,
+          username,
+          appPassword: applicationPassword,
+        }),
+      }
+    );
+
+    const durationMs = Math.round(performance.now() - startedAt);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        ok: false,
+        httpStatus: response.status,
+        message: errorData.error ?? errorData.message ?? `Proxy test failed with HTTP ${response.status}`,
+        durationMs,
+      };
+    }
+
+    const data = await response.json();
+    
+    if (!data.ok) {
+      return {
+        ok: false,
+        httpStatus: data.httpStatus ?? 0,
+        message: data.message ?? data.error ?? 'WordPress credentials validation failed',
+        durationMs,
+      };
+    }
+
+    // Map the response to match AuthenticatedWpConnectionResult
+    return {
+      ok: true,
+      httpStatus: 200,
+      user: data.user,
+      durationMs,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      httpStatus: 0,
+      message: error instanceof Error 
+        ? error.message 
+        : 'Network error during proxy connection test',
+      durationMs: Math.round(performance.now() - startedAt),
+    };
+  }
 }
 
 function protectedEndpointDetail(label: string) {

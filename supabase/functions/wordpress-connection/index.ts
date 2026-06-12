@@ -21,6 +21,15 @@ interface SaveConnectionRequest {
   appPassword: string;
 }
 
+interface TestConnectionRequest {
+  action: "test";
+  baseUrl: string;
+  username: string;
+  appPassword: string;
+}
+
+type ConnectionRequest = SaveConnectionRequest | TestConnectionRequest;
+
 interface WpMeResponse {
   id?: number;
   name?: string;
@@ -50,6 +59,17 @@ function isSaveConnectionRequest(body: unknown): body is SaveConnectionRequest {
     typeof value.username === "string" &&
     typeof value.appPassword === "string" &&
     (typeof value.siteId === "undefined" || typeof value.siteId === "string")
+  );
+}
+
+function isTestConnectionRequest(body: unknown): body is TestConnectionRequest {
+  if (!body || typeof body !== "object") return false;
+  const value = body as Record<string, unknown>;
+  return (
+    value.action === "test" &&
+    typeof value.baseUrl === "string" &&
+    typeof value.username === "string" &&
+    typeof value.appPassword === "string"
   );
 }
 
@@ -121,6 +141,22 @@ Deno.serve(async (req) => {
     }
 
     const rawBody = await req.json().catch(() => null);
+    
+    // Handle test action (validate credentials only)
+    if (isTestConnectionRequest(rawBody)) {
+      const baseUrl = validateBaseUrl(normalizeBaseUrl(rawBody.baseUrl));
+      const username = rawBody.username.trim();
+      const appPassword = rawBody.appPassword.trim();
+
+      if (!username || !appPassword) {
+        return jsonResponse({ error: "Username and Application Password are required" }, 400);
+      }
+
+      const validation = await validateWordPressCredentials({ baseUrl, username, appPassword });
+      return jsonResponse(validation, validation.ok ? 200 : 400);
+    }
+
+    // Handle save action
     if (!isSaveConnectionRequest(rawBody)) {
       return jsonResponse({ error: "Invalid request body" }, 400);
     }

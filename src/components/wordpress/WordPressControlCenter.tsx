@@ -18,9 +18,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { saveValidatedWordPressConnection } from '@/lib/wordpress/connectionService';
 import {
-  testWordPressApplicationPassword,
   type AuthenticatedWpConnectionResult,
 } from '@/lib/wordpress/publicWordPressApi';
+import { testWordPressConnection } from '@/lib/wordpress/connectionService';
 import { toast } from 'sonner';
 
 interface WPSite {
@@ -33,7 +33,7 @@ interface WPSite {
 interface CapabilityItem {
   name: string;
   detail: string;
-  status: 'ready' | 'auth' | 'edge' | 'confirm';
+  status: 'ready' | 'auth' | 'edge' | 'confirm' | 'optional';
 }
 
 interface CapabilityGroup {
@@ -51,7 +51,7 @@ const CAPABILITY_GROUPS: CapabilityGroup[] = [
     items: [
       { name: 'Posts, pages, media', detail: 'GET cez /wp/v2 funguje priamo z browsera.', status: 'ready' },
       { name: 'Comments, users, types', detail: 'Read-only endpointy vracajú reálne dáta.', status: 'ready' },
-      { name: 'Custom namespace', detail: '/webdo24h/v1 odpovedá a je pripravený na ďalšie mapovanie.', status: 'ready' },
+      { name: 'Custom namespace', detail: '/webdo24h/v1 — voliteľný plugin, ak nie je nainštalovaný, zobrazí sa ako optional.', status: 'optional' },
     ],
   },
   {
@@ -153,7 +153,7 @@ export default function WordPressControlCenter({
     setResult(null);
     setSaveMessage(null);
     try {
-      const nextResult = await testWordPressApplicationPassword({
+      const nextResult = await testWordPressConnection({
         baseUrl,
         username,
         applicationPassword,
