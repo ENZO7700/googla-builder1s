@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
@@ -12,6 +12,23 @@ const { mockFrom, mockInvoke, mockToastError, mockToastSuccess } = vi.hoisted(()
   mockToastError: vi.fn(),
   mockToastSuccess: vi.fn(),
 }));
+
+const originalConsoleError = console.error;
+
+beforeAll(() => {
+  vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+    const [first] = args;
+    if (typeof first === 'string' && first.includes('not wrapped in act(...)')) {
+      return;
+    }
+
+    originalConsoleError(...(args as Parameters<typeof console.error>));
+  });
+});
+
+afterAll(() => {
+  vi.restoreAllMocks();
+});
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
@@ -374,8 +391,8 @@ describe('WPCLIManager – SSH save logic', () => {
     
     const saveBtn = screen.getByRole('button', { name: /Uložiť SSH nastavenia/i });
     // Click twice rapidly
-    userEvent.click(saveBtn);
-    userEvent.click(saveBtn);
+    await userEvent.click(saveBtn);
+    await userEvent.click(saveBtn);
 
     await waitFor(() => {
       expect(updateFn).toHaveBeenCalledTimes(1);
