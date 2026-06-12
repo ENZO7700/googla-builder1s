@@ -239,7 +239,13 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
           </button>
 
           {showSshForm && (
-            <div className="px-4 pb-4 pt-1 space-y-4 border-t border-border">
+            <form 
+              className="px-4 pb-4 pt-1 space-y-4 border-t border-border"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleSaveSSH();
+              }}
+            >
               <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
                 <p>📋 <strong className="text-foreground">WebSupport.sk – vzor pripojenia:</strong></p>
                 <p><code className="font-mono bg-background/60 px-1 rounded">Host:</code> <span className="font-mono">nazov.vps.wbsprt.com</span> alebo IP adresa servera</p>
@@ -271,6 +277,7 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                     onChange={e => setSshHost(e.target.value)}
                     autoComplete="off"
                     spellCheck={false}
+                    required
                   />
                 </div>
 
@@ -320,6 +327,7 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                     onChange={e => setSshUsername(e.target.value)}
                     autoComplete="off"
                     spellCheck={false}
+                    required
                   />
                 </div>
 
@@ -443,7 +451,7 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                       <TooltipContent side="right" className="max-w-[300px] text-xs">
                         <p className="font-semibold mb-1">Obsah privátneho kľúča</p>
                         <p>Skopíruj celý obsah súboru <span className="font-mono">~/.ssh/id_rsa</span> (alebo <span className="font-mono">id_ed25519</span>) vrátane riadkov BEGIN a END.</p>
-                        <p className="mt-1 text-muted-foreground">Verejný kľúč (<span className="font-mono">id_rsa.pub</span>) musí byť pridaný na server do <span className="font-mono">~/.ssh/authorized_keys</span>.</p>
+                        <p className="mt-1 text-muted-foreground">Verejný kľúč (<span className="font-mono">id_rsa.pub</span>) must be pridaný na server do <span className="font-mono">~/.ssh/authorized_keys</span>.</p>
                         <p className="mt-1">Vygeneruješ ho príkazom: <span className="font-mono">ssh-keygen -t ed25519</span></p>
                       </TooltipContent>
                     </Tooltip>
@@ -462,19 +470,24 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
 
               {/* Save button */}
               <Button
-                onClick={handleSaveSSH}
+                type="submit"
                 disabled={savingSSH || !sshHost.trim() || !sshUsername.trim()}
                 className="w-full rounded-lg"
                 size="sm"
               >
                 {savingSSH ? (
-                  <RefreshCw size={13} className="animate-spin" />
+                  <>
+                    <RefreshCw size={13} className="animate-spin mr-2" />
+                    Ukladám...
+                  </>
                 ) : (
-                  <Save size={13} />
+                  <>
+                    <Save size={13} className="mr-2" />
+                    Uložiť SSH nastavenia
+                  </>
                 )}
-                Uložiť SSH nastavenia
               </Button>
-            </div>
+            </form>
           )}
         </div>
 

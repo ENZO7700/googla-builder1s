@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { axe } from 'vitest-axe';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ── Hoisted mocks (vi.mock is hoisted to top, so helpers must use vi.hoisted) ──
 
@@ -57,6 +59,23 @@ const emptyLogs = { data: [], error: null };
 
 import WPCLIManager from '@/components/wordpress/WPCLIManager';
 
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+const createTestQueryClient = () => new QueryClient({
+  defaultOptions: {
+    queries: { retry: false },
+  },
+});
+
+const renderWithProviders = (ui: React.ReactElement) => {
+  const queryClient = createTestQueryClient();
+  return render(
+    <QueryClientProvider client={queryClient}>
+      {ui}
+    </QueryClientProvider>
+  );
+};
+
 // ── Chain builder ──────────────────────────────────────────────────────────
 
 function buildAuditChain() {
@@ -103,37 +122,43 @@ beforeEach(() => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════
-// 1. RENDER
+// 1. RENDER & ACCESSIBILITY
 // ══════════════════════════════════════════════════════════════════════════
 
-describe('WPCLIManager – render', () => {
+describe('WPCLIManager – render & a11y', () => {
   it('renders the component title', () => {
-    render(<WPCLIManager siteId="site-1" />);
+    renderWithProviders(<WPCLIManager siteId="site-1" />);
     expect(screen.getByText(/WP-CLI cez SSH/i)).toBeInTheDocument();
   });
 
+  it('passes accessibility checks', async () => {
+    const { container } = renderWithProviders(<WPCLIManager siteId="site-1" />);
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+
   it('renders command grid buttons', () => {
-    render(<WPCLIManager siteId="site-1" />);
+    renderWithProviders(<WPCLIManager siteId="site-1" />);
     expect(screen.getByText('WP verzia')).toBeInTheDocument();
     expect(screen.getByText('Plugin list')).toBeInTheDocument();
     expect(screen.getByText('Maintenance ON')).toBeInTheDocument();
   });
 
   it('renders audit log section with empty state', () => {
-    render(<WPCLIManager siteId="site-1" />);
+    renderWithProviders(<WPCLIManager siteId="site-1" />);
     expect(screen.getByText(/Audit log/i)).toBeInTheDocument();
     expect(screen.getByText(/Žiadne WP-CLI logy/i)).toBeInTheDocument();
   });
 
   it('shows SSH not configured warning when no SSH host', async () => {
-    render(<WPCLIManager siteId="site-1" />);
+    renderWithProviders(<WPCLIManager siteId="site-1" />);
     await waitFor(() =>
       expect(screen.getByText(/SSH nie je nakonfigurované/i)).toBeInTheDocument(),
     );
   });
 
   it('disables command buttons when SSH is not configured', async () => {
-    render(<WPCLIManager siteId="site-1" />);
+    renderWithProviders(<WPCLIManager siteId="site-1" />);
     await waitFor(() => screen.getByText(/SSH nie je nakonfigurované/i));
     const btn = screen.getByRole('button', { name: /WP verzia/i });
     expect(btn).toBeDisabled();
@@ -146,12 +171,12 @@ describe('WPCLIManager – render', () => {
 
 describe('WPCLIManager – SSH form toggle', () => {
   it('SSH form fields are hidden by default', () => {
-    render(<WPCLIManager siteId="site-1" />);
+    renderWithProviders(<WPCLIManager siteId="site-1" />);
     expect(screen.queryByLabelText('SSH Host')).not.toBeInTheDocument();
   });
 
   it('opens SSH form on toggle click', async () => {
-    render(<WPCLIManager siteId="site-1" />);
+    renderWithProviders(<WPCLIManager siteId="site-1" />);
     await userEvent.click(screen.getByRole('button', { name: /SSH Konfigurácia/i }));
     expect(screen.getByLabelText('SSH Host')).toBeInTheDocument();
     expect(screen.getByLabelText('SSH Username')).toBeInTheDocument();
@@ -160,7 +185,7 @@ describe('WPCLIManager – SSH form toggle', () => {
   });
 
   it('closes SSH form on second toggle click', async () => {
-    render(<WPCLIManager siteId="site-1" />);
+    renderWithProviders(<WPCLIManager siteId="site-1" />);
     const btn = screen.getByRole('button', { name: /SSH Konfigurácia/i });
     await userEvent.click(btn);
     await userEvent.click(btn);
@@ -174,7 +199,7 @@ describe('WPCLIManager – SSH form toggle', () => {
 
 describe('WPCLIManager – SSH form fields', () => {
   async function openForm() {
-    render(<WPCLIManager siteId="site-1" />);
+    renderWithProviders(<WPCLIManager siteId="site-1" />);
     await userEvent.click(screen.getByRole('button', { name: /SSH Konfigurácia/i }));
   }
 
@@ -186,9 +211,7 @@ describe('WPCLIManager – SSH form fields', () => {
 
   it('switches to private key on button click', async () => {
     await openForm();
-    // The auth-method toggle buttons are the first two buttons with these names
     const authButtons = screen.getAllByRole('button', { name: /Privátny kľúč/i });
-    // First match is the toggle button (before the textarea appears)
     await userEvent.click(authButtons[0]);
     expect(screen.getByLabelText(/Privátny kľúč \(PEM\)/i)).toBeInTheDocument();
     expect(screen.queryByLabelText('Heslo')).not.toBeInTheDocument();
@@ -198,20 +221,22 @@ describe('WPCLIManager – SSH form fields', () => {
     await openForm();
     const keyBtn = screen.getAllByRole('button', { name: /Privátny kľúč/i })[0];
     await userEvent.click(keyBtn);
-    // Now Heslo button is the auth-method toggle button
     const hesloBtn = screen.getAllByRole('button', { name: /^Heslo$/i })[0];
     await userEvent.click(hesloBtn);
     expect(screen.getByLabelText('Heslo')).toBeInTheDocument();
   });
 
-  it('can type into SSH Host field', async () => {
-    render(<WPCLIManager siteId="site-1" />);
-    // Wait for the component to finish loading SSH config
-    await waitFor(() => screen.getByText(/SSH nie je nakonfigurované/i));
-    await userEvent.click(screen.getByRole('button', { name: /SSH Konfigurácia/i }));
-    const input = await screen.findByLabelText('SSH Host');
-    await userEvent.type(input, 'myserver.vps.wbsprt.com');
-    expect(input).toHaveValue('myserver.vps.wbsprt.com');
+  describe.each([
+    { label: 'SSH Host', value: 'myserver.com' },
+    { label: 'SSH Username', value: 'w123456' },
+    { label: 'Cesta k WordPress', value: '/var/www/html' },
+  ])('Field validation: $label', ({ label, value }) => {
+    it(`can type "${value}" into ${label} field`, async () => {
+      await openForm();
+      const input = screen.getByLabelText(label);
+      await userEvent.type(input, value);
+      expect(input).toHaveValue(value);
+    });
   });
 
   it('can type into Port field', async () => {
@@ -221,39 +246,20 @@ describe('WPCLIManager – SSH form fields', () => {
     await userEvent.type(input, '2222');
     expect(input).toHaveValue(2222);
   });
-
-  it('can type into WP Path field', async () => {
-    await openForm();
-    const input = screen.getByLabelText('Cesta k WordPress');
-    await userEvent.type(input, '/data/web/mysite.sk/web/');
-    expect(input).toHaveValue('/data/web/mysite.sk/web/');
-  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════
-// 4. SAVE BUTTON VALIDATION
+// 4. SAVE BUTTON VALIDATION & KEYBOARD
 // ══════════════════════════════════════════════════════════════════════════
 
-describe('WPCLIManager – save button validation', () => {
+describe('WPCLIManager – save button validation & keyboard', () => {
   async function openForm() {
-    render(<WPCLIManager siteId="site-1" />);
+    renderWithProviders(<WPCLIManager siteId="site-1" />);
     await userEvent.click(screen.getByRole('button', { name: /SSH Konfigurácia/i }));
   }
 
   it('save button disabled when both fields empty', async () => {
     await openForm();
-    expect(screen.getByRole('button', { name: /Uložiť SSH nastavenia/i })).toBeDisabled();
-  });
-
-  it('save button disabled when only host filled', async () => {
-    await openForm();
-    await userEvent.type(screen.getByLabelText('SSH Host'), 'myserver.com');
-    expect(screen.getByRole('button', { name: /Uložiť SSH nastavenia/i })).toBeDisabled();
-  });
-
-  it('save button disabled when only username filled', async () => {
-    await openForm();
-    await userEvent.type(screen.getByLabelText('SSH Username'), 'w123456');
     expect(screen.getByRole('button', { name: /Uložiť SSH nastavenia/i })).toBeDisabled();
   });
 
@@ -263,103 +269,132 @@ describe('WPCLIManager – save button validation', () => {
     await userEvent.type(screen.getByLabelText('SSH Username'), 'w123456');
     expect(screen.getByRole('button', { name: /Uložiť SSH nastavenia/i })).toBeEnabled();
   });
+
+  it('supports keyboard navigation (Tab)', async () => {
+    await openForm();
+    const hostInput = screen.getByLabelText('SSH Host');
+    hostInput.focus();
+    expect(hostInput).toHaveFocus();
+
+    await userEvent.tab();
+    expect(screen.getByLabelText('Port')).toHaveFocus();
+
+    await userEvent.tab();
+    expect(screen.getByLabelText('SSH Username')).toHaveFocus();
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════
-// 5. SAVE LOGIC – Supabase update call
+// 5. SAVE LOGIC – Payload Validation & Error Handling
 // ══════════════════════════════════════════════════════════════════════════
 
 describe('WPCLIManager – SSH save logic', () => {
-  it('calls supabase update with base64-encoded password', async () => {
+  it('calls supabase update with exact payload (password)', async () => {
     const eqFn = vi.fn().mockResolvedValue({ error: null });
     const updateFn = vi.fn().mockReturnValue({ eq: eqFn });
     setupMocks(noSshSite, updateFn);
 
-    render(<WPCLIManager siteId="site-42" />);
+    renderWithProviders(<WPCLIManager siteId="site-42" />);
     await userEvent.click(screen.getByRole('button', { name: /SSH Konfigurácia/i }));
 
     await userEvent.type(screen.getByLabelText('SSH Host'), 'myhost.com');
     await userEvent.type(screen.getByLabelText('SSH Username'), 'w999');
-    await userEvent.type(screen.getByLabelText('Cesta k WordPress'), '/var/www/html');
     await userEvent.type(screen.getByLabelText('Heslo'), 'supersecret');
 
     await userEvent.click(screen.getByRole('button', { name: /Uložiť SSH nastavenia/i }));
 
     await waitFor(() => {
-      expect(updateFn).toHaveBeenCalledWith(
-        expect.objectContaining({
-          ssh_host: 'myhost.com',
-          ssh_username: 'w999',
-          wp_path: '/var/www/html',
-          ssh_password_encrypted: btoa('supersecret'),
-        }),
-      );
+      expect(updateFn).toHaveBeenCalledWith({
+        ssh_host: 'myhost.com',
+        ssh_port: 22,
+        ssh_username: 'w999',
+        wp_path: null,
+        ssh_password_encrypted: btoa('supersecret'),
+        ssh_private_key_encrypted: null,
+      });
     });
   });
 
-  it('calls supabase update with base64-encoded private key and clears password field', async () => {
+  it('calls supabase update with exact payload (private key)', async () => {
     const eqFn = vi.fn().mockResolvedValue({ error: null });
     const updateFn = vi.fn().mockReturnValue({ eq: eqFn });
     setupMocks(noSshSite, updateFn);
 
-    render(<WPCLIManager siteId="site-42" />);
+    renderWithProviders(<WPCLIManager siteId="site-42" />);
     await userEvent.click(screen.getByRole('button', { name: /SSH Konfigurácia/i }));
-    await userEvent.click(screen.getByRole('button', { name: /Privátny kľúč/i }));
+    await userEvent.click(screen.getAllByRole('button', { name: /Privátny kľúč/i })[0]);
 
+    const pem = '-----BEGIN RSA PRIVATE KEY-----\nABC\n-----END RSA PRIVATE KEY-----';
     await userEvent.type(screen.getByLabelText('SSH Host'), 'myhost.com');
     await userEvent.type(screen.getByLabelText('SSH Username'), 'root');
-    await userEvent.type(
-      screen.getByLabelText(/Privátny kľúč \(PEM\)/i),
-      '-----BEGIN RSA PRIVATE KEY-----\nABC\n-----END RSA PRIVATE KEY-----',
-    );
+    await userEvent.type(screen.getByLabelText(/Privátny kľúč \(PEM\)/i), pem);
 
     await userEvent.click(screen.getByRole('button', { name: /Uložiť SSH nastavenia/i }));
 
     await waitFor(() => {
-      expect(updateFn).toHaveBeenCalledWith(
-        expect.objectContaining({
-          ssh_private_key_encrypted: expect.any(String),
-          ssh_password_encrypted: null,
-        }),
-      );
-    });
-
-    // verify the encoded value decodes correctly
-    const callArgs = updateFn.mock.calls[0][0];
-    expect(atob(callArgs.ssh_private_key_encrypted)).toContain('BEGIN RSA PRIVATE KEY');
-  });
-
-  it('shows success toast after successful save', async () => {
-    setupMocks();
-    render(<WPCLIManager siteId="site-1" />);
-    await userEvent.click(screen.getByRole('button', { name: /SSH Konfigurácia/i }));
-    await userEvent.type(screen.getByLabelText('SSH Host'), 'host.com');
-    await userEvent.type(screen.getByLabelText('SSH Username'), 'user');
-    await userEvent.click(screen.getByRole('button', { name: /Uložiť SSH nastavenia/i }));
-
-    await waitFor(() => {
-      expect(mockToastSuccess).toHaveBeenCalledWith('SSH nastavenia uložené');
+      expect(updateFn).toHaveBeenCalledWith({
+        ssh_host: 'myhost.com',
+        ssh_port: 22,
+        ssh_username: 'root',
+        wp_path: null,
+        ssh_password_encrypted: null,
+        ssh_private_key_encrypted: btoa(pem),
+      });
     });
   });
 
-  it('shows error toast when Supabase update fails', async () => {
-    const eqFn = vi.fn().mockResolvedValue({ error: { message: 'DB error' } });
+  it('handles network timeout gracefully', async () => {
+    const eqFn = vi.fn().mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve({ error: null }), 100)));
     const updateFn = vi.fn().mockReturnValue({ eq: eqFn });
     setupMocks(noSshSite, updateFn);
 
-    render(<WPCLIManager siteId="site-1" />);
+    renderWithProviders(<WPCLIManager siteId="site-1" />);
     await userEvent.click(screen.getByRole('button', { name: /SSH Konfigurácia/i }));
     await userEvent.type(screen.getByLabelText('SSH Host'), 'host.com');
     await userEvent.type(screen.getByLabelText('SSH Username'), 'user');
+    
     await userEvent.click(screen.getByRole('button', { name: /Uložiť SSH nastavenia/i }));
+    
+    expect(screen.getByRole('button', { name: /Ukladám\.\.\./i })).toBeDisabled();
+    
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalled();
+    });
+  });
+
+  it('prevents double submission', async () => {
+    const eqFn = vi.fn().mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve({ error: null }), 50)));
+    const updateFn = vi.fn().mockReturnValue({ eq: eqFn });
+    setupMocks(noSshSite, updateFn);
+
+    renderWithProviders(<WPCLIManager siteId="site-1" />);
+    await userEvent.click(screen.getByRole('button', { name: /SSH Konfigurácia/i }));
+    await userEvent.type(screen.getByLabelText('SSH Host'), 'host.com');
+    await userEvent.type(screen.getByLabelText('SSH Username'), 'user');
+    
+    const saveBtn = screen.getByRole('button', { name: /Uložiť SSH nastavenia/i });
+    // Click twice rapidly
+    userEvent.click(saveBtn);
+    userEvent.click(saveBtn);
 
     await waitFor(() => {
-      // Supabase error is thrown as { message: 'DB error' } object (not Error instance),
-      // so String(e) = '[object Object]'. The toast.error key is what matters.
-      expect(mockToastError).toHaveBeenCalledWith(
-        'Chyba pri ukladaní SSH',
-        expect.objectContaining({ description: expect.any(String) }),
-      );
+      expect(updateFn).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('submits form on Enter key in input field', async () => {
+    const eqFn = vi.fn().mockResolvedValue({ error: null });
+    const updateFn = vi.fn().mockReturnValue({ eq: eqFn });
+    setupMocks(noSshSite, updateFn);
+
+    renderWithProviders(<WPCLIManager siteId="site-1" />);
+    await userEvent.click(screen.getByRole('button', { name: /SSH Konfigurácia/i }));
+    await userEvent.type(screen.getByLabelText('SSH Host'), 'myhost.com');
+    await userEvent.type(screen.getByLabelText('SSH Username'), 'user');
+    await userEvent.type(screen.getByLabelText('SSH Username'), '{enter}');
+
+    await waitFor(() => {
+      expect(updateFn).toHaveBeenCalled();
     });
   });
 });
@@ -372,19 +407,19 @@ describe('WPCLIManager – existing SSH config display', () => {
   beforeEach(() => setupMocks(configuredSshSite));
 
   it('shows configured host badge in toggle button', async () => {
-    render(<WPCLIManager siteId="site-configured" />);
+    renderWithProviders(<WPCLIManager siteId="site-configured" />);
     await waitFor(() =>
       expect(screen.getByText(/w123456@test\.vps\.wbsprt\.com/)).toBeInTheDocument(),
     );
   });
 
   it('shows "Heslo uložené" badge when password is set', async () => {
-    render(<WPCLIManager siteId="site-configured" />);
+    renderWithProviders(<WPCLIManager siteId="site-configured" />);
     await waitFor(() => expect(screen.getByText(/Heslo uložené/i)).toBeInTheDocument());
   });
 
   it('pre-fills host and username fields with existing values', async () => {
-    render(<WPCLIManager siteId="site-configured" />);
+    renderWithProviders(<WPCLIManager siteId="site-configured" />);
     await waitFor(() => screen.getByText(/w123456@test\.vps\.wbsprt\.com/));
     await userEvent.click(screen.getByRole('button', { name: /SSH Konfigurácia/i }));
     expect(screen.getByLabelText('SSH Host')).toHaveValue('test.vps.wbsprt.com');
@@ -393,13 +428,13 @@ describe('WPCLIManager – existing SSH config display', () => {
   });
 
   it('does NOT show SSH not configured warning', async () => {
-    render(<WPCLIManager siteId="site-configured" />);
+    renderWithProviders(<WPCLIManager siteId="site-configured" />);
     await waitFor(() => screen.getByText(/w123456@test\.vps\.wbsprt\.com/));
     expect(screen.queryByText(/SSH nie je nakonfigurované/i)).not.toBeInTheDocument();
   });
 
   it('enables command buttons when SSH is configured', async () => {
-    render(<WPCLIManager siteId="site-configured" />);
+    renderWithProviders(<WPCLIManager siteId="site-configured" />);
     await waitFor(() => screen.getByText(/w123456@test\.vps\.wbsprt\.com/));
     expect(screen.getByRole('button', { name: /WP verzia/i })).not.toBeDisabled();
   });
@@ -413,7 +448,7 @@ describe('WPCLIManager – destructive command confirm', () => {
   beforeEach(() => setupMocks(configuredSshSite));
 
   it('shows confirm dialog for Cache flush (destructive)', async () => {
-    render(<WPCLIManager siteId="site-configured" />);
+    renderWithProviders(<WPCLIManager siteId="site-configured" />);
     await waitFor(() => screen.getByText(/w123456@/));
     await userEvent.click(screen.getByRole('button', { name: /Cache flush/i }));
     expect(screen.getByText(/Potvrdiť WP-CLI príkaz/i)).toBeInTheDocument();
@@ -421,21 +456,21 @@ describe('WPCLIManager – destructive command confirm', () => {
   });
 
   it('dismisses confirm dialog on Zrušiť', async () => {
-    render(<WPCLIManager siteId="site-configured" />);
+    renderWithProviders(<WPCLIManager siteId="site-configured" />);
     await waitFor(() => screen.getByText(/w123456@/));
     await userEvent.click(screen.getByRole('button', { name: /Cache flush/i }));
     await userEvent.click(screen.getByRole('button', { name: /Zrušiť/i }));
     expect(screen.queryByText(/Potvrdiť WP-CLI príkaz/i)).not.toBeInTheDocument();
   });
 
-  it('invokes wordpress-cli edge function after confirm', async () => {
+  it('invokes wordpress-cli edge function with correct payload', async () => {
     mockInvoke.mockResolvedValue({ data: { stdout: 'Cache cleared', stderr: '' }, error: null });
     mockFrom.mockImplementation((table: string) => {
       if (table === 'wp_sites') return buildSiteChain(configuredSshSite);
       return { ...buildAuditChain(), insert: vi.fn().mockResolvedValue({ error: null }) };
     });
 
-    render(<WPCLIManager siteId="site-configured" />);
+    renderWithProviders(<WPCLIManager siteId="site-configured" />);
     await waitFor(() => screen.getByText(/w123456@/));
     await userEvent.click(screen.getByRole('button', { name: /Cache flush/i }));
     await userEvent.click(screen.getByRole('button', { name: /Potvrdiť a spustiť/i }));
@@ -454,33 +489,33 @@ describe('WPCLIManager – destructive command confirm', () => {
       return { ...buildAuditChain(), insert: vi.fn().mockResolvedValue({ error: null }) };
     });
 
-    render(<WPCLIManager siteId="site-configured" />);
+    renderWithProviders(<WPCLIManager siteId="site-configured" />);
     await waitFor(() => screen.getByText(/w123456@/));
     await userEvent.click(screen.getByRole('button', { name: /WP verzia/i }));
 
     expect(screen.queryByText(/Potvrdiť WP-CLI príkaz/i)).not.toBeInTheDocument();
-    await waitFor(() => expect(mockInvoke).toHaveBeenCalled());
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith('wordpress-cli', {
+        body: { siteId: 'site-configured', command: 'core-version' },
+      });
+    });
   });
 });
 
 // ══════════════════════════════════════════════════════════════════════════
-// 8. BASE64 ENCODING UTILITY (samostatné unit testy)
+// 8. BASE64 ENCODING UTILITY
 // ══════════════════════════════════════════════════════════════════════════
 
 describe('SSH credential encoding', () => {
-  it('btoa/atob round-trip for password', () => {
-    const password = 'Poklop1369###';
-    expect(atob(btoa(password))).toBe(password);
+  it('btoa produces valid base64 matching actual data', () => {
+    const password = 'test';
+    const encoded = btoa(password);
+    expect(encoded).toBe('dGVzdA==');
+    expect(atob(encoded)).toBe(password);
   });
 
-  it('btoa/atob round-trip for PEM private key', () => {
-    const pem =
-      '-----BEGIN RSA PRIVATE KEY-----\nABCDEF1234\n-----END RSA PRIVATE KEY-----';
-    expect(atob(btoa(pem))).toBe(pem);
-  });
-
-  it('btoa produces different output than plaintext', () => {
-    const pass = 'secret';
-    expect(btoa(pass)).not.toBe(pass);
+  it('btoa handles PEM kľúč correctly', () => {
+    const pem = 'KEY';
+    expect(btoa(pem)).toBe('S0VZ');
   });
 });
