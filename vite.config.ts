@@ -25,33 +25,33 @@ export default defineConfig(({ mode }) => ({
   build: {
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (id.includes("node_modules")) {
-              // Let Rollup split these dynamically imported libraries on-demand
-              if (
-                id.includes("jspdf") ||
-                id.includes("html2canvas") ||
-                id.includes("recharts")
-              ) {
-                return;
-              }
-              if (id.includes("@supabase")) {
-                return "vendor-supabase";
-              }
-              if (id.includes("framer-motion") || id.includes("lucide-react")) {
-                return "vendor-ui-libs";
-              }
-              if (id.includes("react-markdown") || id.includes("react-syntax-highlighter")) {
-                return "vendor-markdown";
-              }
-              // Keep the React runtime and React-heavy ecosystem in the same vendor chunk.
-              // Splitting them into a dedicated chunk introduced a circular init path in prod,
-              // which left the React namespace partially initialized and broke createContext().
-              return "vendor";
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            // Let Rollup split these dynamically imported libraries on-demand.
+            if (
+              id.includes("jspdf") ||
+              id.includes("html2canvas") ||
+              id.includes("recharts")
+            ) {
+              return;
             }
-          },
+            if (id.includes("@supabase")) {
+              return "vendor-supabase";
+            }
+            if (id.includes("framer-motion") || id.includes("lucide-react")) {
+              return "vendor-ui-libs";
+            }
+            if (id.includes("react-markdown") || id.includes("react-syntax-highlighter")) {
+              return "vendor-markdown";
+            }
+            // Keep the React runtime and React-heavy ecosystem in the same vendor chunk.
+            // Splitting them into a dedicated chunk introduced a circular init path in prod,
+            // which left the React namespace partially initialized and broke createContext().
+            return "vendor";
+          }
         },
       },
+    },
   },
 }));
