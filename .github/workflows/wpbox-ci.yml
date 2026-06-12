@@ -17,7 +17,7 @@ jobs:
   quality-gate:
     name: Lint, test, build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -56,6 +56,16 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: placeholder.appspot.com
           VITE_FIREBASE_MESSAGING_SENDER_ID: "000000000000"
           VITE_FIREBASE_APP_ID: "1:000000000000:web:placeholder"
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - run: npm run e2e
+        env:
+          # E2E specs mock network calls but Vite still needs valid-looking env values.
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: placeholder-publishable-key
+          VITE_SUPABASE_PROJECT_ID: placeholder-project
 
       - name: Bundle size budget
         run: bash scripts/check-bundle-budget.sh

@@ -36,8 +36,5 @@ Arch*.zip
 # Test results
 test-results/
 
-# E2E tests
-e2e/
-
 # Auth verification scripts
 verify_auth.*
