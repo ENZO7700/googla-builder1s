@@ -30,6 +30,10 @@ jobs:
       - run: npm run typecheck
 
       - run: npm run test
+        env:
+          # Test environment uses fake Supabase values (no real connection)
+          VITE_SUPABASE_URL: https://test.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: test-anon-key
 
       - run: npm run test:schemas
 
