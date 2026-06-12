@@ -27,6 +27,8 @@ import WPCLIManager from '@/components/wordpress/WPCLIManager';
 import WordPressApiTester from '@/components/wordpress/WordPressApiTester';
 import WordPressAdvancedActions from '@/components/wordpress/WordPressAdvancedActions';
 import ServicesCctManager from '@/components/wordpress/cct/ServicesCctManager';
+import HeadlessThemeManager from '@/components/wordpress/HeadlessThemeManager';
+import PromptsBlueprintsManager from '@/components/wordpress/PromptsBlueprintsManager';
 
 interface WPSite {
   id: string;
@@ -187,6 +189,8 @@ export default function WordPressDashboard() {
                       <TabsTrigger value="admin">Admin</TabsTrigger>
                       <TabsTrigger value="wpcli">WP-CLI</TabsTrigger>
                       <TabsTrigger value="cct-services">CCT Services</TabsTrigger>
+                      <TabsTrigger value="headless">Headless Theme</TabsTrigger>
+                      <TabsTrigger value="blueprints">Prompts & Blueprints</TabsTrigger>
                     </TabsList>
                     <TabsContent value="company"><CompanyInfoEditor siteId={selectedSite.id} /></TabsContent>
                     <TabsContent value="about"><AboutEditor siteId={selectedSite.id} /></TabsContent>
@@ -201,6 +205,8 @@ export default function WordPressDashboard() {
                     <TabsContent value="admin"><WordPressAdvancedActions siteId={selectedSite.id} /></TabsContent>
                     <TabsContent value="wpcli"><WPCLIManager siteId={selectedSite.id} /></TabsContent>
                     <TabsContent value="cct-services"><ServicesCctManager siteId={selectedSite.id} /></TabsContent>
+                    <TabsContent value="headless"><HeadlessThemeManager siteId={selectedSite.id} /></TabsContent>
+                    <TabsContent value="blueprints"><PromptsBlueprintsManager siteId={selectedSite.id} /></TabsContent>
                   </Tabs>
                 )}
               </>

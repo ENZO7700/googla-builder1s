@@ -111,13 +111,22 @@ export default function LoginScreen({ onEnter, onAuthSuccess }: LoginScreenProps
           <div className="my-6 border-t border-border" />
 
           {import.meta.env.DEV ? (
-            <button
-              type="button"
-              onClick={onEnter}
-              className="w-full text-center text-xs text-muted-foreground hover:text-foreground"
-            >
-              Demo režim (bez WordPress proxy)
-            </button>
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={onEnter}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-full border-2 border-primary/20 bg-primary/5 px-6 py-3 text-[15px] font-semibold text-primary transition-colors hover:bg-primary/10"
+              >
+                Dev-Free-Entry (Ostré testovanie)
+              </button>
+              <button
+                type="button"
+                onClick={onEnter}
+                className="w-full text-center text-xs text-muted-foreground hover:text-foreground"
+              >
+                Demo režim (bez WordPress proxy)
+              </button>
+            </div>
           ) : (
             <p className="text-center text-xs text-muted-foreground">
               Na produkcii je potrebné Supabase prihlásenie pre WordPress proxy a uloženie Application Password.
