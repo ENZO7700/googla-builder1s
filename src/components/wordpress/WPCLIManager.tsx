@@ -34,6 +34,17 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
   const [output, setOutput] = useState<string>('');
   const [logs, setLogs] = useState<AuditRow[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [sshReady, setSshReady] = useState<boolean | null>(null);
+
+  const checkSsh = async () => {
+    const { data } = await supabase
+      .from('wp_sites')
+      .select('ssh_host, ssh_username, ssh_password_encrypted, ssh_private_key_encrypted')
+      .eq('id', siteId)
+      .maybeSingle();
+    const ok = !!(data?.ssh_host && data?.ssh_username && (data?.ssh_password_encrypted || data?.ssh_private_key_encrypted));
+    setSshReady(ok);
+  };
 
   const loadLogs = async () => {
     setLoadingLogs(true);
@@ -49,7 +60,7 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
     setLogs((data ?? []) as AuditRow[]);
   };
 
-  useEffect(() => { loadLogs(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [siteId]);
+  useEffect(() => { loadLogs(); checkSsh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [siteId]);
 
   const run = async (command: string) => {
     setRunning(command);
