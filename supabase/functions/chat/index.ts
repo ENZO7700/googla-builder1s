@@ -51,20 +51,46 @@ serve(async (req) => {
       });
     }
 
-    const body = await req.json();
+    let body;
+    try {
+      body = await req.json();
+    } catch (parseErr) {
+      console.error("Failed to parse request JSON:", parseErr);
+      return new Response(JSON.stringify({ error: "Invalid JSON payload" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!body || typeof body !== 'object') {
+      return new Response(JSON.stringify({ error: "Payload must be a JSON object" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { messages, prompt, systemOverride, model } = body;
 
-    let conversationMessages: Array<{role: string; content: string}>;
+    let conversationMessages: Array<{role: string; content: string}> = [];
 
     if (messages && Array.isArray(messages)) {
-      conversationMessages = messages.map((m: any) => ({
-        role: m.role === 'model' ? 'assistant' : m.role,
-        content: m.content,
-      }));
-    } else if (prompt && typeof prompt === "string") {
-      conversationMessages = [{ role: "user", content: prompt }];
+      conversationMessages = messages
+        .filter((m: any) => m && typeof m === 'object' && typeof m.role === 'string' && typeof m.content === 'string')
+        .map((m: any) => ({
+          role: m.role === 'model' ? 'assistant' : m.role,
+          content: m.content.substring(0, 32000), // Max length protection
+        }));
+      
+      if (conversationMessages.length === 0) {
+        return new Response(JSON.stringify({ error: "Messages array contains invalid format" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else if (prompt && typeof prompt === "string" && prompt.trim().length > 0) {
+      conversationMessages = [{ role: "user", content: prompt.substring(0, 32000) }];
     } else {
-      return new Response(JSON.stringify({ error: "Missing prompt or messages" }), {
+      return new Response(JSON.stringify({ error: "Missing or invalid prompt or messages" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

@@ -333,22 +333,57 @@ export default function Index() {
     setDiagnostics(null);
     setWorkflowStep('ai', { status: 'running', detail: 'Odosielam request do AI Core', progress: 30 });
 
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || anonKey}`,
-          'apikey': anonKey,
-        },
-        body: JSON.stringify({ messages: msgs, systemOverride, model }),
-      });
-    } catch (netErr: any) {
-      setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: netErr.message || 'Network error', timestamp: new Date() });
-      setWorkflowStep('ai', { status: 'error', detail: netErr.message || 'Network error', progress: 100 });
-      finishWorkflow('error', 'AI request zlyhal');
-      throw netErr;
+    let response: Response | null = null;
+    let lastError: any = null;
+    const MAX_RETRIES = 3;
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout pre initial connection
+        
+        if (attempt > 0) {
+          addLog(`[RETRY] Pokus ${attempt + 1}/${MAX_RETRIES} o spojenie s AI Core...`);
+          setWorkflowStep('ai', { status: 'running', detail: `Retry spojenia (${attempt + 1}/${MAX_RETRIES})`, progress: 30 });
+        }
+
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || anonKey}`,
+            'apikey': anonKey,
+          },
+          body: JSON.stringify({ messages: msgs, systemOverride, model }),
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+
+        if (response.ok) break; // Success
+        
+        if (response.status === 429 || response.status >= 500) {
+          throw new Error(`HTTP ${response.status} z AI Gateway`);
+        } else {
+          break; // Don't retry client errors (400, 401, 402, 403)
+        }
+      } catch (err: any) {
+        lastError = err;
+        const isAbort = err.name === 'AbortError';
+        if (attempt === MAX_RETRIES - 1) {
+          const errMsg = isAbort ? 'Časový limit spojenia vypršal' : (err.message || 'Network error');
+          setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: errMsg, timestamp: new Date() });
+          setWorkflowStep('ai', { status: 'error', detail: errMsg, progress: 100 });
+          finishWorkflow('error', 'AI request zlyhal');
+          throw err;
+        }
+        // Exponential backoff
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+      }
+    }
+
+    if (!response) {
+      throw lastError || new Error('Spojenie zlyhalo');
     }
 
     if (!response.ok) {
