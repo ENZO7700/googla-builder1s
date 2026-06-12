@@ -255,7 +255,6 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                     id="ssh-host"
                     value={sshHost}
                     onChange={e => setSshHost(e.target.value)}
-                    placeholder="nazov.vps.wbsprt.com alebo 123.45.67.89"
                     autoComplete="off"
                     spellCheck={false}
                   />
@@ -268,7 +267,6 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                     id="ssh-port"
                     value={sshPort}
                     onChange={e => setSshPort(e.target.value)}
-                    placeholder="22"
                     type="number"
                     min={1}
                     max={65535}
@@ -282,7 +280,6 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                     id="ssh-username"
                     value={sshUsername}
                     onChange={e => setSshUsername(e.target.value)}
-                    placeholder="w123456 alebo root"
                     autoComplete="off"
                     spellCheck={false}
                   />
@@ -295,7 +292,6 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                     id="wp-path"
                     value={wpPath}
                     onChange={e => setWpPath(e.target.value)}
-                    placeholder="/data/web/domena.sk/web/"
                     autoComplete="off"
                     spellCheck={false}
                   />
@@ -348,7 +344,6 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                     type="password"
                     value={sshPassword}
                     onChange={e => setSshPassword(e.target.value)}
-                    placeholder={existingSshConfig?.ssh_password_encrypted ? '••••••••' : 'SSH heslo'}
                     autoComplete="off"
                   />
                 </div>
@@ -364,9 +359,6 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                     id="ssh-private-key"
                     value={sshPrivateKey}
                     onChange={e => setSshPrivateKey(e.target.value)}
-                    placeholder={existingSshConfig?.ssh_private_key_encrypted
-                      ? '••••••••  (kľúč je uložený, vložte nový len ak chcete zmeniť)'
-                      : '-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----'}
                     className="font-mono text-[11px] min-h-[120px]"
                     autoComplete="off"
                     spellCheck={false}
