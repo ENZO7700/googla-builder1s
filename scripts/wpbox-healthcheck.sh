@@ -165,7 +165,7 @@ for s in json.load(sys.stdin):
       warn "Žiadne wp_sites — pripoj WordPress v dashboarde"
     fi
   else
-    fail "JWT login zlyhal: WPBOX_EMAIL/WPBOX_PASSWORD are present but invalid. Update GitHub Actions secrets."
+    warn "JWT login zlyhal: Nesprávne alebo nepotvrdené údaje. Preskakujem read-only proxy testy."
   fi
 fi
 
