@@ -70,6 +70,7 @@ All functions live under `supabase/functions/<name>/index.ts`. Shared code in `s
 Copy `.env.example` → `.env`. Required for frontend:
 
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`
+- `VITE_SUPABASE_JWKS_URL` (JWT verification endpoint)
 - `VITE_FIREBASE_*` (6 keys)
 
 Never commit `.env`. Edge function secrets are set in Supabase dashboard, not in `.env`.

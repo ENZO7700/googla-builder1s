@@ -12,6 +12,7 @@ export default defineConfig({
     env: {
       VITE_SUPABASE_URL: "https://placeholder.supabase.co",
       VITE_SUPABASE_PUBLISHABLE_KEY: "placeholder",
+      VITE_SUPABASE_JWKS_URL: "https://placeholder.supabase.co/auth/v1/.well-known/jwks.json",
     },
   },
   resolve: {
@@ -20,5 +21,6 @@ export default defineConfig({
   define: {
     "import.meta.env.VITE_SUPABASE_URL": JSON.stringify("https://test.supabase.co"),
     "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": JSON.stringify("test-anon-key"),
+    "import.meta.env.VITE_SUPABASE_JWKS_URL": JSON.stringify("https://test.supabase.co/auth/v1/.well-known/jwks.json"),
   },
 });

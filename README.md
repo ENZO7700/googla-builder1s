@@ -50,6 +50,7 @@ Daily 06:00 UTC ─── healthcheck:write ─── auto GitHub issue on failu
 | `VITE_SUPABASE_URL` | `https://qytsiddrksybwpqldjfj.supabase.co` |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | anon key |
 | `VITE_SUPABASE_PROJECT_ID` | `qytsiddrksybwpqldjfj` |
+| `VITE_SUPABASE_JWKS_URL` | `https://qytsiddrksybwpqldjfj.supabase.co/auth/v1/.well-known/jwks.json` |
 | `WPBOX_EMAIL` | Supabase test user (nie WP user) |
 | `WPBOX_PASSWORD` | heslo test usera |
 | `WP_APP_USER` | WordPress user (`magnusevans`) — live API contract |
@@ -94,6 +95,8 @@ See `local-wordpress/README.md` for Docker WordPress details.
 |--------|-----------|
 | wpBOX (Vercel) | https://larsenevans-wpbox.vercel.app |
 | Supabase | `qytsiddrksybwpqldjfj` |
+| JWKS URL | `https://qytsiddrksybwpqldjfj.supabase.co/auth/v1/.well-known/jwks.json` |
+| JWKS Key ID | `098f705a-44d5-4d28-9fd1-f8f2618465b6` |
 | WordPress web24 | https://larsenevans.com/web24 |
 
 **Po zmene kódu:**
