@@ -37,6 +37,8 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
   const [sshReady, setSshReady] = useState<boolean | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [savingSsh, setSavingSsh] = useState(false);
+  const [testingSsh, setTestingSsh] = useState(false);
+  const [testResult, setTestResult] = useState<null | { ok: boolean; message: string; details?: string }>(null);
   const [authMode, setAuthMode] = useState<'password' | 'key'>('password');
   const [sshForm, setSshForm] = useState({
     ssh_host: '',
@@ -46,6 +48,70 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
     ssh_private_key: '',
     wp_path: '',
   });
+
+  // Client-side validation regexes mirror server-side checks in wp-ssh-test.
+  const HOST_RE = /^[a-zA-Z0-9.\-_]{1,253}$/;
+  const USER_RE = /^[a-zA-Z0-9._\-]{1,64}$/;
+  const PATH_RE = /^(\/[a-zA-Z0-9._\-]+)+\/?$/;
+  const PEM_RE = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]+-----END [A-Z ]*PRIVATE KEY-----/;
+
+  const validateForm = (requireSecret: boolean): string | null => {
+    const host = sshForm.ssh_host.trim();
+    const user = sshForm.ssh_username.trim();
+    const path = sshForm.wp_path.trim();
+    const port = Number(sshForm.ssh_port);
+    if (!host || !HOST_RE.test(host)) return 'Neplatný SSH host (povolené: písmená, číslice, . - _)';
+    if (!Number.isInteger(port) || port < 1 || port > 65535) return 'Port musí byť celé číslo 1–65535';
+    if (!user || !USER_RE.test(user)) return 'Neplatný SSH username';
+    if (path && !PATH_RE.test(path)) return 'wp_path musí byť absolútna unixová cesta (napr. /var/www/html)';
+    if (authMode === 'password') {
+      if (requireSecret && !sshForm.ssh_password) return 'Vyplňte SSH heslo';
+      if (sshForm.ssh_password && sshForm.ssh_password.length < 4) return 'Heslo musí mať aspoň 4 znaky';
+    } else {
+      if (requireSecret && !sshForm.ssh_private_key) return 'Vložte privátny kľúč';
+      if (sshForm.ssh_private_key && !PEM_RE.test(sshForm.ssh_private_key.trim())) {
+        return 'Privátny kľúč musí byť vo formáte PEM (-----BEGIN/END PRIVATE KEY-----)';
+      }
+    }
+    return null;
+  };
+
+  const testSsh = async () => {
+    const err = validateForm(!sshReady);
+    if (err) { toast.error(err); return; }
+    setTestingSsh(true);
+    setTestResult(null);
+    try {
+      const payload: Record<string, unknown> = {
+        siteId,
+        ssh_host: sshForm.ssh_host.trim(),
+        ssh_port: Number(sshForm.ssh_port) || 22,
+        ssh_username: sshForm.ssh_username.trim(),
+        wp_path: sshForm.wp_path.trim() || undefined,
+      };
+      if (authMode === 'password' && sshForm.ssh_password) payload.ssh_password = sshForm.ssh_password;
+      if (authMode === 'key' && sshForm.ssh_private_key) payload.ssh_private_key = sshForm.ssh_private_key;
+
+      const { data, error } = await supabase.functions.invoke('wp-ssh-test', { body: payload });
+      if (error) throw error;
+      const r = data as { ok?: boolean; error?: string; duration_ms?: number; wp_cli_available?: boolean; stderr?: string };
+      if (r.ok) {
+        const msg = `Pripojenie OK (${r.duration_ms ?? '?'} ms)${r.wp_cli_available === false ? ' — wp CLI nenájdené na serveri' : ''}`;
+        setTestResult({ ok: true, message: msg });
+        toast.success('SSH test prešiel');
+      } else {
+        const msg = r.error || 'Pripojenie zlyhalo';
+        setTestResult({ ok: false, message: msg, details: r.stderr });
+        toast.error('SSH test zlyhal', { description: msg });
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setTestResult({ ok: false, message: msg });
+      toast.error('SSH test zlyhal', { description: msg });
+    } finally {
+      setTestingSsh(false);
+    }
+  };
 
   const checkSsh = async () => {
     const { data } = await supabase
