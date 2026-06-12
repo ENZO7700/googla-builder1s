@@ -131,18 +131,8 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
   };
 
   const saveSsh = async () => {
-    if (!sshForm.ssh_host || !sshForm.ssh_username) {
-      toast.error('Vyplňte host a username');
-      return;
-    }
-    if (authMode === 'password' && !sshForm.ssh_password && !sshReady) {
-      toast.error('Vyplňte heslo');
-      return;
-    }
-    if (authMode === 'key' && !sshForm.ssh_private_key && !sshReady) {
-      toast.error('Vložte privátny kľúč');
-      return;
-    }
+    const err = validateForm(!sshReady);
+    if (err) { toast.error(err); return; }
     setSavingSsh(true);
     try {
       const payload: Record<string, unknown> = {
