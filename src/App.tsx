@@ -1,10 +1,15 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, FutureConfig } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index.tsx";
+
+const futureConfig: FutureConfig = {
+  v7_startTransition: true,
+  v7_relativeSplatPath: true,
+};
 
 const ResetPassword = lazy(() => import("./pages/ResetPassword.tsx"));
 const GitHubDashboard = lazy(() => import("./pages/GitHubDashboard.tsx"));
@@ -25,7 +30,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter future={futureConfig}>
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<Index />} />
