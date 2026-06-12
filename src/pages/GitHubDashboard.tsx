@@ -91,6 +91,10 @@ export default function GitHubDashboard() {
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [auditLoading, setAuditLoading] = useState(true);
 
+  // Connection form state
+  const [showConnectForm, setShowConnectForm] = useState(false);
+  const [patInput, setPatInput] = useState('');
+
   // Auth gate
   useEffect(() => {
     if (authLoading) return;
@@ -133,10 +137,16 @@ export default function GitHubDashboard() {
   }, [user, isAdmin]);
 
   const handleConnect = async () => {
+    if (!patInput.trim()) {
+      toast.error('Zadajte platný Personal Access Token');
+      return;
+    }
     setConnBusy(true);
     try {
-      const c = await githubService.connect();
+      const c = await githubService.connect(patInput.trim());
       setConnection(c);
+      setShowConnectForm(false);
+      setPatInput('');
       toast.success('GitHub pripojený', { description: 'Načítavam repozitáre a runs...' });
       await loadAll();
     } catch (e: any) {
@@ -298,6 +308,53 @@ export default function GitHubDashboard() {
                 <Unplug size={14} /> Odpojiť
               </button>
             </div>
+          ) : showConnectForm ? (
+            <div className="px-6 py-6 border-t border-border bg-accent/5">
+              <div className="max-w-md mx-auto space-y-4">
+                <div className="text-left">
+                  <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">
+                    GitHub Personal Access Token (PAT)
+                  </label>
+                  <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
+                    Pre pripojenie vygenerujte token s oprávneniami <strong className="text-foreground">repo</strong> a <strong className="text-foreground">workflow</strong> v nastaveniach vášho GitHub účtu: 
+                    <a
+                      href="https://github.com/settings/tokens/new?scopes=repo,workflow"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline ml-1 inline-flex items-center gap-0.5"
+                    >
+                      Vytvoriť token <ExternalLink size={10} />
+                    </a>
+                  </p>
+                  <input
+                    type="password"
+                    value={patInput}
+                    onChange={(e) => setPatInput(e.target.value)}
+                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                    className="w-full bg-card border border-border rounded-xl px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary placeholder:text-muted-foreground/60 transition-all font-mono"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
+                    🔒 Váš token je bezpečne zašifrovaný pomocou AES-GCM priamo na našich Supabase serveroch. Nikdy ho neukladáme do lokálneho úložiska prehliadača.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleConnect}
+                    disabled={connBusy || !patInput.trim()}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-foreground text-background rounded-full text-xs font-medium hover:opacity-90 disabled:opacity-50 transition"
+                  >
+                    <Github size={14} /> {connBusy ? 'Pripájam...' : 'Overiť a pripojiť'}
+                  </button>
+                  <button
+                    onClick={() => { setShowConnectForm(false); setPatInput(''); }}
+                    disabled={connBusy}
+                    className="px-4 py-2.5 bg-card border border-border text-foreground rounded-full text-xs font-medium hover:bg-accent transition"
+                  >
+                    Zrušiť
+                  </button>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="px-6 py-8 text-center">
               <Github size={32} className="text-muted-foreground mx-auto mb-3" />
@@ -306,11 +363,11 @@ export default function GitHubDashboard() {
                 Pripojte GitHub aby ste získali prístup k repozitárom, CI/CD pipelines a kódovým review.
               </p>
               <button
-                onClick={handleConnect}
+                onClick={() => setShowConnectForm(true)}
                 disabled={connBusy}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-foreground text-background rounded-full text-sm font-medium hover:opacity-90 disabled:opacity-50 transition"
               >
-                <Github size={16} /> {connBusy ? 'Pripájam...' : 'Pripojiť GitHub'}
+                <Github size={16} /> Pripojiť GitHub
               </button>
             </div>
           )}
