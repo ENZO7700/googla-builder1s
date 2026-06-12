@@ -122,10 +122,10 @@ const promptData: Record<string, string[]> = {
     'Navrhni web do 24 hodín: čo musí byť hotové ako prvé, čo môže počkať a aký má byť launch checklist.',
   ],
   'WordPress': [
-    'Premysli WordPress štruktúru pre tento web: stránky, bloky, menu, vlastné polia a obsahové typy.',
-    'Navrhni Gutenberg bloky a theme.json nastavenia tak, aby sa web dal ľahko spravovať bez vývojára.',
-    'Priprav plán napojenia na WordPress REST API vrátane stránok, článkov, médií a základnej synchronizácie.',
-    'Vytvor návrh admin workflow: ako bude klient pridávať služby, novinky, referencie a členov tímu.',
+    'Komponent 1/4 - Hero Engine: vygeneruj WordPress Gutenberg HTML/CSS úvodnú sekciu s ostrým headline, subheadline, CTA, trust metrikami a prémiovým vizuálnym rytmom. Použi jednotný prefix tried wpbox-lp.',
+    'Komponent 2/4 - Offer Grid: vygeneruj responzívnu sekciu služieb/benefitov pre landing page: 6 kariet, krátke predajné texty, jasné výsledky a CTA smerujúce na konzultáciu. Výstup nech sedí k wpbox-lp hero sekcii.',
+    'Komponent 3/4 - Proof Stack: vygeneruj dôveryhodnostnú sekciu s procesom, výsledkami, referenciami a garanciami tak, aby návštevník pochopil prečo veriť ponuke. Drž rovnaký WordPress HTML/CSS štýl.',
+    'Komponent 4/4 - Conversion Close: vygeneruj záverečnú CTA sekciu s FAQ, kontaktným blokom, rezerváciou konzultácie a jednoduchým footerom. Musí uzatvárať celú landing page a byť pripravená na Poslať na WP.',
   ],
   'Zlepšenie': [
     'Pozri sa na tento web ako konzultant a navrhni, čo zmeniť, aby lepšie predával a pôsobil dôveryhodne.',

@@ -122,7 +122,7 @@ export async function runPublicWordPressChecks(baseUrl: string, siteId?: string)
           endpoint: check.endpoint,
           status: 'protected',
           httpStatus: 0,
-          detail: 'Requires saved connection',
+          detail: 'Requires saved connection and Supabase session',
           durationMs: 0,
         };
       }
@@ -242,20 +242,24 @@ async function requestJson(baseUrl: string, endpoint: string, siteId?: string) {
   
   if (siteId) {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error('Unauthorized');
-
-    response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-proxy`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        siteId,
-        method: 'GET',
-        path: endpoint,
-      }),
-    });
+    if (session) {
+      response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-proxy`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          siteId,
+          method: 'GET',
+          path: endpoint,
+        }),
+      });
+    } else {
+      response = await fetch(wordPressUrl(baseUrl, endpoint), {
+        headers: { Accept: 'application/json' },
+      });
+    }
   } else {
     response = await fetch(wordPressUrl(baseUrl, endpoint), {
       headers: { Accept: 'application/json' },

@@ -66,6 +66,10 @@ function isPositiveInt(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 // ==================== VALIDATION ====================
 
 function validateRequest(raw: unknown): { ok: true; data: CctProxyRequest } | { ok: false; error: string } {
@@ -245,6 +249,19 @@ Deno.serve(async (req) => {
       responseData = text ? JSON.parse(text) : null;
     } catch {
       responseData = { raw: text };
+    }
+
+    if (
+      wpResponse.status === 404 &&
+      isRecord(responseData) &&
+      (responseData.code === "rest_no_route" ||
+        (typeof responseData.message === "string" && /rest_no_route/i.test(responseData.message)))
+    ) {
+      responseData = {
+        ok: false,
+        error: `WordPress CCT endpoint /wp-json/jet-cct/${cct} is not registered on this site.`,
+        details: "Enable JetEngine > Custom Content Types > services > REST API endpointy.",
+      };
     }
 
     // ---- Audit log (best effort) ----

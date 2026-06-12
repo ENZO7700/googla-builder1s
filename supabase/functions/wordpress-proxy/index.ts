@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.0";
 import { decryptSecret, encodeBasicAuth } from "../_shared/wordpress-credentials.ts";
+import { normalizeRequestPath } from "./path.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,13 +33,12 @@ function jsonResponse(body: unknown, status = 200) {
 function isValidRequest(b: unknown): b is ProxyRequest {
   if (!b || typeof b !== "object") return false;
   const r = b as Record<string, unknown>;
+  const normalizedPath = typeof r.path === "string" ? normalizeRequestPath(r.path) : null;
   return (
     typeof r.siteId === "string" &&
     typeof r.method === "string" &&
     ["GET", "POST", "PATCH", "DELETE"].includes(r.method) &&
-    typeof r.path === "string" &&
-    !r.path.startsWith("/") &&
-    !r.path.includes("..")
+    normalizedPath !== null
   );
 }
 
@@ -63,7 +63,8 @@ Deno.serve(async (req) => {
     if (!isValidRequest(rawBody)) {
       return jsonResponse({ error: "Invalid request body" }, 400);
     }
-    const { siteId, method, path, body, query } = rawBody;
+    const { siteId, method, body, query } = rawBody;
+    const path = normalizeRequestPath(rawBody.path)!;
 
     // Load site, scoped to current user
     const { data: site, error: siteError } = await supabase
@@ -102,7 +103,8 @@ Deno.serve(async (req) => {
       const host = String(site.base_url).replace(/^https?:\/\//, "").replace(/\/+$/, "");
       // Map standard /wp/v2 path to wp.com REST v1.1 site-scoped paths.
       // Most resources align: posts, pages, media, comments, users, settings, plugins.
-      targetUrl = `https://connector-gateway.lovable.dev/wordpress_com/rest/v1.1/sites/${encodeURIComponent(host)}/${path}`;
+      const wpComPath = path.startsWith("/wp/v2/") ? path.slice("/wp/v2/".length) : path.replace(/^\/+/, "");
+      targetUrl = `https://connector-gateway.lovable.dev/wordpress_com/rest/v1.1/sites/${encodeURIComponent(host)}/${wpComPath}`;
       headers["Authorization"] = `Bearer ${LOVABLE_API_KEY}`;
       headers["X-Connection-Api-Key"] = WORDPRESS_COM_API_KEY;
     }

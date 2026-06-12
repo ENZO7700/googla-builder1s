@@ -24,6 +24,13 @@ async function wpFetch<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function wpFetchResponse(path: string): Promise<Response> {
+  const auth = Buffer.from(`${WP_USER}:${WP_PASS}`).toString('base64');
+  return fetch(`${WP_BASE}/wp-json${path}`, {
+    headers: { Authorization: `Basic ${auth}` },
+  });
+}
+
 describe.skipIf(!canRunLive)('WordPress live API contract (web24)', () => {
   it('GET /wp/v2/posts matches PostSchema', async () => {
     const data = await wpFetch<unknown[]>('/wp/v2/posts?per_page=1&context=edit');
@@ -38,7 +45,16 @@ describe.skipIf(!canRunLive)('WordPress live API contract (web24)', () => {
   });
 
   it('GET /wp/v2/plugins matches PluginSchema[]', async () => {
-    const data = await wpFetch<unknown[]>('/wp/v2/plugins');
+    const res = await wpFetchResponse('/wp/v2/plugins');
+    if (res.status === 403) {
+      const body = await res.json();
+      expect(body.code).toBe('rest_cannot_view_plugins');
+      return;
+    }
+    if (!res.ok) {
+      throw new Error(`WP /wp/v2/plugins → HTTP ${res.status}`);
+    }
+    const data = await res.json() as unknown[];
     expect(data.length).toBeGreaterThan(0);
     z.array(PluginSchema).parse(data.slice(0, 3));
   });

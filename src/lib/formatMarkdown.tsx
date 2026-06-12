@@ -20,7 +20,7 @@ export function MarkdownRenderer({ content, onCopy, onDeploy }: MarkdownRenderer
           const codeStr = String(children).replace(/\n$/, '');
 
           if (match) {
-            const isDeployable = match[1] === 'html' || match[1] === 'php' || match[1] === 'json';
+            const isDeployable = match[1] === 'html';
             return (
               <div className="my-4 rounded-xl overflow-hidden border border-border">
                 <div className="flex items-center justify-between px-4 py-2 bg-muted text-xs">

@@ -9,6 +9,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ServiceCctItemSchema } from '@/lib/wordpress/cct/services.schema';
 import type { ServiceCctItem } from '@/lib/wordpress/cct/services.types';
+import {
+  normalizeCctProxyErrorPayload,
+  normalizeCctProxyInvokeError,
+} from '@/lib/wordpress/cct/proxyErrors';
 
 const CCT_FUNCTION = 'wordpress-cct-proxy';
 const CCT_SLUG = 'services' as const;
@@ -29,12 +33,12 @@ async function callCctProxy<T = unknown>(args: CctProxyArgs): Promise<T> {
   });
 
   if (error) {
-    throw new Error(error.message || 'Edge function call failed');
+    throw new Error(await normalizeCctProxyInvokeError(error));
   }
 
   // Edge function returns { ok: false, error } on validation errors
   if (data && typeof data === 'object' && 'ok' in data && data.ok === false) {
-    throw new Error((data as { error?: string }).error || 'Unknown proxy error');
+    throw new Error(normalizeCctProxyErrorPayload(data, 'Unknown proxy error'));
   }
 
   return data as T;
@@ -153,4 +157,3 @@ export function useCctServiceGenerateDraft(siteId: string | null) {
     },
   });
 }
-
