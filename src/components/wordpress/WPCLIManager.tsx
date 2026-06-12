@@ -52,6 +52,13 @@ interface SshConfig {
   wp_path: string | null;
 }
 
+// WebSupport.sk SSH info:
+// Host:  <nazov_servera>.vps.wbsprt.com  alebo IP adresa
+// Port:  22 (štandard)
+// User:  meno vášho hostingového účtu (napr. w123456)
+// Path:  /data/web/<domena.sk>/web/  (zdieľaný hosting)
+//        alebo /var/www/html  (VPS/dedikovaný)
+
 export default function WPCLIManager({ siteId }: { siteId: string }) {
   const [running, setRunning] = useState<string | null>(null);
   const [output, setOutput] = useState<string>('');
@@ -213,7 +220,7 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
           >
             <span className="flex items-center gap-2">
               <Settings2 size={14} className="text-primary" />
-              SSH Konfigurácia
+              SSH Konfigurácia — WebSupport.sk
               {hasExistingSSH && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 border border-green-500/30 px-2 py-0.5 text-[10px] font-medium text-green-600">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
@@ -232,9 +239,13 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
 
           {showSshForm && (
             <div className="px-4 pb-4 pt-1 space-y-4 border-t border-border">
-              <p className="text-xs text-muted-foreground">
-                Údaje sú zakódované pred uložením. Ak necháte pole hesla/kľúča prázdne, existujúce prihlásenie zostane zachované.
-              </p>
+              <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+                <p>📋 <strong className="text-foreground">WebSupport.sk – vzor pripojenia:</strong></p>
+                <p><code className="font-mono bg-background/60 px-1 rounded">Host:</code> <span className="font-mono">nazov.vps.wbsprt.com</span> alebo IP adresa servera</p>
+                <p><code className="font-mono bg-background/60 px-1 rounded">User:</code> meno hostingového účtu (napr. <span className="font-mono">w123456</span>) alebo <span className="font-mono">root</span></p>
+                <p><code className="font-mono bg-background/60 px-1 rounded">Path:</code> <span className="font-mono">/data/web/domena.sk/web/</span> (zdieľaný) | <span className="font-mono">/var/www/html</span> (VPS)</p>
+                <p className="text-muted-foreground/70 pt-1">Údaje sú zakódované pred uložením. Ak necháte pole hesla/kľúča prázdne, existujúce prihlásenie zostane zachované.</p>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* SSH Host */}
@@ -244,7 +255,7 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                     id="ssh-host"
                     value={sshHost}
                     onChange={e => setSshHost(e.target.value)}
-                    placeholder="example.com alebo 123.45.67.89"
+                    placeholder="nazov.vps.wbsprt.com alebo 123.45.67.89"
                     autoComplete="off"
                     spellCheck={false}
                   />
@@ -271,7 +282,7 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                     id="ssh-username"
                     value={sshUsername}
                     onChange={e => setSshUsername(e.target.value)}
-                    placeholder="root alebo deploy"
+                    placeholder="w123456 alebo root"
                     autoComplete="off"
                     spellCheck={false}
                   />
@@ -284,10 +295,11 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                     id="wp-path"
                     value={wpPath}
                     onChange={e => setWpPath(e.target.value)}
-                    placeholder="/var/www/html alebo /home/user/public_html"
+                    placeholder="/data/web/domena.sk/web/"
                     autoComplete="off"
                     spellCheck={false}
                   />
+                  <p className="text-[10px] text-muted-foreground">WebSupport zdieľaný hosting: <code className="font-mono">/data/web/domena.sk/web/</code></p>
                 </div>
               </div>
 
