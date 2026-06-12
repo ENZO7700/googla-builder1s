@@ -25,5 +25,5 @@ jobs:
 
       - name: Start local Supabase and apply migrations
         run: |
-          supabase start -x edge-runtime,logflare
+          supabase start -x edge-runtime,logflare,vector
           supabase db reset --no-seed
