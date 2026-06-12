@@ -1,5 +1,8 @@
 name: wpBOX Deploy Smoke
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 # Post-deploy verification: live URL + optional WordPress write test.
 # Configure GitHub secrets (same as wpbox-ci integration job).
 

@@ -1,5 +1,8 @@
 name: wpBOX Supabase Migrations
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 # Validates SQL migrations on isolated local DB — never touches qytsiddrksybwpqldjfj.
 on:
   pull_request:
