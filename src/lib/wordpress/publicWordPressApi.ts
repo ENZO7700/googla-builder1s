@@ -1,3 +1,5 @@
+import { supabase } from '@/integrations/supabase/client';
+
 export interface PublicWpStats {
   siteName: string;
   description: string;
@@ -65,14 +67,13 @@ const READ_ENDPOINTS = [
   { label: 'Plugins', endpoint: '/wp/v2/plugins', protectedOk: true },
 ] as const;
 
-export async function getPublicWordPressStats(baseUrl: string): Promise<PublicWpStats> {
-  const [root, posts, pages, comments, users, media] = await Promise.all([
-    requestJson(baseUrl, '/'),
-    requestJson(baseUrl, '/wp/v2/posts?per_page=1&_fields=id'),
-    requestJson(baseUrl, '/wp/v2/pages?per_page=1&_fields=id'),
-    requestJson(baseUrl, '/wp/v2/comments?per_page=1&_fields=id'),
-    requestJson(baseUrl, '/wp/v2/users?per_page=1&_fields=id'),
-    requestJson(baseUrl, '/wp/v2/media?per_page=1&_fields=id'),
+export async function getPublicWordPressStats(baseUrl: string, siteId?: string): Promise<PublicWpStats> {
+  const [root, posts, pages, comments, media] = await Promise.all([
+    requestJson(baseUrl, '/', siteId),
+    requestJson(baseUrl, '/wp/v2/posts?per_page=1&_fields=id', siteId),
+    requestJson(baseUrl, '/wp/v2/pages?per_page=1&_fields=id', siteId),
+    requestJson(baseUrl, '/wp/v2/comments?per_page=1&_fields=id', siteId),
+    requestJson(baseUrl, '/wp/v2/media?per_page=1&_fields=id', siteId),
   ]);
 
   const rootBody = root.body as { name?: string; description?: string; url?: string; namespaces?: string[] };
@@ -83,19 +84,49 @@ export async function getPublicWordPressStats(baseUrl: string): Promise<PublicWp
     posts: totalFrom(posts),
     pages: totalFrom(pages),
     comments: totalFrom(comments),
-    users: totalFrom(users),
+    users: 0, // Users endpoint requires auth; not available publicly
     media: totalFrom(media),
     customNamespaces: (rootBody.namespaces ?? []).filter(ns => !ns.startsWith('wp/') && !ns.startsWith('oembed/')),
   };
 }
 
-export async function runPublicWordPressChecks(baseUrl: string): Promise<PublicWpCheck[]> {
+export async function runPublicWordPressChecks(baseUrl: string, siteId?: string): Promise<PublicWpCheck[]> {
+  const { data: { session } } = siteId ? await supabase.auth.getSession() : { data: { session: null } };
+
   return Promise.all(READ_ENDPOINTS.map(async check => {
     const start = performance.now();
     try {
-      const response = await fetch(wordPressUrl(baseUrl, check.endpoint), {
-        headers: { Accept: 'application/json' },
-      });
+      let response: Response;
+      if (siteId && session) {
+        response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-proxy`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            siteId,
+            method: 'GET',
+            path: check.endpoint,
+          }),
+        });
+      } else if (!check.protectedOk) {
+        // Only call public endpoints directly when no siteId
+        response = await fetch(wordPressUrl(baseUrl, check.endpoint), {
+          headers: { Accept: 'application/json' },
+        });
+      } else {
+        // Skip protected endpoints without siteId/valid session
+        return {
+          label: check.label,
+          endpoint: check.endpoint,
+          status: 'protected',
+          httpStatus: 0,
+          detail: 'Requires saved connection',
+          durationMs: 0,
+        };
+      }
+
       const durationMs = Math.round(performance.now() - start);
       const body = await response.json().catch(() => null) as { message?: string; namespace?: string; name?: string } | null;
       const isProtected = response.status === 401 || response.status === 403;
@@ -206,10 +237,31 @@ function totalFrom(result: { response: Response }) {
   return Number(result.response.headers.get('X-WP-Total') ?? '0');
 }
 
-async function requestJson(baseUrl: string, endpoint: string) {
-  const response = await fetch(wordPressUrl(baseUrl, endpoint), {
-    headers: { Accept: 'application/json' },
-  });
+async function requestJson(baseUrl: string, endpoint: string, siteId?: string) {
+  let response: Response;
+  
+  if (siteId) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Unauthorized');
+
+    response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-proxy`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        siteId,
+        method: 'GET',
+        path: endpoint,
+      }),
+    });
+  } else {
+    response = await fetch(wordPressUrl(baseUrl, endpoint), {
+      headers: { Accept: 'application/json' },
+    });
+  }
+
   if (!response.ok) {
     throw new Error(`${endpoint}: HTTP ${response.status}`);
   }

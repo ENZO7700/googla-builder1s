@@ -6,10 +6,10 @@ import StatusBadge from '@/components/dashboard/StatusBadge';
 import { LoadingState } from '@/components/dashboard/States';
 import { runPublicWordPressChecks, type PublicWpCheck } from '@/lib/wordpress/publicWordPressApi';
 
-export default function WordPressApiTester({ baseUrl }: { baseUrl: string }) {
+export default function WordPressApiTester({ baseUrl, siteId }: { baseUrl: string, siteId?: string }) {
   const { data = [], isLoading, refetch, isFetching } = useQuery({
-    queryKey: ['wp_public_checks', baseUrl],
-    queryFn: () => runPublicWordPressChecks(baseUrl),
+    queryKey: ['wp_public_checks', baseUrl, siteId],
+    queryFn: () => runPublicWordPressChecks(baseUrl, siteId),
     enabled: !!baseUrl,
   });
 

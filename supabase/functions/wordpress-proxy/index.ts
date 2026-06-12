@@ -83,7 +83,10 @@ Deno.serve(async (req) => {
 
     if (site.site_type === "self") {
       const base = String(site.base_url).replace(/\/+$/, "");
-      targetUrl = `${base}/wp-json/wp/v2/${path}`;
+      // If path starts with a slash, treat it as relative to /wp-json/
+      // Otherwise, treat it as relative to /wp-json/wp/v2/
+      const apiPath = path.startsWith("/") ? path : `/wp/v2/${path}`;
+      targetUrl = `${base}/wp-json${apiPath}`;
       if (site.username && site.app_password_encrypted) {
         const appPassword = await decryptSecret(String(site.app_password_encrypted));
         headers["Authorization"] = `Basic ${encodeBasicAuth(String(site.username), appPassword)}`;
@@ -137,9 +140,17 @@ Deno.serve(async (req) => {
         : null,
     });
 
+    // Forward important headers
+    const responseHeaders = { 
+      ...corsHeaders, 
+      "Content-Type": "application/json",
+      "X-WP-Total": proxyResponse.headers.get("X-WP-Total") || "0",
+      "X-WP-TotalPages": proxyResponse.headers.get("X-WP-TotalPages") || "0",
+    };
+
     return new Response(JSON.stringify(responseData), {
       status: proxyResponse.status,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: responseHeaders,
     });
   } catch (err) {
     console.error("wordpress-proxy error:", err);

@@ -14,7 +14,7 @@ interface WPSite {
 export default function WordPressOverview({ site }: { site: WPSite }) {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['wp_stats', site.id],
-    queryFn: () => getPublicWordPressStats(site.base_url),
+    queryFn: () => getPublicWordPressStats(site.base_url, site.id),
   });
 
   if (isLoading) return <LoadingState />;

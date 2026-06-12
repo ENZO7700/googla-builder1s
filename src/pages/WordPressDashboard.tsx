@@ -165,7 +165,7 @@ export default function WordPressDashboard() {
               <>
                 <WordPressOverview site={selectedSite} />
                 <WordPressControlCenter site={selectedSite} isLocalDemo={isLocalDemo} onSaved={() => refetch()} />
-                <WordPressApiTester baseUrl={selectedSite.base_url} />
+                <WordPressApiTester baseUrl={selectedSite.base_url} siteId={selectedSite.id} />
                 {isLocalDemo ? (
                   <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
                     Lokálny demo režim testuje bezpečné verejné REST endpointy. Editácia obsahu, sync, WP-CLI a uploady
