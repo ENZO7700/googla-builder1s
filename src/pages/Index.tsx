@@ -679,6 +679,83 @@ export default function Index() {
     }
   };
 
+  const handleDeployCode = async (code: string, language: string) => {
+    if (!user) return;
+    
+    // Zatiaľ podporujeme len HTML deploy pre ukážku pipeline (na WordPress Page)
+    if (language !== 'html') {
+      toast.error('Momentálne je možné deploynúť len HTML kód (ako WordPress stránku).', {
+        description: 'Nechaj si vygenerovať HTML blok (napríklad z Blueprints).',
+      });
+      return;
+    }
+
+    try {
+      addLog('[API] Začínam deploy do WordPressu...');
+      showToast('Spúšťam deploy na WordPress...', 'info');
+
+      // Nájdeme prvú pripojenú WordPress stránku (pre jednoduchosť)
+      let siteId = 'local-wordpress-dev';
+      if (user.id !== LOCAL_USER_ID) {
+        const { data: sites } = await supabase
+          .from('wp_sites')
+          .select('id')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(1);
+          
+        if (!sites || sites.length === 0) {
+          toast.error('Žiadny WordPress nie je pripojený.', {
+            description: 'Pripojte ho vo WordPress Manageri (Nástroje vľavo).',
+          });
+          return;
+        }
+        siteId = sites[0].id;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+
+      // Zastrelíme to na náš wordpress-proxy
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-proxy`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || ''}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          siteId,
+          method: 'POST',
+          path: '/wp/v2/pages',
+          body: {
+            title: `AI Landing Page - ${new Date().toLocaleDateString()}`,
+            content: code,
+            status: 'draft', // Draft pre bezpečnosť
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.error_message) {
+         throw new Error(result.error_message);
+      }
+
+      addLog('[API] Stránka úspešne vytvorená vo WordPresse.');
+      toast.success('Stránka bola úspešne vytvorená!', {
+        description: `Koncept bol uložený do WordPressu s ID: ${result.id}. Otvorte si WP Admin pre publikovanie.`,
+        duration: 8000,
+      });
+
+    } catch (err: any) {
+      addLog(`[ERROR] Deploy zlyhal: ${err.message}`);
+      toast.error('Deploy do WordPressu zlyhal', { description: err.message });
+    }
+  };
+
   const handleNewSession = () => {
     setMessages([]);
     setAttachments([]);
@@ -947,21 +1024,22 @@ export default function Index() {
       default:
         return (
           <ChatView
-            messages={messages}
-            isLoading={isLoading}
-            isStreaming={isStreaming}
-            inputValue={inputValue}
-            onInputChange={setInputValue}
-            onSend={handleSendMessage}
-            attachments={attachments}
-            onFileUpload={handleFileUpload}
-            onRemoveAttachment={removeAttachment}
-            isRecording={isRecording}
-            onMicClick={handleMicClick}
-            isDragging={isDragging}
-            tokenCount={tokenCount}
-            onCopyCode={() => { addLog('[SYSTEM] Kód skopírovaný do schránky.'); showToast('Skopírované', 'success'); }}
-            onToggleMobileMenu={() => setMobileMenuOpen(true)}
+          messages={messages}
+          isLoading={isLoading}
+          isStreaming={isStreaming}
+          inputValue={inputValue}
+          onInputChange={setInputValue}
+          onSend={handleSendMessage}
+          attachments={attachments}
+          onFileUpload={handleFileUpload}
+          onRemoveAttachment={removeAttachment}
+          isRecording={isRecording}
+          onMicClick={handleMicClick}
+          isDragging={isDragging}
+          tokenCount={tokenCount}
+          onCopyCode={() => { addLog('[SYSTEM] Kód skopírovaný do schránky.'); showToast('Skopírované', 'success'); }}
+          onDeployCode={handleDeployCode}
+          onToggleMobileMenu={() => setMobileMenuOpen(true)}
           />
         );
     }

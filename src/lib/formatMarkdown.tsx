@@ -3,12 +3,15 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
+import { UploadCloud } from 'lucide-react';
+
 interface MarkdownRendererProps {
   content: string;
   onCopy?: () => void;
+  onDeploy?: (code: string, language: string) => void;
 }
 
-export function MarkdownRenderer({ content, onCopy }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content, onCopy, onDeploy }: MarkdownRendererProps) {
   return (
     <ReactMarkdown
       components={{
@@ -17,19 +20,32 @@ export function MarkdownRenderer({ content, onCopy }: MarkdownRendererProps) {
           const codeStr = String(children).replace(/\n$/, '');
 
           if (match) {
+            const isDeployable = match[1] === 'html' || match[1] === 'php' || match[1] === 'json';
             return (
               <div className="my-4 rounded-xl overflow-hidden border border-border">
                 <div className="flex items-center justify-between px-4 py-2 bg-muted text-xs">
                   <span className="text-muted-foreground font-mono font-medium">{match[1]}</span>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(codeStr);
-                      onCopy?.();
-                    }}
-                    className="text-muted-foreground hover:text-foreground transition-colors font-medium"
-                  >
-                    Kopírovať
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {isDeployable && onDeploy && (
+                      <button
+                        onClick={() => onDeploy(codeStr, match[1])}
+                        className="flex items-center gap-1.5 text-primary hover:text-primary/80 transition-colors font-semibold"
+                        title="Vytvoriť z tohto kódu WordPress stránku"
+                      >
+                        <UploadCloud size={13} />
+                        Poslať na WP
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(codeStr);
+                        onCopy?.();
+                      }}
+                      className="text-muted-foreground hover:text-foreground transition-colors font-medium"
+                    >
+                      Kopírovať
+                    </button>
+                  </div>
                 </div>
                 <SyntaxHighlighter
                   style={oneDark}

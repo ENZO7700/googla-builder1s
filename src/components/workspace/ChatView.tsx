@@ -150,13 +150,14 @@ interface ChatViewProps {
   isDragging: boolean;
   tokenCount: string;
   onCopyCode: () => void;
+  onDeployCode?: (code: string, language: string) => void;
   onToggleMobileMenu?: () => void;
 }
 
 export default function ChatView({
   messages, isLoading, isStreaming, inputValue, onInputChange, onSend,
   attachments, onFileUpload, onRemoveAttachment,
-  isRecording, onMicClick, isDragging, tokenCount, onCopyCode, onToggleMobileMenu
+  isRecording, onMicClick, isDragging, tokenCount, onCopyCode, onDeployCode, onToggleMobileMenu
 }: ChatViewProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -274,7 +275,7 @@ export default function ChatView({
                       <div className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.content}</div>
                     ) : (
                       <div className="text-[15px]">
-                        <MarkdownRenderer content={msg.content} onCopy={onCopyCode} />
+                        <MarkdownRenderer content={msg.content} onCopy={onCopyCode} onDeploy={onDeployCode} />
                         {isStreaming && idx === messages.length - 1 && (
                           <span className="inline-block w-2 h-4 bg-primary ml-1 animate-blink" />
                         )}
