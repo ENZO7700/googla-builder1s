@@ -2,12 +2,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardCard from '@/components/dashboard/DashboardCard';
-import { Terminal, Play, RefreshCw, Settings2, ChevronDown, ChevronUp, Save, KeyRound, Lock } from 'lucide-react';
+import { Terminal, Play, RefreshCw, Settings2, ChevronDown, ChevronUp, Save, KeyRound, Lock, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const DESTRUCTIVE_COMMANDS = new Set([
   'cron-run-due',
@@ -247,10 +248,23 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                 <p className="text-muted-foreground/70 pt-1">Údaje sú zakódované pred uložením. Ak necháte pole hesla/kľúča prázdne, existujúce prihlásenie zostane zachované.</p>
               </div>
 
+              <TooltipProvider delayDuration={200}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* SSH Host */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="ssh-host" className="text-xs">SSH Host</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="ssh-host" className="text-xs">SSH Host</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle size={12} className="text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs text-xs">
+                        <p className="font-semibold mb-1">Adresa SSH servera</p>
+                        <p>Hostname alebo IP adresa servera, ku ktorému sa pripojíte.</p>
+                        <p className="mt-1 font-mono text-[10px] text-muted-foreground">WebSupport VPS: nazov.vps.wbsprt.com</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <Input
                     id="ssh-host"
                     value={sshHost}
@@ -262,7 +276,19 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
 
                 {/* SSH Port */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="ssh-port" className="text-xs">Port</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="ssh-port" className="text-xs">Port</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle size={12} className="text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs text-xs">
+                        <p className="font-semibold mb-1">SSH port</p>
+                        <p>Štandardný port je <span className="font-mono">22</span>. WebSupport zdieľaný hosting a VPS používajú port 22.</p>
+                        <p className="mt-1">Ak si ho zmenil v nastaveniach servera, zadaj vlastný port.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <Input
                     id="ssh-port"
                     value={sshPort}
@@ -275,7 +301,19 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
 
                 {/* SSH Username */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="ssh-username" className="text-xs">SSH Username</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="ssh-username" className="text-xs">SSH Username</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle size={12} className="text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs text-xs">
+                        <p className="font-semibold mb-1">Prihlasovacie meno SSH</p>
+                        <p>Meno tvojho hostingového účtu alebo systémového používateľa.</p>
+                        <p className="mt-1 text-muted-foreground">WebSupport zdieľaný: identické s FTP prihlasovacím menom. VPS: obvykle <span className="font-mono">root</span> alebo vytvorený user.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <Input
                     id="ssh-username"
                     value={sshUsername}
@@ -287,7 +325,25 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
 
                 {/* WP Path */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="wp-path" className="text-xs">Cesta k WordPress</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="wp-path" className="text-xs">Cesta k WordPress</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle size={12} className="text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="max-w-xs text-xs">
+                        <p className="font-semibold mb-1">Absolútna cesta k wp-config.php</p>
+                        <p>Priečinok kde je nainštalovaný WordPress (obsahuje wp-config.php).</p>
+                        <div className="mt-2 space-y-1">
+                          <p className="text-muted-foreground">WebSupport zdieľaný:</p>
+                          <p className="font-mono text-[10px]">/data/web/domena.sk/web/</p>
+                          <p className="text-muted-foreground mt-1">WebSupport VPS / iný:</p>
+                          <p className="font-mono text-[10px]">/var/www/html/</p>
+                        </div>
+                        <p className="mt-2 text-muted-foreground">Zisti ju cez SSH príkazom: <span className="font-mono">find / -name wp-config.php 2&gt;/dev/null</span></p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <Input
                     id="wp-path"
                     value={wpPath}
@@ -298,10 +354,24 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                   <p className="text-[10px] text-muted-foreground">WebSupport zdieľaný hosting: <code className="font-mono">/data/web/domena.sk/web/</code></p>
                 </div>
               </div>
+              </TooltipProvider>
 
               {/* Auth method toggle */}
+              <TooltipProvider delayDuration={200}>
               <div className="space-y-2">
-                <Label className="text-xs">Metóda overenia</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs">Metóda overenia</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle size={12} className="text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs text-xs">
+                      <p className="font-semibold mb-1">Ako sa prihlasovať na SSH?</p>
+                      <p><strong>Heslo</strong> — jednoduchšie, zadáš SSH heslo od hostingu.</p>
+                      <p className="mt-1"><strong>Privátny kľúč</strong> — bezpečnejšie. Generuješ pár kľúčov (napr. cez <span className="font-mono">ssh-keygen</span>), verejný kľúč pridáš na server a sem vložíš obsah privátneho kľúča (súbor <span className="font-mono">~/.ssh/id_rsa</span>).</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -329,16 +399,28 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                   </button>
                 </div>
               </div>
+              </TooltipProvider>
 
               {/* Password or Private Key input */}
+              <TooltipProvider delayDuration={200}>
               {authMethod === 'password' ? (
                 <div className="space-y-1.5">
-                  <Label htmlFor="ssh-password" className="text-xs">
-                    Heslo
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="ssh-password" className="text-xs">Heslo</Label>
                     {existingSshConfig?.ssh_password_encrypted && (
-                      <span className="ml-2 text-muted-foreground font-normal">(prázdne = zachovať existujúce)</span>
+                      <span className="text-muted-foreground font-normal text-[10px]">(prázdne = zachovať existujúce)</span>
                     )}
-                  </Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle size={12} className="text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs text-xs">
+                        <p className="font-semibold mb-1">SSH heslo</p>
+                        <p>Rovnaké heslo, ktoré použiješ pri prihlásení cez terminál alebo PuTTY.</p>
+                        <p className="mt-1 text-muted-foreground">Heslo sa zakóduje pred uložením a nikdy sa nezobrazí späť v čitateľnej forme.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <Input
                     id="ssh-password"
                     type="password"
@@ -349,12 +431,23 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                 </div>
               ) : (
                 <div className="space-y-1.5">
-                  <Label htmlFor="ssh-private-key" className="text-xs">
-                    Privátny kľúč (PEM)
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="ssh-private-key" className="text-xs">Privátny kľúč (PEM)</Label>
                     {existingSshConfig?.ssh_private_key_encrypted && (
-                      <span className="ml-2 text-muted-foreground font-normal">(prázdne = zachovať existujúci)</span>
+                      <span className="text-muted-foreground font-normal text-[10px]">(prázdne = zachovať existujúci)</span>
                     )}
-                  </Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle size={12} className="text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-[300px] text-xs">
+                        <p className="font-semibold mb-1">Obsah privátneho kľúča</p>
+                        <p>Skopíruj celý obsah súboru <span className="font-mono">~/.ssh/id_rsa</span> (alebo <span className="font-mono">id_ed25519</span>) vrátane riadkov BEGIN a END.</p>
+                        <p className="mt-1 text-muted-foreground">Verejný kľúč (<span className="font-mono">id_rsa.pub</span>) musí byť pridaný na server do <span className="font-mono">~/.ssh/authorized_keys</span>.</p>
+                        <p className="mt-1">Vygeneruješ ho príkazom: <span className="font-mono">ssh-keygen -t ed25519</span></p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <Textarea
                     id="ssh-private-key"
                     value={sshPrivateKey}
@@ -365,6 +458,7 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
                   />
                 </div>
               )}
+              </TooltipProvider>
 
               {/* Save button */}
               <Button
