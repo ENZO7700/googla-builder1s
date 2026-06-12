@@ -14,6 +14,86 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 const MAX_DIFF_BYTES = 120_000;
 
+// Type definitions for GitHub API responses to prevent ESLint warning: "Unexpected any"
+interface GitHubUser {
+  login: string;
+  name: string | null;
+  avatar_url: string;
+}
+
+interface GitHubRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  html_url: string;
+  private: boolean;
+  default_branch: string;
+  description: string | null;
+  pushed_at: string | null;
+  updated_at: string | null;
+  open_issues_count: number;
+}
+
+interface GitHubCommit {
+  sha: string;
+  commit: {
+    message: string;
+    author: {
+      name: string;
+      date: string;
+    };
+  };
+}
+
+interface GitHubWorkflowRun {
+  id: number;
+  name: string | null;
+  status: string;
+  conclusion: string | null;
+  head_branch: string;
+  head_sha: string;
+  head_commit: {
+    message: string;
+  } | null;
+  triggering_actor: {
+    login: string;
+  } | null;
+  run_started_at: string;
+  created_at: string;
+  updated_at: string;
+  html_url: string;
+}
+
+interface GitHubPullRequest {
+  id: number;
+  number: number;
+  title: string;
+  user: {
+    login: string;
+    avatar_url: string;
+  } | null;
+  head: {
+    ref: string;
+    sha: string;
+  };
+  base: {
+    ref: string;
+  };
+  additions?: number;
+  deletions?: number;
+  created_at: string;
+  html_url: string;
+}
+
+interface GitHubCheckRun {
+  status: string;
+  conclusion: string | null;
+}
+
+interface GitHubReview {
+  state: string;
+}
+
 const SYSTEM_PROMPT = `Si senior code reviewer pre projekt LarsenEvans-wpBOX.
 Píš v slovenčine, technické termíny a kód v angličtine.
 Buď stručný, konkrétny a praktický. Nikdy nekomentuj formátovanie (rieši ESLint/Prettier).
@@ -76,11 +156,11 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 // Helper to make GitHub REST API calls
-async function fetchGithub<T = any>(
+async function fetchGithub<T = unknown>(
   path: string,
   token: string,
   options: RequestInit = {}
-): Promise<{ data: T; headers: Headers; ok: boolean; status: number }> {
+): Promise<{ data: T | null; headers: Headers; ok: boolean; status: number }> {
   const url = path.startsWith("http") ? path : `https://api.github.com/${path.replace(/^\/+/, "")}`;
   const response = await fetch(url, {
     ...options,
@@ -91,9 +171,9 @@ async function fetchGithub<T = any>(
       ...options.headers,
     },
   });
-  let data: any = null;
+  let data: T | null = null;
   if (response.status !== 204) {
-    data = await response.json().catch(() => null);
+    data = await response.json().catch(() => null) as T;
   }
   return {
     data,
@@ -175,8 +255,8 @@ serve(async (req) => {
       }
 
       // Validácia tokenu cez GitHub API
-      const userRes = await fetchGithub("user", gitToken);
-      if (!userRes.ok) {
+      const userRes = await fetchGithub<GitHubUser>("user", gitToken);
+      if (!userRes.ok || !userRes.data) {
         return jsonResponse({ error: "GitHub odmietol Personal Access Token." }, 400);
       }
 
@@ -275,22 +355,22 @@ serve(async (req) => {
 
     // --- Action: list_repositories ---
     if (action === "list_repositories") {
-      const reposRes = await fetchGithub("user/repos?per_page=100&sort=pushed", decryptedToken);
-      if (!reposRes.ok) {
+      const reposRes = await fetchGithub<GitHubRepo[]>("user/repos?per_page=100&sort=pushed", decryptedToken);
+      if (!reposRes.ok || !reposRes.data) {
         return jsonResponse({ error: "Zlyhalo načítanie repozitárov z GitHubu" }, 400);
       }
 
-      const rawRepos = Array.isArray(reposRes.data) ? reposRes.data : [];
+      const rawRepos = reposRes.data;
       const topRepos = rawRepos.slice(0, 10); // Optimalizácia pre detailný sync
 
       // Paralelné dotazy na posledný commit pre najaktívnejších 5 repozitárov
       const mappedRepos = await Promise.all(
-        rawRepos.map(async (r: any) => {
+        rawRepos.map(async (r: GitHubRepo) => {
           const isTop = topRepos.some((tr) => tr.id === r.id);
-          let lastCommit: any = null;
+          let lastCommit: { sha: string; message: string; author: string; date: string } | null = null;
 
           if (isTop) {
-            const commitsRes = await fetchGithub(`repos/${r.full_name}/commits?per_page=1`, decryptedToken);
+            const commitsRes = await fetchGithub<GitHubCommit[]>(`repos/${r.full_name}/commits?per_page=1`, decryptedToken);
             if (commitsRes.ok && Array.isArray(commitsRes.data) && commitsRes.data.length > 0) {
               const c = commitsRes.data[0];
               lastCommit = {
@@ -358,19 +438,22 @@ serve(async (req) => {
 
     // --- Action: list_workflow_runs ---
     if (action === "list_workflow_runs") {
-      const reposRes = await fetchGithub("user/repos?per_page=5&sort=pushed", decryptedToken);
-      if (!reposRes.ok) return jsonResponse([]);
+      const reposRes = await fetchGithub<GitHubRepo[]>("user/repos?per_page=5&sort=pushed", decryptedToken);
+      if (!reposRes.ok || !reposRes.data) return jsonResponse([]);
 
-      const reposList = Array.isArray(reposRes.data) ? reposRes.data : [];
-      const runsPromises = reposList.map(async (r: any) => {
-        const res = await fetchGithub(`repos/${r.full_name}/actions/runs?per_page=3`, decryptedToken);
+      const reposList = reposRes.data;
+      const runsPromises = reposList.map(async (r: GitHubRepo) => {
+        interface WorkflowRunsResponse {
+          workflow_runs: GitHubWorkflowRun[];
+        }
+        const res = await fetchGithub<WorkflowRunsResponse>(`repos/${r.full_name}/actions/runs?per_page=3`, decryptedToken);
         if (!res.ok || !res.data?.workflow_runs) return [];
-        return res.data.workflow_runs.map((w: any) => {
+        return res.data.workflow_runs.map((w: GitHubWorkflowRun) => {
           const duration = w.updated_at && w.run_started_at
             ? Math.round((new Date(w.updated_at).getTime() - new Date(w.run_started_at).getTime()) / 1000)
             : 0;
 
-          let status: string = "queued";
+          let status = "queued";
           if (w.status === "completed") {
             status = w.conclusion === "success" ? "success" : w.conclusion === "cancelled" ? "cancelled" : "failed";
           } else if (w.status === "in_progress") {
@@ -402,37 +485,40 @@ serve(async (req) => {
 
     // --- Action: list_prs ---
     if (action === "list_prs") {
-      const reposRes = await fetchGithub("user/repos?per_page=5&sort=pushed", decryptedToken);
-      if (!reposRes.ok) return jsonResponse([]);
+      const reposRes = await fetchGithub<GitHubRepo[]>("user/repos?per_page=5&sort=pushed", decryptedToken);
+      if (!reposRes.ok || !reposRes.data) return jsonResponse([]);
 
-      const reposList = Array.isArray(reposRes.data) ? reposRes.data : [];
-      const prsPromises = reposList.map(async (r: any) => {
-        const pullsRes = await fetchGithub(`repos/${r.full_name}/pulls?state=open`, decryptedToken);
+      const reposList = reposRes.data;
+      const prsPromises = reposList.map(async (r: GitHubRepo) => {
+        const pullsRes = await fetchGithub<GitHubPullRequest[]>(`repos/${r.full_name}/pulls?state=open`, decryptedToken);
         if (!pullsRes.ok || !Array.isArray(pullsRes.data)) return [];
 
         const pulls = pullsRes.data;
         return Promise.all(
-          pulls.map(async (p: any) => {
+          pulls.map(async (p: GitHubPullRequest) => {
             // Check status / check-runs
-            let checks: string = "none";
-            const checksRes = await fetchGithub(`repos/${r.full_name}/commits/${p.head.sha}/check-runs`, decryptedToken);
+            let checks = "none";
+            interface CheckRunsResponse {
+              check_runs: GitHubCheckRun[];
+            }
+            const checksRes = await fetchGithub<CheckRunsResponse>(`repos/${r.full_name}/commits/${p.head.sha}/check-runs`, decryptedToken);
             if (checksRes.ok && Array.isArray(checksRes.data?.check_runs)) {
               const runs = checksRes.data.check_runs;
               if (runs.length > 0) {
-                const hasFailed = runs.some((cr: any) => cr.conclusion === "failure");
-                const hasPending = runs.some((cr: any) => cr.status === "in_progress" || cr.status === "queued");
+                const hasFailed = runs.some((cr: GitHubCheckRun) => cr.conclusion === "failure");
+                const hasPending = runs.some((cr: GitHubCheckRun) => cr.status === "in_progress" || cr.status === "queued");
                 checks = hasFailed ? "failing" : hasPending ? "pending" : "passing";
               }
             }
 
             // Reviews status
-            let review: string = "review_required";
-            const reviewsRes = await fetchGithub(`repos/${r.full_name}/pulls/${p.number}/reviews`, decryptedToken);
+            let review = "review_required";
+            const reviewsRes = await fetchGithub<GitHubReview[]>(`repos/${r.full_name}/pulls/${p.number}/reviews`, decryptedToken);
             if (reviewsRes.ok && Array.isArray(reviewsRes.data)) {
               const reviews = reviewsRes.data;
-              if (reviews.some((rv: any) => rv.state === "APPROVED")) {
+              if (reviews.some((rv: GitHubReview) => rv.state === "APPROVED")) {
                 review = "approved";
-              } else if (reviews.some((rv: any) => rv.state === "CHANGES_REQUESTED")) {
+              } else if (reviews.some((rv: GitHubReview) => rv.state === "CHANGES_REQUESTED")) {
                 review = "changes_requested";
               } else if (reviews.length > 0) {
                 review = "commented";
@@ -474,17 +560,17 @@ serve(async (req) => {
       if (!prId) return jsonResponse({ error: "Chýba prId" }, 400);
 
       // Získame repos a pulls pre nájdenie PR detailu
-      const reposRes = await fetchGithub("user/repos?per_page=20&sort=pushed", decryptedToken);
-      if (!reposRes.ok) return jsonResponse({ error: "Zlyhalo načítanie repozitárov pre PR review" }, 400);
+      const reposRes = await fetchGithub<GitHubRepo[]>("user/repos?per_page=20&sort=pushed", decryptedToken);
+      if (!reposRes.ok || !reposRes.data) return jsonResponse({ error: "Zlyhalo načítanie repozitárov pre PR review" }, 400);
 
-      const reposList = Array.isArray(reposRes.data) ? reposRes.data : [];
-      let foundPr: any = null;
+      const reposList = reposRes.data;
+      let foundPr: GitHubPullRequest | null = null;
       let foundRepoName = "";
 
       for (const r of reposList) {
-        const pullsRes = await fetchGithub(`repos/${r.full_name}/pulls?state=open`, decryptedToken);
+        const pullsRes = await fetchGithub<GitHubPullRequest[]>(`repos/${r.full_name}/pulls?state=open`, decryptedToken);
         if (pullsRes.ok && Array.isArray(pullsRes.data)) {
-          const match = pullsRes.data.find((p: any) => String(p.id) === String(prId));
+          const match = pullsRes.data.find((p: GitHubPullRequest) => String(p.id) === String(prId));
           if (match) {
             foundPr = match;
             foundRepoName = r.full_name;

@@ -168,7 +168,7 @@ describe('githubService (RealGitHubService wrapper)', () => {
   it('handles transport error response', async () => {
     vi.mocked(supabase.functions.invoke).mockResolvedValue({
       data: null,
-      error: { message: 'Network Timeout' } as any,
+      error: new Error('Network Timeout') as unknown as Error,
     });
 
     await expect(githubService.getConnection()).rejects.toThrow('Network Timeout');

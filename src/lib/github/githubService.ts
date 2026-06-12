@@ -28,7 +28,7 @@ export interface GitHubService {
 }
 
 class RealGitHubService implements GitHubService {
-  private async callEdgeFunction<T>(action: string, bodyExtra?: Record<string, any>): Promise<T> {
+  private async callEdgeFunction<T>(action: string, bodyExtra?: Record<string, unknown>): Promise<T> {
     const { data, error } = await supabase.functions.invoke('github-connection', {
       body: { action, ...bodyExtra },
     });
@@ -56,7 +56,7 @@ class RealGitHubService implements GitHubService {
   async syncRepository(repoId: string): Promise<Repository> {
     // Note: sync_repository returns a simple { ok: true } from edge function,
     // so we return a dummy Repository or let it be handled.
-    await this.callEdgeFunction<any>('sync_repository', { repoId });
+    await this.callEdgeFunction<{ ok: boolean }>('sync_repository', { repoId });
     const repos = await this.listRepositories();
     const updated = repos.find(r => r.id === repoId);
     if (!updated) throw new Error('Repozitár sa nenašiel po synchronizácii');
