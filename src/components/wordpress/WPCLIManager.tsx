@@ -34,6 +34,17 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
   const [output, setOutput] = useState<string>('');
   const [logs, setLogs] = useState<AuditRow[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [sshReady, setSshReady] = useState<boolean | null>(null);
+
+  const checkSsh = async () => {
+    const { data } = await supabase
+      .from('wp_sites')
+      .select('ssh_host, ssh_username, ssh_password_encrypted, ssh_private_key_encrypted')
+      .eq('id', siteId)
+      .maybeSingle();
+    const ok = !!(data?.ssh_host && data?.ssh_username && (data?.ssh_password_encrypted || data?.ssh_private_key_encrypted));
+    setSshReady(ok);
+  };
 
   const loadLogs = async () => {
     setLoadingLogs(true);
@@ -49,9 +60,13 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
     setLogs((data ?? []) as AuditRow[]);
   };
 
-  useEffect(() => { loadLogs(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [siteId]);
+  useEffect(() => { loadLogs(); checkSsh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [siteId]);
 
   const run = async (command: string) => {
+    if (sshReady === false) {
+      toast.error('SSH nie je nakonfigurované', { description: 'Doplňte SSH host, username a heslo/kľúč pre túto site.' });
+      return;
+    }
     setRunning(command);
     setOutput('');
     try {
@@ -82,11 +97,16 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
       icon={<Terminal size={16} />}
     >
       <div className="px-6 py-5 space-y-4">
+        {sshReady === false && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-200 text-xs px-3 py-2">
+            SSH pre túto site nie je nastavené (chýba <code>ssh_host</code>, <code>ssh_username</code> alebo heslo/kľúč). WP-CLI príkazy sú zakázané, kým nedoplníte prístupy.
+          </div>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           {grid.map(c => (
             <button
               key={c.id}
-              disabled={!!running}
+              disabled={!!running || sshReady === false}
               onClick={() => run(c.id)}
               className="flex flex-col items-start gap-1 p-3 rounded-lg border border-border bg-muted/30 hover:bg-muted text-left disabled:opacity-50 transition"
             >
