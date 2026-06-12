@@ -37,6 +37,8 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
   const [sshReady, setSshReady] = useState<boolean | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [savingSsh, setSavingSsh] = useState(false);
+  const [testingSsh, setTestingSsh] = useState(false);
+  const [testResult, setTestResult] = useState<null | { ok: boolean; message: string; details?: string }>(null);
   const [authMode, setAuthMode] = useState<'password' | 'key'>('password');
   const [sshForm, setSshForm] = useState({
     ssh_host: '',
@@ -46,6 +48,70 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
     ssh_private_key: '',
     wp_path: '',
   });
+
+  // Client-side validation regexes mirror server-side checks in wp-ssh-test.
+  const HOST_RE = /^[a-zA-Z0-9.\-_]{1,253}$/;
+  const USER_RE = /^[a-zA-Z0-9._\-]{1,64}$/;
+  const PATH_RE = /^(\/[a-zA-Z0-9._\-]+)+\/?$/;
+  const PEM_RE = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]+-----END [A-Z ]*PRIVATE KEY-----/;
+
+  const validateForm = (requireSecret: boolean): string | null => {
+    const host = sshForm.ssh_host.trim();
+    const user = sshForm.ssh_username.trim();
+    const path = sshForm.wp_path.trim();
+    const port = Number(sshForm.ssh_port);
+    if (!host || !HOST_RE.test(host)) return 'Neplatný SSH host (povolené: písmená, číslice, . - _)';
+    if (!Number.isInteger(port) || port < 1 || port > 65535) return 'Port musí byť celé číslo 1–65535';
+    if (!user || !USER_RE.test(user)) return 'Neplatný SSH username';
+    if (path && !PATH_RE.test(path)) return 'wp_path musí byť absolútna unixová cesta (napr. /var/www/html)';
+    if (authMode === 'password') {
+      if (requireSecret && !sshForm.ssh_password) return 'Vyplňte SSH heslo';
+      if (sshForm.ssh_password && sshForm.ssh_password.length < 4) return 'Heslo musí mať aspoň 4 znaky';
+    } else {
+      if (requireSecret && !sshForm.ssh_private_key) return 'Vložte privátny kľúč';
+      if (sshForm.ssh_private_key && !PEM_RE.test(sshForm.ssh_private_key.trim())) {
+        return 'Privátny kľúč musí byť vo formáte PEM (-----BEGIN/END PRIVATE KEY-----)';
+      }
+    }
+    return null;
+  };
+
+  const testSsh = async () => {
+    const err = validateForm(!sshReady);
+    if (err) { toast.error(err); return; }
+    setTestingSsh(true);
+    setTestResult(null);
+    try {
+      const payload: Record<string, unknown> = {
+        siteId,
+        ssh_host: sshForm.ssh_host.trim(),
+        ssh_port: Number(sshForm.ssh_port) || 22,
+        ssh_username: sshForm.ssh_username.trim(),
+        wp_path: sshForm.wp_path.trim() || undefined,
+      };
+      if (authMode === 'password' && sshForm.ssh_password) payload.ssh_password = sshForm.ssh_password;
+      if (authMode === 'key' && sshForm.ssh_private_key) payload.ssh_private_key = sshForm.ssh_private_key;
+
+      const { data, error } = await supabase.functions.invoke('wp-ssh-test', { body: payload });
+      if (error) throw error;
+      const r = data as { ok?: boolean; error?: string; duration_ms?: number; wp_cli_available?: boolean; stderr?: string };
+      if (r.ok) {
+        const msg = `Pripojenie OK (${r.duration_ms ?? '?'} ms)${r.wp_cli_available === false ? ' — wp CLI nenájdené na serveri' : ''}`;
+        setTestResult({ ok: true, message: msg });
+        toast.success('SSH test prešiel');
+      } else {
+        const msg = r.error || 'Pripojenie zlyhalo';
+        setTestResult({ ok: false, message: msg, details: r.stderr });
+        toast.error('SSH test zlyhal', { description: msg });
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setTestResult({ ok: false, message: msg });
+      toast.error('SSH test zlyhal', { description: msg });
+    } finally {
+      setTestingSsh(false);
+    }
+  };
 
   const checkSsh = async () => {
     const { data } = await supabase
@@ -65,18 +131,8 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
   };
 
   const saveSsh = async () => {
-    if (!sshForm.ssh_host || !sshForm.ssh_username) {
-      toast.error('Vyplňte host a username');
-      return;
-    }
-    if (authMode === 'password' && !sshForm.ssh_password && !sshReady) {
-      toast.error('Vyplňte heslo');
-      return;
-    }
-    if (authMode === 'key' && !sshForm.ssh_private_key && !sshReady) {
-      toast.error('Vložte privátny kľúč');
-      return;
-    }
+    const err = validateForm(!sshReady);
+    if (err) { toast.error(err); return; }
     setSavingSsh(true);
     try {
       const payload: Record<string, unknown> = {
@@ -256,21 +312,44 @@ export default function WPCLIManager({ siteId }: { siteId: string }) {
               Citlivé údaje sa šifrujú AES-256-GCM serverovo a nikdy sa nevracajú späť do prehliadača.
             </p>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
               <button
                 onClick={saveSsh}
-                disabled={savingSsh}
+                disabled={savingSsh || testingSsh}
                 className="text-xs px-4 py-2 rounded-md bg-primary text-primary-foreground disabled:opacity-50"
               >
                 {savingSsh ? 'Ukladám…' : 'Uložiť SSH'}
               </button>
               <button
-                onClick={() => setShowForm(false)}
+                onClick={testSsh}
+                disabled={savingSsh || testingSsh}
+                className="text-xs px-4 py-2 rounded-md border border-border bg-muted/40 hover:bg-muted disabled:opacity-50"
+              >
+                {testingSsh ? 'Testujem…' : 'Otestovať SSH'}
+              </button>
+              <button
+                onClick={() => { setShowForm(false); setTestResult(null); }}
                 className="text-xs px-4 py-2 rounded-md border border-border"
               >
                 Zrušiť
               </button>
             </div>
+
+            {testResult && (
+              <div
+                role="status"
+                className={`text-xs rounded-md px-3 py-2 border ${
+                  testResult.ok
+                    ? 'border-green-500/40 bg-green-500/10 text-green-300'
+                    : 'border-red-500/40 bg-red-500/10 text-red-300'
+                }`}
+              >
+                <div className="font-medium">{testResult.ok ? '✓ ' : '✗ '}{testResult.message}</div>
+                {testResult.details && (
+                  <pre className="mt-1 whitespace-pre-wrap text-[10px] opacity-80">{testResult.details}</pre>
+                )}
+              </div>
+            )}
           </div>
         )}
 
