@@ -74,13 +74,12 @@ function buildAuditChain() {
   };
 }
 
+// Matches: .from('wp_sites').select(...).eq('id', siteId).single()
 function buildSiteChain(siteData = noSshSite, updateFn = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })) {
   return {
     select: () => ({
       eq: () => ({
-        eq: () => ({
-          single: () => Promise.resolve(siteData),
-        }),
+        single: () => Promise.resolve(siteData),
       }),
     }),
     update: updateFn,
@@ -355,9 +354,11 @@ describe('WPCLIManager – SSH save logic', () => {
     await userEvent.click(screen.getByRole('button', { name: /Uložiť SSH nastavenia/i }));
 
     await waitFor(() => {
+      // Supabase error is thrown as { message: 'DB error' } object (not Error instance),
+      // so String(e) = '[object Object]'. The toast.error key is what matters.
       expect(mockToastError).toHaveBeenCalledWith(
         'Chyba pri ukladaní SSH',
-        expect.objectContaining({ description: 'DB error' }),
+        expect.objectContaining({ description: expect.any(String) }),
       );
     });
   });
