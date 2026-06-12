@@ -14,15 +14,15 @@ Language: Respond in Slovak (Slovenčina), but keep all technical terms, code, a
 OUTPUT FORMAT: Always use highly structured Markdown. Use code blocks with correct syntax highlighting for any CLI commands, scripts, config files, or payloads.`;
 
 const ALLOWED_MODELS = new Set([
-  "google/gemini-3-flash-preview",
-  "google/gemini-2.5-flash",
-  "google/gemini-2.5-flash-lite",
-  "google/gemini-2.5-pro",
-  "openai/gpt-5",
-  "openai/gpt-5-mini",
-  "openai/gpt-5-nano",
+  "mistral-large-latest",
+  "mistral-medium",
+  "mistral-small",
+  "mistral-tiny",
+  "mixtral-8x7b-latest",
+  "codestral-latest",
+  "pixtral-12b-latest",
 ]);
-const DEFAULT_MODEL = "google/gemini-3-flash-preview";
+const DEFAULT_MODEL = "mistral-large-latest";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -70,9 +70,9 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const MISTRAL_API_KEY = Deno.env.get("MISTRAL_API_KEY");
+    if (!MISTRAL_API_KEY) {
+      throw new Error("MISTRAL_API_KEY is not configured");
     }
 
     const systemPrompt = typeof systemOverride === "string" && systemOverride.length > 0 && systemOverride.length < 4000
@@ -82,10 +82,10 @@ serve(async (req) => {
     // Whitelist model selection
     const selectedModel = (typeof model === "string" && ALLOWED_MODELS.has(model)) ? model : DEFAULT_MODEL;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${MISTRAL_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({

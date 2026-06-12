@@ -24,22 +24,36 @@ export async function runE2ETest(): Promise<E2EResult[]> {
 
   // 1. AUTH
   const t1 = performance.now();
+  let isLocalDemo = false;
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('Žiadna aktívna session');
-    const r = { step: 'Auth', passed: true, detail: `User ${session.user.email}`, durationMs: performance.now() - t1 };
-    results.push(r); log(`Auth — ${r.detail} (${r.durationMs.toFixed(0)}ms)`, true);
+    const localAccess = localStorage.getItem('wpbox.localAccess') === 'true';
+    
+    if (localAccess) {
+      isLocalDemo = true;
+      const r = { step: 'Auth', passed: true, detail: `Local Demo User`, durationMs: performance.now() - t1 };
+      results.push(r); log(`Auth — ${r.detail} (${r.durationMs.toFixed(0)}ms)`, true);
+    } else if (!session?.user) {
+      throw new Error('Žiadna aktívna session');
+    } else {
+      const r = { step: 'Auth', passed: true, detail: `User ${session.user.email}`, durationMs: performance.now() - t1 };
+      results.push(r); log(`Auth — ${r.detail} (${r.durationMs.toFixed(0)}ms)`, true);
+    }
   } catch (e: any) {
     const r = { step: 'Auth', passed: false, detail: e.message, durationMs: performance.now() - t1 };
     results.push(r); log(`Auth — ${e.message}`, false);
     return results; // can't continue
   }
 
-  const userId = (await supabase.auth.getSession()).data.session!.user.id;
+  const userId = isLocalDemo ? 'local-wpbox-user' : (await supabase.auth.getSession()).data.session!.user.id;
 
   // 2. DB write/read/delete
   const t2 = performance.now();
-  try {
+  if (isLocalDemo) {
+    const r = { step: 'DB CRUD', passed: true, detail: `Skipped in Local Demo`, durationMs: performance.now() - t2 };
+    results.push(r); log(`DB CRUD — ${r.detail}`, true);
+  } else {
+    try {
     const { data: created, error: e1 } = await supabase
       .from('chat_sessions')
       .insert({ user_id: userId, title: '__e2e_test__' })
@@ -68,6 +82,7 @@ export async function runE2ETest(): Promise<E2EResult[]> {
     }
     const r = { step: 'DB CRUD', passed: false, detail: e.message, durationMs: performance.now() - t2 };
     results.push(r); log(`DB CRUD — ${e.message}`, false);
+  }
   }
 
   // 3. Streaming chat
@@ -136,24 +151,29 @@ export async function runE2ETest(): Promise<E2EResult[]> {
 
   // 4. Storage upload
   const t4 = performance.now();
-  try {
-    const blob = new Blob([`e2e test ${Date.now()}`], { type: 'text/plain' });
-    testFilePath = `${userId}/__e2e_${Date.now()}.txt`;
-    const { error: upErr } = await supabase.storage.from('chat-attachments').upload(testFilePath, blob);
-    if (upErr) throw new Error('Upload: ' + upErr.message);
+  if (isLocalDemo) {
+    const r = { step: 'Storage', passed: true, detail: `Skipped in Local Demo`, durationMs: performance.now() - t4 };
+    results.push(r); log(`Storage — ${r.detail}`, true);
+  } else {
+    try {
+      const blob = new Blob([`e2e test ${Date.now()}`], { type: 'text/plain' });
+      testFilePath = `${userId}/__e2e_${Date.now()}.txt`;
+      const { error: upErr } = await supabase.storage.from('chat-attachments').upload(testFilePath, blob);
+      if (upErr) throw new Error('Upload: ' + upErr.message);
 
-    const { data: list } = await supabase.storage.from('chat-attachments').list(userId);
-    const exists = list?.some(f => testFilePath?.endsWith(f.name));
-    if (!exists) throw new Error('Súbor sa nenašiel po uploade');
+      const { data: list } = await supabase.storage.from('chat-attachments').list(userId);
+      const exists = list?.some(f => testFilePath?.endsWith(f.name));
+      if (!exists) throw new Error('Súbor sa nenašiel po uploade');
 
-    await supabase.storage.from('chat-attachments').remove([testFilePath]);
+      await supabase.storage.from('chat-attachments').remove([testFilePath]);
 
-    const r = { step: 'Storage', passed: true, detail: `Upload+List+Delete OK`, durationMs: performance.now() - t4 };
-    results.push(r); log(`Storage — ${r.detail} (${r.durationMs.toFixed(0)}ms)`, true);
-  } catch (e: any) {
-    if (testFilePath) await supabase.storage.from('chat-attachments').remove([testFilePath]).catch(() => {});
-    const r = { step: 'Storage', passed: false, detail: e.message, durationMs: performance.now() - t4 };
-    results.push(r); log(`Storage — ${e.message}`, false);
+      const r = { step: 'Storage', passed: true, detail: `Upload+List+Delete OK`, durationMs: performance.now() - t4 };
+      results.push(r); log(`Storage — ${r.detail} (${r.durationMs.toFixed(0)}ms)`, true);
+    } catch (e: any) {
+      if (testFilePath) await supabase.storage.from('chat-attachments').remove([testFilePath]).catch(() => {});
+      const r = { step: 'Storage', passed: false, detail: e.message, durationMs: performance.now() - t4 };
+      results.push(r); log(`Storage — ${e.message}`, false);
+    }
   }
 
   // 5. Voice API
@@ -168,15 +188,30 @@ export async function runE2ETest(): Promise<E2EResult[]> {
     results.push(r); log(`Voice API — ${e.message}`, false);
   }
 
-  const passed = results.filter(r => r.passed).length;
+  const passed = results.filter(r => r.passed && !r.detail.includes('Skipped')).length;
+  const skipped = results.filter(r => r.detail.includes('Skipped')).length;
+  const failed = results.filter(r => !r.passed).length;
   const total = results.length;
    
-  console.log(`%c━━━ Výsledok: ${passed}/${total} prešlo ━━━`, `color:${passed === total ? '#22c55e' : '#ef4444'};font-weight:bold;font-size:14px`);
+  console.log(`%c━━━ Výsledok: ${passed} prešlo, ${skipped} preskočené, ${failed} zlyhalo ━━━`, `color:${failed === 0 ? '#22c55e' : '#ef4444'};font-weight:bold;font-size:14px`);
 
-  if (passed === total) {
-    toast.success(`E2E test: ${passed}/${total} prešlo ✅`, { description: 'Všetky systémy fungujú. Detaily v konzole.' });
+  // Format the detailed breakdown
+  const detailsList = results.map(r => {
+    if (!r.passed) return `❌ ${r.step}: ${r.detail}`;
+    if (r.detail.includes('Skipped')) return `⏭️ ${r.step}: Preskočené`;
+    return `✅ ${r.step}`;
+  }).join('\n');
+
+  if (failed === 0) {
+    toast.success(`E2E test: ${passed}/${total} OK (${skipped} preskočené)`, { 
+      description: detailsList,
+      duration: 10000 
+    });
   } else {
-    toast.error(`E2E test: ${passed}/${total} prešlo`, { description: 'Pozrite konzolu pre detaily zlyhaní.' });
+    toast.error(`E2E test zlyhal: ${failed} chýb`, { 
+      description: detailsList,
+      duration: 15000
+    });
   }
 
   return results;

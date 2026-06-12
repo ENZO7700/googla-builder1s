@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react';
 import { runE2ETest } from '@/lib/e2eTest';
 
 const AI_MODELS = [
-  { id: 'google/gemini-3-flash-preview', label: 'Gemini 3 Flash (rýchly)', desc: 'Vyvážená rýchlosť a kvalita' },
-  { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash', desc: 'Dobrý multimodálny model' },
-  { id: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro', desc: 'Najsilnejší pre komplexné úlohy' },
-  { id: 'openai/gpt-5-mini', label: 'GPT-5 Mini', desc: 'Nízke náklady, silný výkon' },
-  { id: 'openai/gpt-5', label: 'GPT-5', desc: 'Najvyššia presnosť a nuansa' },
+  { id: 'mistral-large-latest', label: 'Mistral Large', desc: 'Vlajková loď, najlepší reasoning' },
+  { id: 'mistral-medium', label: 'Mistral Medium', desc: 'Vysoký výkon, multilingválny' },
+  { id: 'mistral-small', label: 'Mistral Small', desc: 'Vyvážený výkon a cena' },
+  { id: 'mistral-tiny', label: 'Mistral Tiny', desc: 'Ultra-rýchly a nákladovo efektívny' },
+  { id: 'mixtral-8x7b-latest', label: 'Mixtral 8x7B', desc: 'Open-weight, vysoký výkon (MoE)' },
+  { id: 'codestral-latest', label: 'Codestral', desc: 'Špecializovaný na kódovanie' },
+  { id: 'pixtral-12b-latest', label: 'Pixtral 12B', desc: 'Multimodálny (Text + Vision)' },
 ];
 
 interface SettingsPanelProps {
@@ -19,7 +21,7 @@ interface SettingsPanelProps {
 }
 
 export default function SettingsPanel({ open, onOpenChange, dark, onToggleDark }: SettingsPanelProps) {
-  const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('ai-model') || 'google/gemini-3-flash-preview');
+  const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('ai-model') || 'mistral-large-latest');
   const [running, setRunning] = useState(false);
 
   useEffect(() => {

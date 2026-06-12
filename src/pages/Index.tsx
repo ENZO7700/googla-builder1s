@@ -159,8 +159,8 @@ export default function Index() {
         setInputValue(stored);
         sessionStorage.removeItem('builderPrompt');
         sessionStorage.removeItem('builderPromptSource');
-        toast.success('Prompt loaded from Launch Audit', {
-          description: src ?? 'Skontroluj ho a stlač Send.',
+        toast.success(`Prompt načítaný z modulu ${src ?? 'Launch Audit'}`, {
+          description: 'Skontroluj ho a stlač Send pre spustenie generovania.',
         });
       }
     } catch { /* ignore */ }
@@ -317,7 +317,7 @@ export default function Index() {
     addLog(`[FS] Súbor nahraný: ${att.name}`);
   };
 
-  const getSelectedModel = () => localStorage.getItem('ai-model') || 'google/gemini-3-flash-preview';
+  const getSelectedModel = () => localStorage.getItem('ai-model') || 'mistral-large-latest';
 
   // Streaming AI call with error recovery + diagnostics
   const callAIStreaming = async (msgs: Message[], systemOverride?: string): Promise<string> => {
