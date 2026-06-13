@@ -15,6 +15,9 @@ export function MarkdownRenderer({ content, onCopy, onDeploy }: MarkdownRenderer
   return (
     <ReactMarkdown
       components={{
+        pre({ children }) {
+          return <>{children}</>;
+        },
         code({ className, children, ...props }) {
           const match = /language-(\w+)/.exec(className || '');
           const codeStr = String(children).replace(/\n$/, '');
