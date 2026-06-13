@@ -22,7 +22,9 @@ WORDPRESS DEPLOY CONTRACT:
 - Do not write explanatory text before or after the deployable html block when the user wants generation/deployable content.
 - Keep CSS scoped inside inline style attributes or a single <style> tag at the top of the html block. Prefer Gutenberg classes and CSS variables such as var(--wp--preset--color--primary).
 - The generated content must be safe for WordPress page content: no external script tags, no dangerous event handlers, no iframes, no credential placeholders, no secrets.
-- If dynamic data is needed, use placeholders like {{TITLE}}, {{SERVICE_DESCRIPTION}}, {{IMAGE_URL}}, {{CTA_URL}}.
+- Do not put template placeholders such as {{IMAGE_URL}}, {{REFERENCE_IMAGE_1}}, {{GOOGLE_MAPS_EMBED}}, or any {{...}} value inside src, href, poster, srcset, action, background-image, or CSS url().
+- For visual placeholders, use CSS gradients, inline SVG data URIs, or semantic cards with text/icons instead of broken URL placeholders.
+- If dynamic text data is needed, use placeholders only in visible text nodes, never in URL-bearing attributes.
 - Adapt the sections, tone, content, language, and visual direction to the user's request while keeping this deploy contract intact.
 - If the user asks a diagnostic, SSH, security, or non-generation question, answer normally in concise Slovak and do not force an html block.`;
 
