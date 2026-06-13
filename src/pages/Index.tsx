@@ -882,13 +882,19 @@ export default function Index() {
 
       // Nájdeme prvú pripojenú WordPress stránku (pre jednoduchosť)
       let siteId = 'local-wordpress-dev';
+      let siteBaseUrl: string | null = null;
       if (user.id !== LOCAL_USER_ID) {
-        const { data: sites } = await supabase
+        addLog('[DB] Hľadám posledné WordPress spojenie...');
+        const { data: sites, error: sitesError } = await supabase
           .from('wp_sites')
-          .select('id')
+          .select('id, base_url')
           .eq('user_id', user.id)
-          .order('updated_at', { ascending: false })
+          .order('created_at', { ascending: false })
           .limit(1);
+
+        if (sitesError) {
+          throw new Error(`WordPress site lookup failed: ${sitesError.message}`);
+        }
           
         if (!sites || sites.length === 0) {
           toast.error('Žiadny WordPress nie je pripojený.', {
@@ -897,28 +903,36 @@ export default function Index() {
           return;
         }
         siteId = sites[0].id;
+        siteBaseUrl = sites[0].base_url;
+        addLog('[DB] WordPress spojenie nájdené.');
       }
 
       const { data: { session } } = await supabase.auth.getSession();
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 45_000);
 
       // Zastrelíme to na náš wordpress-proxy
+      addLog('[API] Volám wordpress-proxy pre vytvorenie draft stránky...');
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-proxy`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token || ''}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          siteId,
           method: 'POST',
-          path: '/wp/v2/pages',
-          body: {
-            title: `AI Landing Page - ${new Date().toLocaleDateString()}`,
-            content: code,
-            status: 'draft', // Draft pre bezpečnosť
-          }
-        }),
-      });
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || ''}`,
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            siteId,
+            method: 'POST',
+            path: '/wp/v2/pages',
+            body: {
+              title: `AI Landing Page - ${new Date().toLocaleDateString()}`,
+              content: code,
+              status: 'draft', // Draft pre bezpečnosť
+            }
+          }),
+          signal: controller.signal,
+        })
+        .finally(() => window.clearTimeout(timeoutId));
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -930,15 +944,34 @@ export default function Index() {
          throw new Error(result.error_message);
       }
 
+      const draftUrl =
+        typeof result.link === 'string'
+          ? result.link
+          : typeof result.guid?.rendered === 'string'
+            ? result.guid.rendered
+            : null;
+      const adminEditUrl = siteBaseUrl && result.id
+        ? `${siteBaseUrl.replace(/\/+$/, '')}/wp-admin/post.php?post=${result.id}&action=edit`
+        : null;
+
       addLog('[API] Stránka úspešne vytvorená vo WordPresse.');
+      if (draftUrl) {
+        addLog(`[API] WordPress draft URL: ${draftUrl}`);
+      }
+      if (adminEditUrl) {
+        addLog(`[API] WordPress admin URL: ${adminEditUrl}`);
+      }
       toast.success('Stránka bola úspešne vytvorená!', {
-        description: `Koncept bol uložený do WordPressu s ID: ${result.id}. Otvorte si WP Admin pre publikovanie.`,
+        description: `Koncept bol uložený do WordPressu s ID: ${result.id}.${adminEditUrl ? ` Admin: ${adminEditUrl}` : draftUrl ? ` URL: ${draftUrl}` : ' Otvorte si WP Admin pre publikovanie.'}`,
         duration: 8000,
       });
 
     } catch (err: any) {
-      addLog(`[ERROR] Deploy zlyhal: ${err.message}`);
-      toast.error('Deploy do WordPressu zlyhal', { description: err.message });
+      const message = err?.name === 'AbortError'
+        ? 'WordPress deploy request timed out after 45s'
+        : err.message;
+      addLog(`[ERROR] Deploy zlyhal: ${message}`);
+      toast.error('Deploy do WordPressu zlyhal', { description: message });
     }
   };
 
@@ -960,6 +993,10 @@ export default function Index() {
 
     if (user?.id === LOCAL_USER_ID) {
       setMessages(session.messages);
+      const latestModelMessage = [...session.messages].reverse().find(m => m.role === 'model');
+      if (latestModelMessage?.content) {
+        extractCodeForPreview(latestModelMessage.content);
+      }
       showToast('Lokálna relácia obnovená', 'info');
       return;
     }
@@ -971,7 +1008,12 @@ export default function Index() {
       .order('created_at', { ascending: true });
 
     if (data) {
-      setMessages(data.map(m => ({ role: m.role, content: m.content })));
+      const loadedMessages = data.map(m => ({ role: m.role, content: m.content }));
+      setMessages(loadedMessages);
+      const latestModelMessage = [...loadedMessages].reverse().find(m => m.role === 'model');
+      if (latestModelMessage?.content) {
+        extractCodeForPreview(latestModelMessage.content);
+      }
     }
     showToast('Relácia obnovená', 'info');
   };

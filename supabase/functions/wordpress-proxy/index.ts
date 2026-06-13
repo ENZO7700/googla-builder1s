@@ -20,6 +20,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 const WORDPRESS_COM_API_KEY = Deno.env.get("WORDPRESS_COM_API_KEY");
+const WORDPRESS_PROXY_TIMEOUT_MS = 25_000;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -27,6 +28,35 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function logProxyAction({
+  siteId,
+  userId,
+  method,
+  path,
+  query,
+  status,
+  errorMessage,
+}: {
+  siteId: string;
+  userId: string;
+  method: ProxyRequest["method"];
+  path: string;
+  query?: Record<string, string>;
+  status: number;
+  errorMessage?: string | null;
+}) {
+  await supabase.from("wp_audit_log").insert({
+    site_id: siteId,
+    user_id: userId,
+    action: method.toLowerCase(),
+    resource_type: path.split("/")[0] || null,
+    resource_id: path.split("/")[1] || null,
+    details: { path, status, query: query ?? null },
+    status: status >= 200 && status < 300 ? "success" : "error",
+    error_message: errorMessage ?? null,
   });
 }
 
@@ -114,11 +144,35 @@ Deno.serve(async (req) => {
       targetUrl += (targetUrl.includes("?") ? "&" : "?") + qp.toString();
     }
 
-    const proxyResponse = await fetch(targetUrl, {
-      method,
-      headers,
-      body: body && method !== "GET" ? JSON.stringify(body) : undefined,
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), WORDPRESS_PROXY_TIMEOUT_MS);
+    let proxyResponse: Response;
+
+    try {
+      proxyResponse = await fetch(targetUrl, {
+        method,
+        headers,
+        body: body && method !== "GET" ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        const timeoutMessage = `WordPress request timed out after ${WORDPRESS_PROXY_TIMEOUT_MS / 1000}s`;
+        await logProxyAction({
+          siteId,
+          userId: user.id,
+          method,
+          path,
+          query,
+          status: 504,
+          errorMessage: timeoutMessage,
+        });
+        return jsonResponse({ error: timeoutMessage }, 504);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const text = await proxyResponse.text();
     let responseData: unknown;
@@ -129,15 +183,14 @@ Deno.serve(async (req) => {
     }
 
     // Audit log (best effort)
-    await supabase.from("wp_audit_log").insert({
-      site_id: siteId,
-      user_id: user.id,
-      action: method.toLowerCase(),
-      resource_type: path.split("/")[0] || null,
-      resource_id: path.split("/")[1] || null,
-      details: { path, status: proxyResponse.status, query: query ?? null },
-      status: proxyResponse.ok ? "success" : "error",
-      error_message: !proxyResponse.ok
+    await logProxyAction({
+      siteId,
+      userId: user.id,
+      method,
+      path,
+      query,
+      status: proxyResponse.status,
+      errorMessage: !proxyResponse.ok
         ? (responseData as { message?: string })?.message ?? `HTTP ${proxyResponse.status}`
         : null,
     });
