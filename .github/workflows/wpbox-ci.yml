@@ -40,9 +40,11 @@ jobs:
 
       - run: npm run test:schemas
 
-      - name: npm audit (high+)
-        run: npm audit --audit-level=high
-        continue-on-error: true
+      - name: npm audit (high+, advisory)
+        run: |
+          npm audit --audit-level=high || {
+            echo "::warning::npm audit found high+ advisories. Review dependency updates separately; this advisory step is non-blocking."
+          }
 
       - run: npm run build
         env:
