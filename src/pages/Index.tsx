@@ -823,12 +823,16 @@ export default function Index() {
       // Nájdeme prvú pripojenú WordPress stránku (pre jednoduchosť)
       let siteId = 'local-wordpress-dev';
       if (user.id !== LOCAL_USER_ID) {
-        const { data: sites } = await supabase
+        const { data: sites, error: sitesError } = await supabase
           .from('wp_sites')
-          .select('id')
+          .select('id, base_url')
           .eq('user_id', user.id)
-          .order('updated_at', { ascending: false })
+          .order('created_at', { ascending: false })
           .limit(1);
+
+        if (sitesError) {
+          throw new Error(`WordPress site lookup failed: ${sitesError.message}`);
+        }
           
         if (!sites || sites.length === 0) {
           toast.error('Žiadny WordPress nie je pripojený.', {
@@ -845,6 +849,7 @@ export default function Index() {
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-proxy`, {
         method: 'POST',
         headers: {
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
           'Authorization': `Bearer ${session?.access_token || ''}`,
           'Content-Type': 'application/json',
         },
@@ -860,19 +865,20 @@ export default function Index() {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      const result = await response.json().catch(() => null);
 
-      const result = await response.json();
+      if (!response.ok) {
+        const message = result?.message || result?.error || `HTTP ${response.status}`;
+        throw new Error(message);
+      }
       
       if (result.error_message) {
          throw new Error(result.error_message);
       }
 
-      addLog('[API] Stránka úspešne vytvorená vo WordPresse.');
+      addLog(`[API] Stránka úspešne vytvorená vo WordPresse. ID: ${result.id}`);
       toast.success('Stránka bola úspešne vytvorená!', {
-        description: `Koncept bol uložený do WordPressu s ID: ${result.id}. Otvorte si WP Admin pre publikovanie.`,
+        description: `Koncept bol uložený do WordPressu s ID: ${result.id}. ${result.link ? `Preview: ${result.link}` : 'Otvorte si WP Admin pre publikovanie.'}`,
         duration: 8000,
       });
 

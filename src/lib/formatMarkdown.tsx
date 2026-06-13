@@ -28,6 +28,7 @@ export function MarkdownRenderer({ content, onCopy, onDeploy }: MarkdownRenderer
                   <div className="flex items-center gap-3">
                     {isDeployable && onDeploy && (
                       <button
+                        type="button"
                         onClick={() => onDeploy(codeStr, match[1])}
                         className="flex items-center gap-1.5 text-primary hover:text-primary/80 transition-colors font-semibold"
                         title="Vytvoriť z tohto kódu WordPress stránku"
@@ -37,6 +38,7 @@ export function MarkdownRenderer({ content, onCopy, onDeploy }: MarkdownRenderer
                       </button>
                     )}
                     <button
+                      type="button"
                       onClick={() => {
                         navigator.clipboard.writeText(codeStr);
                         onCopy?.();
