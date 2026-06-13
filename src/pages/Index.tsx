@@ -906,6 +906,10 @@ export default function Index() {
 
     if (user?.id === LOCAL_USER_ID) {
       setMessages(session.messages);
+      const lastModelMessage = [...session.messages].reverse().find(m => m.role === 'model');
+      if (lastModelMessage) {
+        extractCodeForPreview(lastModelMessage.content);
+      }
       showToast('Lokálna relácia obnovená', 'info');
       return;
     }
@@ -917,7 +921,12 @@ export default function Index() {
       .order('created_at', { ascending: true });
 
     if (data) {
-      setMessages(data.map(m => ({ role: m.role, content: m.content })));
+      const loadedMessages = data.map(m => ({ role: m.role, content: m.content })) as Message[];
+      setMessages(loadedMessages);
+      const lastModelMessage = [...loadedMessages].reverse().find(m => m.role === 'model');
+      if (lastModelMessage) {
+        extractCodeForPreview(lastModelMessage.content);
+      }
     }
     showToast('Relácia obnovená', 'info');
   };
