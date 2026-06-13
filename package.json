@@ -18,7 +18,11 @@
     "ci": "npm run lint && npm run typecheck && npm run test && npm run build",
     "healthcheck": "bash scripts/wpbox-healthcheck.sh",
     "healthcheck:write": "WP_WRITE_TEST=1 bash scripts/wpbox-healthcheck.sh",
-    "smoke:preview": "bash scripts/smoke-preview.sh"
+    "smoke:preview": "bash scripts/smoke-preview.sh",
+    "tailscale:auth-bridge": "node scripts/tailscale-auth-bridge.mjs",
+    "tailscale:auth-serve": "bash scripts/tailscale-auth-serve.sh",
+    "tailscale:auth-install": "bash scripts/install-tailscale-auth-launchagent.sh",
+    "tailscale:auth-uninstall": "bash scripts/uninstall-tailscale-auth-launchagent.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

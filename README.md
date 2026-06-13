@@ -51,6 +51,12 @@ wpBOX Elite je komplexná cloudová platforma a vývojové prostredie pre správ
 4. Uisti sa, že tvoje Supabase Edge Funkcie sú nasadené a obsahujú tajný kľúč `MISTRAL_API_KEY`.
 5. Klikni na **Deploy** vo Verceli.
 
+## Tailscale Auto-Login
+
+wpBOX vie spravit automaticke Supabase prihlasenie cez Tailscale bez vypisovania emailu a hesla vo fronte, ak prehliadac dosiahne Tailscale-only auth bridge za `tailscale serve`.
+
+Setup a detaily najdes v [docs/tailscale-auth.md](docs/tailscale-auth.md). Bridge vie nacitat lokalne `.env` automaticky, `npm run tailscale:auth-serve` prida path `/session` bez prepisania existujuceho root proxy a `npm run tailscale:auth-install` nainstaluje launchd LaunchAgent pre auto-start po prihlaseni do macOS.
+
 ## 🔒 Lokálne Testovanie (Dev-Free-Entry)
 
 Ak spúšťaš aplikáciu lokálne (`import.meta.env.DEV`), na prihlasovacej obrazovke nájdeš modré tlačidlo **"Dev-Free-Entry"**. Toto tlačidlo ťa pustí priamo do aplikácie pod lokálnym demo účtom bez nutnosti reálnej registrácie. Poznámka: V demo režime sú operácie s reálnou databázou a úložiskom v E2E testoch bezpečne preskočené.

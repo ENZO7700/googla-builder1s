@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { clearTailscaleAutoLoginSuppression } from '@/lib/tailscaleAuth';
 
 const LOCAL_ACCESS_KEY = 'wpbox.localAccess';
 
 interface LoginScreenProps {
-  onEnter: () => void;
   onAuthSuccess?: (user: User) => void;
 }
 
@@ -52,6 +52,7 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
       }
 
       setPassword('');
+      clearTailscaleAutoLoginSuppression();
       localStorage.removeItem(LOCAL_ACCESS_KEY);
       onAuthSuccess?.(data.session.user);
     } catch (err) {

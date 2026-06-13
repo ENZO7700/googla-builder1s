@@ -19,6 +19,11 @@ import {
   type WorkflowRun,
   type WorkflowStepId,
 } from '@/lib/workflow';
+import {
+  clearTailscaleAutoLoginSuppression,
+  tryTailscaleAutoLoginOnce,
+  suppressTailscaleAutoLogin,
+} from '@/lib/tailscaleAuth';
 
 const AnalyzerView = lazy(() => import('@/components/workspace/AnalyzerView'));
 const GeneratorView = lazy(() => import('@/components/workspace/GeneratorView'));
@@ -161,6 +166,7 @@ export default function Index() {
   const [diagnostics, setDiagnostics] = useState<StreamDiagnostics | null>(null);
   const [workflowRun, setWorkflowRun] = useState<WorkflowRun | null>(null);
   const recognitionRef = useRef<any>(null);
+  const lastTailscaleRetryAtRef = useRef(0);
   const [logs, setLogs] = useState([
     '[SYSTEM] Inicializácia inštancie LarsenEvans-wpBOX...',
     '[AUTH] IAM politiky úspešne overené.',
@@ -169,31 +175,101 @@ export default function Index() {
   ]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        localStorage.removeItem(LOCAL_ACCESS_KEY);
-        setUser(session.user);
-        setAuthLoading(false);
-        return;
-      }
+    let initialAuthResolved = false;
+
+    const applyLoggedInUser = (authUser: User) => {
+      clearTailscaleAutoLoginSuppression();
+      localStorage.removeItem(LOCAL_ACCESS_KEY);
+      setUser(authUser);
+      setAuthLoading(false);
+    };
+
+    const applyLoggedOutUser = () => {
       if (localStorage.getItem(LOCAL_ACCESS_KEY) === 'true') {
         setUser(LOCAL_DEMO_USER);
       } else {
         setUser(null);
       }
       setAuthLoading(false);
-    });
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        localStorage.removeItem(LOCAL_ACCESS_KEY);
-        setUser(session.user);
-      } else if (localStorage.getItem(LOCAL_ACCESS_KEY) === 'true') {
-        setUser(LOCAL_DEMO_USER);
+        applyLoggedInUser(session.user);
+        return;
       }
-      setAuthLoading(false);
+      if (!initialAuthResolved) {
+        return;
+      }
+      applyLoggedOutUser();
+    });
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        initialAuthResolved = true;
+        applyLoggedInUser(session.user);
+        return;
+      }
+
+      if (localStorage.getItem(LOCAL_ACCESS_KEY) === 'true') {
+        initialAuthResolved = true;
+        setUser(LOCAL_DEMO_USER);
+        setAuthLoading(false);
+        return;
+      }
+
+      const autoSignedIn = await tryTailscaleAutoLoginOnce(supabase);
+      initialAuthResolved = true;
+      if (!autoSignedIn) {
+        applyLoggedOutUser();
+      }
+    }).catch(() => {
+      initialAuthResolved = true;
+      applyLoggedOutUser();
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (authLoading || user || localStorage.getItem(LOCAL_ACCESS_KEY) === 'true') {
+      return;
+    }
+
+    const RETRY_COOLDOWN_MS = 5000;
+
+    const attemptTailscaleRetry = () => {
+      if (document.visibilityState === 'hidden') {
+        return;
+      }
+      if (localStorage.getItem(LOCAL_ACCESS_KEY) === 'true') {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastTailscaleRetryAtRef.current < RETRY_COOLDOWN_MS) {
+        return;
+      }
+
+      lastTailscaleRetryAtRef.current = now;
+      void tryTailscaleAutoLoginOnce(supabase);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        attemptTailscaleRetry();
+      }
+    };
+
+    window.addEventListener('focus', attemptTailscaleRetry);
+    window.addEventListener('online', attemptTailscaleRetry);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', attemptTailscaleRetry);
+      window.removeEventListener('online', attemptTailscaleRetry);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [authLoading, user]);
 
   // Load sessions from DB
   useEffect(() => {
@@ -925,6 +1001,7 @@ export default function Index() {
   };
 
   const handleLogout = async () => {
+    suppressTailscaleAutoLogin();
     localStorage.removeItem(LOCAL_ACCESS_KEY);
     if (user?.id !== LOCAL_USER_ID) {
       await supabase.auth.signOut();
@@ -1069,10 +1146,6 @@ export default function Index() {
   if (!user) {
     return (
       <LoginScreen
-        onEnter={() => {
-          localStorage.setItem(LOCAL_ACCESS_KEY, 'true');
-          setUser(LOCAL_DEMO_USER);
-        }}
         onAuthSuccess={(authUser) => {
           localStorage.removeItem(LOCAL_ACCESS_KEY);
           setUser(authUser);
