@@ -1,67 +1,129 @@
-# Plán: Prehľadné AI generovanie kódu + akcie + E2E testy
+# Mega prompt pre Mistral agenta ↔ WordPress (cez REST API)
 
-## 1. Plynulé scrollovanie počas streamovania (ChatView)
+Nižšie je hotový **system prompt + task prompt**, ktorý môžeš nahodiť do `supabase/functions/chat/index.ts` (alebo ako system message pre Mistral agenta). Plus 2 brutálne vylepšenia, ktoré aplikáciu posunú výrazne ďalej a zároveň ju otestujú na produkčnú fázu.
 
-Aktuálny `scrollIntoView({ behavior: 'smooth' })` na každom tokene spôsobuje trhanie a "skackanie". Upravím:
+---
 
-- Pri streamovaní použijem `requestAnimationFrame` throttling — scroll najviac raz za frame, `behavior: 'auto'` počas streamu, `smooth` len keď generovanie skončí.
-- Zlepším detekciu user-scroll (rozšírim prah na 120 px, pridám `isStreaming` do dependency).
-- Floating "Skočiť na koniec" tlačidlo zlepším: zobrazí aj počet nových riadkov pridaných odkedy user scrolloval hore (`+N nových riadkov`), s animáciou pulse.
-- Pridám klávesovú skratku `End` = jump to bottom, `Home` = jump na začiatok aktuálnej AI odpovede.
+## 1) MEGA SYSTEM PROMPT (skopíruj 1:1)
 
-## 2. Prehľadnejšie zobrazenie kódu počas generovania (formatMarkdown.tsx)
+```
+You are "WP-Ops Agent" — an autonomous WordPress operations engineer.
+You control a self-hosted WordPress site EXCLUSIVELY through two transports:
+  (A) WP REST API  v2  (wp-json/wp/v2/*)  via the edge function `wordpress-proxy`
+  (B) WP-CLI over SSH                      via the edge function `wordpress-cli`
 
-- Pridám sticky hlavičku code blocku (`sticky top-0`) tak, aby pri scrollovaní cez dlhý kód bol jazyk + akcie stále viditeľné.
-- Pri streamovaní (nedokončený code block) zobrazím skeleton "Generujem kód..." badge + animovaný caret.
-- Pridám `max-height` s collapse/expand pre code bloky > 400 riadkov ("Zobraziť celý kód").
-- Čísla riadkov (line numbers) cez `showLineNumbers` v SyntaxHighlighter.
-- Word-wrap toggle.
+HARD RULES
+- Never invent endpoints. Only call paths listed in CAPABILITIES below.
+- Never send raw SQL, shell, eval, or arbitrary `wp` commands. Only the
+  whitelisted `command` keys in `wordpress-cli` are allowed.
+- Every mutating action (POST/PUT/PATCH/DELETE, maint-on/off, cache-flush,
+  plugin/theme changes) MUST be preceded by a `plan` step and confirmed
+  by tool result `ok:true` before the next mutation.
+- Always scope by `siteId` (UUID from `wp_sites`). Refuse if missing.
+- If a call returns 4xx/5xx, do NOT retry blindly — diagnose, then either
+  fix the payload or stop and report.
+- All responses to the user are in the language of their last message
+  (default Slovak), short, with concrete next action.
 
-## 3. Akcie po dokončení AI odpovede
+CAPABILITIES (the only tools you may call)
 
-Pod každou dokončenou `model` správou pridám action bar:
+tool: wp_rest
+  args: { siteId: uuid, method: "GET|POST|PATCH|DELETE",
+          path: "posts|pages|media|comments|users|categories|tags|settings|plugins|themes|search|<id>|<sub>",
+          query?: object, body?: object }
+  notes: path must NOT start with "/" and MUST NOT contain "..".
 
-- **Kopírovať celú odpoveď** (markdown)
-- **Export ako .md** — stiahnuť `response-{timestamp}.md`
-- **Export ako .html** — vyrendrovaný HTML
-- **Export ako .pdf** — cez `window.print()` so štýlovaním
-- **Kopírovať iba kód** — extrahuje všetky ```code bloky a spojí
-- **Regenerovať** — znovu zavolá AI s tým istým promptom
-- **Pokračovať** — pošle "Pokračuj" ako follow-up
-- **Vložiť do Preview** — ak je vo výstupe HTML blok, otvorí ho v `PreviewView`
+tool: wp_cli
+  args: { siteId: uuid, command:
+    "core-version" | "core-check" | "cron-status" | "cron-run-due" |
+    "cache-flush" | "rewrite-flush" | "transient-del" |
+    "plugin-list" | "plugin-status" | "theme-list" |
+    "db-size" | "maint-on" | "maint-off" }
 
-Action bar bude jemný (icon buttons s tooltipom), zobrazí sa iba pri hovere nad správou alebo permanentne pod poslednou.
+tool: wp_ssh_test    (pre-flight only, before first cli call per session)
+  args: { siteId: uuid }
 
-## 4. Indikátor streamingu
+OPERATING LOOP  (ReAct)
+  Thought → Tool call → Observation → (repeat) → Final answer
 
-- Hore nad input boxom (počas `isStreaming`): tenký progress bar + "Generujem... {N tokenov · {s}s" + tlačidlo **Stop generovania**.
-- Stop generovania prepojím cez `AbortController` v `Index.tsx` (skontrolujem zdroj `sendMessage`).
+PRE-FLIGHT (always, before any mutation batch)
+  1. wp_ssh_test → must be ok
+  2. wp_cli core-version + plugin-status
+  3. If updates pending and user asked for them → maint-on → action → maint-off
+  4. cache-flush + rewrite-flush AFTER structural changes
 
-## 5. E2E testy (Playwright)
+OUTPUT CONTRACT
+  - For each user request return JSON of shape:
+    { "summary": string,
+      "actions": [{ "tool": "...", "args": {...}, "result_preview": "..." }],
+      "next_suggestion": string | null,
+      "risk": "low|medium|high" }
+  - Never include secrets, tokens, SSH keys, passwords, full stdout > 4 KB.
 
-Vytvorím `tests/chat-streaming.spec.ts`:
+REFUSALS
+  - User asks for arbitrary SQL, shell, file download outside wp_path,
+    or any action not in CAPABILITIES → refuse and propose the closest
+    whitelisted equivalent.
+```
 
-- Test 1: Po odoslaní promptu sa zobrazí loader → potom prvá `model` správa.
-- Test 2: Počas streamingu sa autoscroll drží na konci.
-- Test 3: Po user-scroll hore sa autoscroll vypne a zobrazí sa "Skočiť na koniec".
-- Test 4: Po dokončení sa zobrazí action bar s tlačidlami (Copy, Export MD, Regenerate).
-- Test 5: Kliknutie na "Kopírovať" zapíše do clipboard (mock cez `page.evaluate`).
-- Test 6: Code block má sticky hlavičku a "Kopírovať" funguje.
-- Test 7: Stop generovania prerušuje stream.
+A k tomu **task prompt template**, ktorý posielaš pri každej user správe:
 
-Pred E2E: skontrolovať, či má projekt nastavený Playwright runner (`playwright-fixture.ts` existuje) — áno, doplním iba spec.
+```
+SITE_ID = {{siteId}}
+USER_LOCALE = {{sk|en}}
+USER_REQUEST = """{{message}}"""
+RECENT_AUDIT_LOG = {{last 10 rows from wp_audit_log}}
+Respond per OUTPUT CONTRACT.
+```
 
-## Technické detaily
+---
 
-**Dotknuté súbory:**
-- `src/components/workspace/ChatView.tsx` — RAF scroll, indikátor, stop button, action bar pod správami
-- `src/lib/formatMarkdown.tsx` — sticky header, line numbers, collapse, streaming caret v code blocku
-- `src/pages/Index.tsx` (alebo zdroj `onSend`) — `AbortController`, `onRegenerate`, `onContinue`, `onExport*` callbacky
-- `src/lib/chatExport.ts` (nový) — utility `exportAsMarkdown`, `exportAsHtml`, `exportAsPdf`, `extractCodeBlocks`
-- `tests/chat-streaming.spec.ts` (nový) — E2E
+## 2) Dve brutálne vylepšenia (+550 % hodnota appky a zároveň production-readiness test)
 
-**Bez zmien:** business logika (Supabase chat edge function, DB schéma), len UI + presentation + export utility.
+### A) **Dry-run + Diff Plánovač s automatickým rollbackom**
+Pred KAŽDOU mutáciou cez REST/CLI agent najprv zavolá nový edge function `wp-plan-dryrun`, ktorý:
+- spraví `GET` aktuálneho stavu zdroja (`posts/{id}`, `settings`, `plugin list`, …),
+- vyrenderuje **diff** (JSON-patch) medzi „pred“ a „po“,
+- uloží snapshot do novej tabuľky `wp_action_snapshots (id, site_id, user_id, scope, before_json, planned_patch, created_at)`,
+- vráti agentovi „proceed token“ s TTL 60 s.
 
-## Otvorené otázky
+Apply step (`wp-plan-apply`) prijme len platný token, vykoná zmenu cez `wordpress-proxy`/`wordpress-cli` a:
+- pri HTTP ≥ 400 alebo `exit_code ≠ 0` **automaticky obnoví** `before_json` (PATCH naspäť, resp. `plugin deactivate` / `option update` …),
+- zaloguje do `wp_audit_log` s `details.rollback = true`.
 
-Implementujem všetko vyššie ako default. Ak chceš niečo vynechať (napr. PDF export, line numbers), povedz pred implementáciou — inak pokračujem so všetkým.
+V UI (`WPCLIManager.tsx` + nový `WPRestRunner.tsx`) pribudne tlačidlo „Naplánuj“ → modal s diffom → „Vykonať“ / „Zrušiť“.
+
+**Prečo to je 550 %:** agent prestane byť „slepý executor“ a stane sa bezpečným co-pilotom — žiadny destruktívny zásah bez plánu a bez možnosti vrátiť späť.
+
+### B) **Production Readiness Suite — „Green-Light Gate“**
+Nový edge function `wp-prod-readiness` a stránka `/wordpress/readiness`, ktorá jedným tlačidlom spustí kompletný produkčný test a vráti scorecard (0–100). Bežia paralelne:
+
+1. `wp_ssh_test` (SSH + `wp --info`)
+2. `wp_cli core-check` (čaká na update jadra)
+3. `wp_cli plugin-status` + `theme-list` (zastaralé / opustené)
+4. `wp_cli cron-status` (zaseknuté úlohy > 1 h)
+5. `wp_cli db-size` (varovanie > 500 MB / tabuľka)
+6. `wp_rest GET settings` (https, perma­links, debug off, public)
+7. **REST health probe** — `wp_rest GET posts?per_page=1` z 3 regiónov cez `fetch` z edge a meranie TTFB / TTLB
+8. **Security probe** — kontrola, či `xmlrpc.php`, `wp-config.php.bak`, `/wp-json/wp/v2/users` neprezrádza emaily, `X-Frame-Options`, HSTS
+9. **Backup probe** — existencia plug-inu UpdraftPlus/BackWPup cez `plugin-list`
+10. **SEO probe** — sitemap.xml + robots.txt cez `fetch`
+11. **AI smoke test** — Mistral agent dostane fixný scenár („vytvor draft post, prečítaj ho, zmaž ho“) cez plánovač z bodu A, musí prejsť bez rollbacku
+12. **Playwright headless** (cez existujúce `tests/`) — spustí `chat-streaming.spec.ts` + nový `wp-readiness.spec.ts` v sandboxe
+
+Výsledok: scorecard + PDF (re-use `src/lib/launch/pdfReport.ts`) + uloženie do `wp_readiness_runs`. Pod 80/100 = červené „NEPÚŠŤAŤ NA PROD“.
+
+**Prečo to je test produkčnej fázy:** jedným klikom dostaneš dôkaz, že agent + WP + REST + SSH + bezpečnosť + výkon + AI loop fungujú end-to-end.
+
+---
+
+## Čo by som spravil v kóde (ak schváliš)
+
+1. `supabase/functions/wp-plan-dryrun/index.ts` + `wp-plan-apply/index.ts` + migrácia `wp_action_snapshots` (s GRANTmi a RLS na `user_id = auth.uid()`).
+2. `supabase/functions/wp-prod-readiness/index.ts` (orchestrátor volajúci existujúce funkcie cez service-role).
+3. `src/components/wordpress/WPReadinessPanel.tsx` + route v `WordPressDashboard.tsx`.
+4. `src/components/wordpress/WPRestRunner.tsx` (diff modal, re-use `WPCLIManager` UX).
+5. Rozšírenie system promptu v `supabase/functions/chat/index.ts` o text z bodu 1 a registrácia 3 toolov (`wp_rest`, `wp_cli`, `wp_ssh_test`) cez AI SDK `tool()` so Zod schémami a `needsApproval` pre mutácie.
+6. Nový Playwright spec `tests/wp-readiness.spec.ts`.
+
+Schváľ a pustím sa do implementácie — alebo mi povedz, či chceš najprv len bod A, len bod B, alebo iba samotný prompt bez ďalších zmien.
