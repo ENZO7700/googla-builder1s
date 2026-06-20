@@ -3,8 +3,26 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-correlation-id, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Expose-Headers": "x-correlation-id, x-lovable-aig-run-id, x-request-id",
 };
+
+// Structured logger bound to a correlation id; emits single-line JSON.
+function makeLogger(correlationId: string, fn = "chat") {
+  return (level: "info" | "warn" | "error", event: string, data: Record<string, unknown> = {}) => {
+    const line = JSON.stringify({
+      ts: new Date().toISOString(),
+      level,
+      fn,
+      correlationId,
+      event,
+      ...data,
+    });
+    if (level === "error") console.error(line);
+    else if (level === "warn") console.warn(line);
+    else console.log(line);
+  };
+}
 
 const ENTERPRISE_PROMPT = `You are H4CK3D Enterprise, a highly advanced, autonomous Cyber Security & DevOps Intelligence integrated into the Cloud Workspace. Your operational matrix covers Red Teaming, SOC Analysis, Zero-Trust Architecture, modern Web Development, and advanced WordPress engineering.
 SPECIALIZATION: You are an absolute expert in WordPress Full Site Editing (FSE), theme.json dimensions and formatting, block.json configurations, and WP REST API JSON structures.
