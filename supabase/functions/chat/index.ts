@@ -111,11 +111,43 @@ serve(async (req) => {
         });
       }
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      const requestId =
+        response.headers.get("x-request-id") ||
+        response.headers.get("x-lovable-aig-run-id") ||
+        response.headers.get("cf-ray") ||
+        null;
+      let parsedBody: unknown = errorText;
+      try {
+        parsedBody = JSON.parse(errorText);
+      } catch {
+        // keep raw text (could be HTML from upstream proxy)
+        if (typeof errorText === "string" && errorText.length > 2000) {
+          parsedBody = errorText.slice(0, 2000) + "…[truncated]";
+        }
+      }
+      console.error("AI gateway error:", {
+        status: response.status,
+        statusText: response.statusText,
+        requestId,
+        model: selectedModel,
+        body: parsedBody,
       });
+      return new Response(
+        JSON.stringify({
+          error: "AI gateway error",
+          upstream: {
+            status: response.status,
+            statusText: response.statusText,
+            requestId,
+            model: selectedModel,
+            body: parsedBody,
+          },
+        }),
+        {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     return new Response(response.body, {
