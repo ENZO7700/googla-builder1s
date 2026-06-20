@@ -266,6 +266,12 @@ export default function Index() {
     let firstTokenTime = 0;
     let chunks = 0;
 
+    // Correlation ID: shared across client log, edge function log, and AI gateway log.
+    const correlationId =
+      (globalThis.crypto?.randomUUID?.() ??
+        `cid_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+    addLog(`[API] →  chat  cid=${correlationId}  model=${model}`);
+
     setDiagnostics(null);
 
     let response: Response;
@@ -276,21 +282,28 @@ export default function Index() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token || anonKey}`,
           'apikey': anonKey,
+          'X-Correlation-ID': correlationId,
         },
         body: JSON.stringify({ messages: msgs, systemOverride, model }),
         signal: controller.signal,
       });
     } catch (netErr: any) {
-      setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: netErr.message || 'Network error', timestamp: new Date() });
+      addLog(`[ERROR] cid=${correlationId} network: ${netErr.message || 'unknown'}`);
+      setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: `[${correlationId}] ${netErr.message || 'Network error'}`, timestamp: new Date() });
       throw netErr;
     }
+
+    const serverCid = response.headers.get('x-correlation-id') || correlationId;
+    const aigRunId = response.headers.get('x-lovable-aig-run-id') || null;
+    addLog(`[API] ←  chat  cid=${serverCid}${aigRunId ? `  aig=${aigRunId}` : ''}  status=${response.status}`);
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
       if (response.status === 429) toast.error('Rate limit – skúste to o chvíľu.');
       else if (response.status === 402) toast.error('Nedostatok kreditov.');
       const msg = errData.error || `HTTP ${response.status}`;
-      setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: msg, timestamp: new Date() });
+      addLog(`[ERROR] cid=${serverCid} ${msg}${errData.upstream ? ` upstream=${JSON.stringify(errData.upstream).slice(0,200)}` : ''}`);
+      setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: `[${serverCid}] ${msg}`, timestamp: new Date() });
       throw new Error(msg);
     }
 
