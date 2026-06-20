@@ -42,17 +42,29 @@ const ALLOWED_MODELS = new Set([
 const DEFAULT_MODEL = "google/gemini-3-flash-preview";
 
 serve(async (req) => {
+  // Correlation ID: prefer client-provided, else generate one. Propagated to
+  // edge logs, AI gateway request, AI gateway response (run id), and response headers.
+  const correlationId =
+    req.headers.get("x-correlation-id")?.trim() ||
+    (globalThis.crypto?.randomUUID?.() ?? `cid_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+  const log = makeLogger(correlationId);
+  const baseHeaders = { ...corsHeaders, "x-correlation-id": correlationId };
+
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: baseHeaders });
   }
+
+  const t0 = performance.now();
+  log("info", "request.start", { method: req.method, url: req.url });
 
   try {
     // Require authentication
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      log("warn", "auth.missing");
+      return new Response(JSON.stringify({ error: "Unauthorized", correlationId }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...baseHeaders, "Content-Type": "application/json" },
       });
     }
     const supabase = createClient(
@@ -62,11 +74,13 @@ serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userErr } = await supabase.auth.getUser(token);
     if (userErr || !userData?.user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      log("warn", "auth.invalid", { error: userErr?.message });
+      return new Response(JSON.stringify({ error: "Unauthorized", correlationId }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...baseHeaders, "Content-Type": "application/json" },
       });
     }
+    const userId = userData.user.id;
 
     const body = await req.json();
     const { messages, prompt, systemOverride, model } = body;
@@ -81,9 +95,10 @@ serve(async (req) => {
     } else if (prompt && typeof prompt === "string") {
       conversationMessages = [{ role: "user", content: prompt }];
     } else {
-      return new Response(JSON.stringify({ error: "Missing prompt or messages" }), {
+      log("warn", "request.invalid", { reason: "missing prompt/messages" });
+      return new Response(JSON.stringify({ error: "Missing prompt or messages", correlationId }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...baseHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -96,14 +111,23 @@ serve(async (req) => {
       ? ENTERPRISE_PROMPT + "\n" + systemOverride
       : ENTERPRISE_PROMPT;
 
-    // Whitelist model selection
     const selectedModel = (typeof model === "string" && ALLOWED_MODELS.has(model)) ? model : DEFAULT_MODEL;
 
+    log("info", "gateway.request", {
+      userId,
+      model: selectedModel,
+      messageCount: conversationMessages.length,
+    });
+
+    const tGateway = performance.now();
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
+        // Correlation propagated to gateway as run-id + custom header
+        "X-Lovable-AIG-Run-ID": correlationId,
+        "X-Correlation-ID": correlationId,
       },
       body: JSON.stringify({
         model: selectedModel,
@@ -115,72 +139,86 @@ serve(async (req) => {
       }),
     });
 
+    const upstreamRunId =
+      response.headers.get("x-lovable-aig-run-id") ||
+      response.headers.get("x-request-id") ||
+      response.headers.get("cf-ray") ||
+      null;
+
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Skúste to neskôr." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Nedostatok kreditov." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
       const errorText = await response.text();
-      const requestId =
-        response.headers.get("x-request-id") ||
-        response.headers.get("x-lovable-aig-run-id") ||
-        response.headers.get("cf-ray") ||
-        null;
       let parsedBody: unknown = errorText;
-      try {
-        parsedBody = JSON.parse(errorText);
-      } catch {
-        // keep raw text (could be HTML from upstream proxy)
+      try { parsedBody = JSON.parse(errorText); } catch {
         if (typeof errorText === "string" && errorText.length > 2000) {
           parsedBody = errorText.slice(0, 2000) + "…[truncated]";
         }
       }
-      console.error("AI gateway error:", {
+      log("error", "gateway.error", {
         status: response.status,
         statusText: response.statusText,
-        requestId,
+        upstreamRunId,
         model: selectedModel,
+        latencyMs: Math.round(performance.now() - tGateway),
         body: parsedBody,
       });
+
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ error: "Rate limit exceeded. Skúste to neskôr.", correlationId, upstreamRunId }), {
+          status: 429,
+          headers: { ...baseHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: "Nedostatok kreditov.", correlationId, upstreamRunId }), {
+          status: 402,
+          headers: { ...baseHeaders, "Content-Type": "application/json" },
+        });
+      }
       return new Response(
         JSON.stringify({
           error: "AI gateway error",
+          correlationId,
           upstream: {
             status: response.status,
             statusText: response.statusText,
-            requestId,
+            requestId: upstreamRunId,
             model: selectedModel,
             body: parsedBody,
           },
         }),
         {
           status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: {
+            ...baseHeaders,
+            "Content-Type": "application/json",
+            ...(upstreamRunId ? { "x-lovable-aig-run-id": upstreamRunId } : {}),
+          },
         },
       );
     }
 
+    log("info", "gateway.stream.start", {
+      upstreamRunId,
+      model: selectedModel,
+      latencyMs: Math.round(performance.now() - tGateway),
+      totalMs: Math.round(performance.now() - t0),
+    });
+
     return new Response(response.body, {
       headers: {
-        ...corsHeaders,
+        ...baseHeaders,
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         "Connection": "keep-alive",
+        ...(upstreamRunId ? { "x-lovable-aig-run-id": upstreamRunId } : {}),
       },
     });
   } catch (e) {
-    console.error("chat error:", e);
+    log("error", "exception", { message: e instanceof Error ? e.message : String(e) });
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error", correlationId }),
+      { status: 500, headers: { ...baseHeaders, "Content-Type": "application/json" } }
     );
   }
 });
+
