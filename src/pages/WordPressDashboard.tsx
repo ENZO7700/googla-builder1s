@@ -24,6 +24,8 @@ import MembersManager from '@/components/wordpress/content/MembersManager';
 import InquiryInbox from '@/components/wordpress/content/InquiryInbox';
 import InquiryFormBuilder from '@/components/wordpress/content/InquiryFormBuilder';
 import WPCLIManager from '@/components/wordpress/WPCLIManager';
+import WPRestRunner from '@/components/wordpress/WPRestRunner';
+import WPReadinessPanel from '@/components/wordpress/WPReadinessPanel';
 
 interface WPSite {
   id: string;
@@ -142,6 +144,8 @@ export default function WordPressDashboard() {
                     <TabsTrigger value="inquiries">Inquiries</TabsTrigger>
                     <TabsTrigger value="form">Form & Embed</TabsTrigger>
                     <TabsTrigger value="wpcli">WP-CLI</TabsTrigger>
+                    <TabsTrigger value="rest">REST Runner</TabsTrigger>
+                    <TabsTrigger value="readiness">Readiness</TabsTrigger>
                   </TabsList>
                   <TabsContent value="company"><CompanyInfoEditor siteId={selectedSite.id} /></TabsContent>
                   <TabsContent value="about"><AboutEditor siteId={selectedSite.id} /></TabsContent>
@@ -154,6 +158,8 @@ export default function WordPressDashboard() {
                   <TabsContent value="inquiries"><InquiryInbox siteId={selectedSite.id} /></TabsContent>
                   <TabsContent value="form"><InquiryFormBuilder siteId={selectedSite.id} /></TabsContent>
                   <TabsContent value="wpcli"><WPCLIManager siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="rest"><WPRestRunner siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="readiness"><WPReadinessPanel siteId={selectedSite.id} /></TabsContent>
                 </Tabs>
               </>
             )}
