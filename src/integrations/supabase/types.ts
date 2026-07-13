@@ -117,6 +117,77 @@ export type Database = {
           },
         ]
       }
+      wp_action_snapshots: {
+        Row: {
+          applied_at: string | null
+          before_json: Json | null
+          created_at: string
+          error: string | null
+          id: string
+          planned_call: Json
+          planned_patch: Json | null
+          proceed_token: string
+          result_json: Json | null
+          risk: string
+          rolled_back_at: string | null
+          scope: string
+          site_id: string
+          status: string
+          target: string
+          token_expires_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          applied_at?: string | null
+          before_json?: Json | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          planned_call: Json
+          planned_patch?: Json | null
+          proceed_token: string
+          result_json?: Json | null
+          risk?: string
+          rolled_back_at?: string | null
+          scope: string
+          site_id: string
+          status?: string
+          target: string
+          token_expires_at: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          applied_at?: string | null
+          before_json?: Json | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          planned_call?: Json
+          planned_patch?: Json | null
+          proceed_token?: string
+          result_json?: Json | null
+          risk?: string
+          rolled_back_at?: string | null
+          scope?: string
+          site_id?: string
+          status?: string
+          target?: string
+          token_expires_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_action_snapshots_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "wp_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wp_audit_log: {
         Row: {
           action: string
@@ -510,6 +581,59 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "wp_news_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "wp_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wp_readiness_runs: {
+        Row: {
+          breakdown: Json | null
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          pdf_path: string | null
+          score: number | null
+          site_id: string
+          started_at: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          breakdown?: Json | null
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          pdf_path?: string | null
+          score?: number | null
+          site_id: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          breakdown?: Json | null
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          pdf_path?: string | null
+          score?: number | null
+          site_id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_readiness_runs_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "wp_sites"
