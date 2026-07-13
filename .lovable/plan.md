@@ -1,129 +1,78 @@
-# Mega prompt pre Mistral agenta ↔ WordPress (cez REST API)
+# Plán: dokončenie WP-Ops (A + C + B) s Mistral agentom
 
-Nižšie je hotový **system prompt + task prompt**, ktorý môžeš nahodiť do `supabase/functions/chat/index.ts` (alebo ako system message pre Mistral agenta). Plus 2 brutálne vylepšenia, ktoré aplikáciu posunú výrazne ďalej a zároveň ju otestujú na produkčnú fázu.
+Skratky: **A** = Dry-run + Rollback, **C** = Mistral chat agent s WP tools + manuálny approve, **B** = Production Readiness Suite. Poradie implementácie: A → C → B (C potrebuje A ako mutation backbone, B ich obe volá).
 
----
+## 1. Databáza (jedna migrácia)
 
-## 1) MEGA SYSTEM PROMPT (skopíruj 1:1)
+```text
+wp_action_snapshots
+  id uuid pk, site_id uuid → wp_sites, user_id uuid (auth.uid()),
+  scope text  ('rest'|'cli'), target text (napr. 'posts/42', 'plugin/akismet'),
+  before_json jsonb, planned_patch jsonb, planned_call jsonb,
+  proceed_token text unique, token_expires_at timestamptz,
+  status text ('planned'|'applied'|'rolled_back'|'failed'|'expired'),
+  applied_at timestamptz, rolled_back_at timestamptz,
+  result_json jsonb, error text,
+  created_at timestamptz default now()
 
-```
-You are "WP-Ops Agent" — an autonomous WordPress operations engineer.
-You control a self-hosted WordPress site EXCLUSIVELY through two transports:
-  (A) WP REST API  v2  (wp-json/wp/v2/*)  via the edge function `wordpress-proxy`
-  (B) WP-CLI over SSH                      via the edge function `wordpress-cli`
-
-HARD RULES
-- Never invent endpoints. Only call paths listed in CAPABILITIES below.
-- Never send raw SQL, shell, eval, or arbitrary `wp` commands. Only the
-  whitelisted `command` keys in `wordpress-cli` are allowed.
-- Every mutating action (POST/PUT/PATCH/DELETE, maint-on/off, cache-flush,
-  plugin/theme changes) MUST be preceded by a `plan` step and confirmed
-  by tool result `ok:true` before the next mutation.
-- Always scope by `siteId` (UUID from `wp_sites`). Refuse if missing.
-- If a call returns 4xx/5xx, do NOT retry blindly — diagnose, then either
-  fix the payload or stop and report.
-- All responses to the user are in the language of their last message
-  (default Slovak), short, with concrete next action.
-
-CAPABILITIES (the only tools you may call)
-
-tool: wp_rest
-  args: { siteId: uuid, method: "GET|POST|PATCH|DELETE",
-          path: "posts|pages|media|comments|users|categories|tags|settings|plugins|themes|search|<id>|<sub>",
-          query?: object, body?: object }
-  notes: path must NOT start with "/" and MUST NOT contain "..".
-
-tool: wp_cli
-  args: { siteId: uuid, command:
-    "core-version" | "core-check" | "cron-status" | "cron-run-due" |
-    "cache-flush" | "rewrite-flush" | "transient-del" |
-    "plugin-list" | "plugin-status" | "theme-list" |
-    "db-size" | "maint-on" | "maint-off" }
-
-tool: wp_ssh_test    (pre-flight only, before first cli call per session)
-  args: { siteId: uuid }
-
-OPERATING LOOP  (ReAct)
-  Thought → Tool call → Observation → (repeat) → Final answer
-
-PRE-FLIGHT (always, before any mutation batch)
-  1. wp_ssh_test → must be ok
-  2. wp_cli core-version + plugin-status
-  3. If updates pending and user asked for them → maint-on → action → maint-off
-  4. cache-flush + rewrite-flush AFTER structural changes
-
-OUTPUT CONTRACT
-  - For each user request return JSON of shape:
-    { "summary": string,
-      "actions": [{ "tool": "...", "args": {...}, "result_preview": "..." }],
-      "next_suggestion": string | null,
-      "risk": "low|medium|high" }
-  - Never include secrets, tokens, SSH keys, passwords, full stdout > 4 KB.
-
-REFUSALS
-  - User asks for arbitrary SQL, shell, file download outside wp_path,
-    or any action not in CAPABILITIES → refuse and propose the closest
-    whitelisted equivalent.
+wp_readiness_runs
+  id uuid pk, site_id uuid, user_id uuid,
+  score int, breakdown jsonb, pdf_path text,
+  started_at, finished_at, status text
 ```
 
-A k tomu **task prompt template**, ktorý posielaš pri každej user správe:
+RLS: `user_id = auth.uid()` pre select/insert/update; explicit `service_role` GRANT. GRANT block per pravidlá projektu. Bucket `wp-readiness-reports` (private) pre PDF.
 
+## 2. Edge funkcie (nové)
+
+- `wp-plan-dryrun` — vstup `{siteId, scope, target, method?, path?, body?, command?}`. Načíta „before" (GET zdroja cez `wordpress-proxy` alebo `wp option get`/`plugin list` cez `wordpress-cli`), vypočíta JSON-patch diff, zapíše snapshot, vráti `{snapshotId, proceedToken (TTL 60s), diff, risk}`.
+- `wp-plan-apply` — prijme `proceedToken`, revalidne TTL/vlastníka, vykoná mutáciu cez `wordpress-proxy` / `wordpress-cli`. Pri HTTP ≥ 400 alebo `exit_code ≠ 0` automaticky vráti `before_json` (PATCH späť, `plugin (de)activate`, `option update`, …). Loguje do `wp_audit_log` s `details.rollback=true`.
+- `wp-prod-readiness` — orchestrátor 12 probov (SSH, core-check, plugin/theme, cron, db-size, settings, REST TTFB z 3 regiónov, security probes, backup, SEO, AI smoke test cez A, Playwright hook). Vypočíta scorecard 0–100, uloží run, vygeneruje PDF (re-use `src/lib/launch/pdfReport.ts`).
+- `chat` — refactor na **AI SDK + `@ai-sdk/openai-compatible`** proti Mistral endpointu (`https://api.mistral.ai/v1`, `MISTRAL_API_KEY`, model `mistral-large-latest`). Registruje 5 toolov cez `tool()` + Zod:
+  - `wp_ssh_test` (read)
+  - `wp_rest_read` (GET only, žiadny approve)
+  - `wp_cli_read` (whitelist read príkazov: core-version, cron-status, plugin-list, theme-list, db-size, plugin-status)
+  - `wp_plan` (volá `wp-plan-dryrun`) — bez approve
+  - `wp_apply` (volá `wp-plan-apply`) — **`needsApproval: true`**
+  - `wp_cli_mutation` a `wp_rest_write` sú zakázané mimo `wp_apply` (agent musí ísť cez plan→apply)
+  - `stopWhen: stepCountIs(50)`, system prompt = MEGA prompt z `.lovable/plan.md`.
+
+## 3. Frontend
+
+- `src/components/wordpress/WPPlanDialog.tsx` — modal s diff viewerom (react-diff-viewer-continued alebo vlastný `<pre>` split), risk badge, „Vykonať" / „Zrušiť", zobrazenie výsledku a auto-rollback banner.
+- `src/components/wordpress/WPRestRunner.tsx` — inline form (path, method, body) → plan → dialog.
+- `WPCLIManager.tsx` — mutation príkazy (cache-flush, rewrite-flush, maint-on/off, transient-del) prejdú cez plan→dialog namiesto priameho `wp_cli`.
+- `src/components/workspace/ChatView.tsx` — render `message.parts` vrátane `tool-invocation` častí; pri `state==="call"` a `needsApproval` zobrazí Approve/Deny tlačidlá (posielajú `addToolResult` cez `useChat`).
+- `src/pages/WordPressReadiness.tsx` + route `/wordpress/readiness` + tab v `WordPressDashboard.tsx` — „Spustiť readiness check" button, live progress, scorecard s 12 kartami, Download PDF, história `wp_readiness_runs`.
+
+## 4. Testy
+
+- `supabase/functions/wp-plan-apply/apply_test.ts` — Deno test: úspešný apply, forced-failure → rollback path zavolaný.
+- `tests/wp-readiness.spec.ts` — Playwright: otvoriť readiness page, spustiť run proti demo site, čakať na scorecard, overiť PDF download.
+- `tests/chat-tools.spec.ts` — Playwright: user prompt „aktivuj plugin X" → assistant vygeneruje `wp_plan` → v UI sa objaví diff → klik Approve → `wp_apply` beží → success správa.
+
+## 5. Poradie súborov (implementačné kroky)
+
+```text
+1. migration: wp_action_snapshots, wp_readiness_runs, bucket, RLS+GRANT
+2. edge: wp-plan-dryrun/index.ts
+3. edge: wp-plan-apply/index.ts   (+ apply_test.ts)
+4. front: WPPlanDialog + WPRestRunner + úprava WPCLIManager
+5. edge: chat/index.ts refactor → AI SDK + Mistral + 5 tools + needsApproval
+6. front: ChatView tool-parts renderer + approval UI
+7. edge: wp-prod-readiness/index.ts
+8. front: WordPressReadiness page + route + tab
+9. tests: chat-tools.spec.ts, wp-readiness.spec.ts
+10. config.toml: pridať tri nové fn (verify_jwt=true), deploy
 ```
-SITE_ID = {{siteId}}
-USER_LOCALE = {{sk|en}}
-USER_REQUEST = """{{message}}"""
-RECENT_AUDIT_LOG = {{last 10 rows from wp_audit_log}}
-Respond per OUTPUT CONTRACT.
-```
 
----
+## Technické poznámky
 
-## 2) Dve brutálne vylepšenia (+550 % hodnota appky a zároveň production-readiness test)
+- Mistral cez `createOpenAICompatible({ name:"mistral", baseURL:"https://api.mistral.ai/v1", headers:{ Authorization:`Bearer ${MISTRAL_API_KEY}` } })`. Prompt/CORS/correlation ID reusujeme z existujúceho `chat/index.ts`.
+- `needsApproval` cez AI SDK: tool má `execute` len keď je approval potvrdené; medzitým sa v UI streamuje `tool-invocation` part v state `"call"`.
+- Rollback stratégia per resource: `posts/pages/media` → PATCH s `before_json`; `settings` → PATCH options; `plugins` → `plugin activate/deactivate` cez CLI; `theme` → `theme activate` predchádzajúcej témy; ak nie je invertovateľné (`transient-del`, `cache-flush`) → snapshot označíme `rollback:not_applicable` a mutáciu povolíme len s explicit user ackom v diff dialogu.
+- PDF re-use `pdfReport.ts` (rozšíriť o `renderReadiness(run)`).
+- Proceed token: `crypto.randomUUID()`, TTL 60 s, single-use (mark applied on first apply).
+- Všetky nové edge funkcie logujú štruktúrovane s `correlationId` (rovnaký helper ako v `chat`).
 
-### A) **Dry-run + Diff Plánovač s automatickým rollbackom**
-Pred KAŽDOU mutáciou cez REST/CLI agent najprv zavolá nový edge function `wp-plan-dryrun`, ktorý:
-- spraví `GET` aktuálneho stavu zdroja (`posts/{id}`, `settings`, `plugin list`, …),
-- vyrenderuje **diff** (JSON-patch) medzi „pred“ a „po“,
-- uloží snapshot do novej tabuľky `wp_action_snapshots (id, site_id, user_id, scope, before_json, planned_patch, created_at)`,
-- vráti agentovi „proceed token“ s TTL 60 s.
-
-Apply step (`wp-plan-apply`) prijme len platný token, vykoná zmenu cez `wordpress-proxy`/`wordpress-cli` a:
-- pri HTTP ≥ 400 alebo `exit_code ≠ 0` **automaticky obnoví** `before_json` (PATCH naspäť, resp. `plugin deactivate` / `option update` …),
-- zaloguje do `wp_audit_log` s `details.rollback = true`.
-
-V UI (`WPCLIManager.tsx` + nový `WPRestRunner.tsx`) pribudne tlačidlo „Naplánuj“ → modal s diffom → „Vykonať“ / „Zrušiť“.
-
-**Prečo to je 550 %:** agent prestane byť „slepý executor“ a stane sa bezpečným co-pilotom — žiadny destruktívny zásah bez plánu a bez možnosti vrátiť späť.
-
-### B) **Production Readiness Suite — „Green-Light Gate“**
-Nový edge function `wp-prod-readiness` a stránka `/wordpress/readiness`, ktorá jedným tlačidlom spustí kompletný produkčný test a vráti scorecard (0–100). Bežia paralelne:
-
-1. `wp_ssh_test` (SSH + `wp --info`)
-2. `wp_cli core-check` (čaká na update jadra)
-3. `wp_cli plugin-status` + `theme-list` (zastaralé / opustené)
-4. `wp_cli cron-status` (zaseknuté úlohy > 1 h)
-5. `wp_cli db-size` (varovanie > 500 MB / tabuľka)
-6. `wp_rest GET settings` (https, perma­links, debug off, public)
-7. **REST health probe** — `wp_rest GET posts?per_page=1` z 3 regiónov cez `fetch` z edge a meranie TTFB / TTLB
-8. **Security probe** — kontrola, či `xmlrpc.php`, `wp-config.php.bak`, `/wp-json/wp/v2/users` neprezrádza emaily, `X-Frame-Options`, HSTS
-9. **Backup probe** — existencia plug-inu UpdraftPlus/BackWPup cez `plugin-list`
-10. **SEO probe** — sitemap.xml + robots.txt cez `fetch`
-11. **AI smoke test** — Mistral agent dostane fixný scenár („vytvor draft post, prečítaj ho, zmaž ho“) cez plánovač z bodu A, musí prejsť bez rollbacku
-12. **Playwright headless** (cez existujúce `tests/`) — spustí `chat-streaming.spec.ts` + nový `wp-readiness.spec.ts` v sandboxe
-
-Výsledok: scorecard + PDF (re-use `src/lib/launch/pdfReport.ts`) + uloženie do `wp_readiness_runs`. Pod 80/100 = červené „NEPÚŠŤAŤ NA PROD“.
-
-**Prečo to je test produkčnej fázy:** jedným klikom dostaneš dôkaz, že agent + WP + REST + SSH + bezpečnosť + výkon + AI loop fungujú end-to-end.
-
----
-
-## Čo by som spravil v kóde (ak schváliš)
-
-1. `supabase/functions/wp-plan-dryrun/index.ts` + `wp-plan-apply/index.ts` + migrácia `wp_action_snapshots` (s GRANTmi a RLS na `user_id = auth.uid()`).
-2. `supabase/functions/wp-prod-readiness/index.ts` (orchestrátor volajúci existujúce funkcie cez service-role).
-3. `src/components/wordpress/WPReadinessPanel.tsx` + route v `WordPressDashboard.tsx`.
-4. `src/components/wordpress/WPRestRunner.tsx` (diff modal, re-use `WPCLIManager` UX).
-5. Rozšírenie system promptu v `supabase/functions/chat/index.ts` o text z bodu 1 a registrácia 3 toolov (`wp_rest`, `wp_cli`, `wp_ssh_test`) cez AI SDK `tool()` so Zod schémami a `needsApproval` pre mutácie.
-6. Nový Playwright spec `tests/wp-readiness.spec.ts`.
-
-Schváľ a pustím sa do implementácie — alebo mi povedz, či chceš najprv len bod A, len bod B, alebo iba samotný prompt bez ďalších zmien.
+Po schválení začnem krokom 1 a idem postupne 1→10, s deploymentom edge funkcií po každom bloku.
