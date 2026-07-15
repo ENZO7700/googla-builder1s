@@ -25,12 +25,20 @@ describe('AuthForm', () => {
     render(<AuthForm config={wpboxAuthConfig} onSubmit={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: 'Registrácia' }));
-    expect(screen.getByText('Vytvoriť účet')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Vytvoriť účet' })).toBeInTheDocument();
+    });
     expect(screen.getByLabelText('Meno')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Prihlásiť sa' }));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Prihlásenie' })).toBeInTheDocument();
+    });
+
     await user.click(screen.getByRole('button', { name: 'Zabudli ste heslo?' }));
-    expect(screen.getByText('Obnovenie hesla')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Obnovenie hesla' })).toBeInTheDocument();
+    });
     expect(screen.queryByLabelText('Heslo')).not.toBeInTheDocument();
   });
 

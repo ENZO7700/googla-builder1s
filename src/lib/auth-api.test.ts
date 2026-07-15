@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const signInWithPassword = vi.fn();
-const signUp = vi.fn();
-const resetPasswordForEmail = vi.fn();
+const { signInWithPassword, signUp, resetPasswordForEmail } = vi.hoisted(() => ({
+  signInWithPassword: vi.fn(),
+  signUp: vi.fn(),
+  resetPasswordForEmail: vi.fn(),
+}));
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {

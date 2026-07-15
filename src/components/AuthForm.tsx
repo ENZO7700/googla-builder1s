@@ -1,11 +1,9 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { useAuthForm } from '@/hooks/use-auth';
 import type { AuthFormConfig, AuthSubmitHandler } from '@/lib/auth-types';
@@ -118,10 +116,10 @@ export default function AuthForm({
           id={formId}
           onSubmit={handleSubmit}
           className="wpbox-auth-form__panel"
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.22, ease: 'easeOut' }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
           noValidate
           aria-labelledby={`${formId}-title`}
         >
@@ -227,10 +225,12 @@ export default function AuthForm({
 
             {view === 'login' && features.rememberMe ? (
               <div className="flex items-center gap-2 pt-1">
-                <Checkbox
+                <input
                   id={`${formId}-remember`}
+                  type="checkbox"
+                  className="h-4 w-4 rounded border border-input accent-[var(--auth-primary)]"
                   checked={Boolean(form.rememberMe)}
-                  onCheckedChange={(checked) => setField('rememberMe', checked === true)}
+                  onChange={(e) => setField('rememberMe', e.target.checked)}
                   disabled={loading}
                 />
                 <Label htmlFor={`${formId}-remember`} className="font-normal text-muted-foreground">
