@@ -3,8 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Play, Undo2, AlertTriangle, ShieldAlert } from "lucide-react";
 
-type PlannedCall =
-  | { scope: "rest"; method: "POST" | "PATCH" | "PUT" | "DELETE"; path: string; body?: unknown }
+export type PlannedCall =
+  | { scope: "rest"; method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE"; path: string; body?: unknown }
   | { scope: "cli"; command: string };
 
 type PlanResponse = {
