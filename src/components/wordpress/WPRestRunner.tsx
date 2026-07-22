@@ -80,7 +80,7 @@ export default function WPRestRunner({ siteId }: Props) {
       {plan && (
         <WPPlanDialog
           siteId={siteId}
-          call={{ scope: "rest", method: plan.method as "POST" | "PATCH" | "DELETE", path: plan.path, body: plan.body }}
+          call={{ scope: "rest", method: plan.method, path: plan.path, body: plan.body }}
           onClose={() => setPlan(null)}
           onApplied={(r) => setResult(JSON.stringify(r, null, 2))}
         />
