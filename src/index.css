@@ -168,148 +168,102 @@
     border-radius: 999px;
   }
 
-  .wpbox-minimal-login-shell {
+  .wpbox-auth-shell {
     position: relative;
     min-height: 100vh;
     overflow: hidden;
-    background:
-      radial-gradient(circle at 32% 47%, rgba(242, 63, 255, 0.22), transparent 18%),
-      radial-gradient(circle at 66% 50%, rgba(63, 82, 255, 0.24), transparent 20%),
-      radial-gradient(circle at 50% 48%, rgba(255, 255, 255, 0.055), transparent 30%),
-      linear-gradient(180deg, #030407 0%, #05060a 44%, #020306 100%);
-    color: #ffffff;
     display: grid;
     place-items: center;
     padding: 1.5rem;
+    background:
+      radial-gradient(ellipse 70% 50% at 20% 10%, rgba(26, 115, 232, 0.18), transparent 55%),
+      radial-gradient(ellipse 55% 45% at 85% 90%, rgba(26, 115, 232, 0.1), transparent 50%),
+      linear-gradient(165deg, #0b1220 0%, #111827 46%, #0a0f1a 100%);
+    color: hsl(var(--foreground));
   }
 
-  .wpbox-minimal-login-shell::before {
-    content: "";
+  .wpbox-auth-shell__glow {
+    position: absolute;
+    inset: 18% 12%;
+    background: radial-gradient(ellipse at center, rgba(26, 115, 232, 0.12), transparent 68%);
+    pointer-events: none;
+  }
+
+  .wpbox-auth-shell__grid {
     position: absolute;
     inset: 0;
-    background:
-      radial-gradient(circle at 32% 49%, rgba(255, 43, 235, 0.17), transparent 15%),
-      radial-gradient(circle at 68% 49%, rgba(60, 78, 255, 0.18), transparent 17%);
-    filter: blur(34px);
-    opacity: 0.92;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at center, black 20%, transparent 75%);
+    opacity: 0.45;
     pointer-events: none;
   }
 
-  .wpbox-minimal-login-shell::after {
-    content: "";
-    position: absolute;
-    inset: 24% 9%;
-    background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1.4px);
-    background-size: 12px 12px;
-    mask-image: radial-gradient(ellipse at center, black 0%, transparent 68%);
-    opacity: 0.22;
-    pointer-events: none;
-  }
-
-  .wpbox-minimal-login-noise {
-    position: absolute;
-    inset: 0;
-    background:
-      linear-gradient(90deg, rgba(255, 255, 255, 0.018), transparent 18%, rgba(255, 255, 255, 0.016) 55%, transparent),
-      radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.5) 70%);
-    pointer-events: none;
-  }
-
-  .wpbox-minimal-login-form {
+  .wpbox-auth-form {
     position: relative;
     z-index: 1;
-    width: min(100%, 690px);
+    width: min(100%, 420px);
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 1rem;
+    gap: 1.75rem;
+    --auth-primary: #1a73e8;
   }
 
-  .wpbox-minimal-login-bar {
-    position: relative;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    width: 100%;
-    min-height: clamp(76px, 9vw, 116px);
-    border-radius: clamp(1.45rem, 4vw, 2rem);
-    background: #050912;
-    border: 1px solid rgba(255, 255, 255, 0.13);
-    box-shadow:
-      -22px 0 46px rgba(255, 58, 239, 0.52),
-      22px 0 46px rgba(71, 89, 255, 0.58),
-      0 18px 60px rgba(0, 0, 0, 0.72),
-      inset 0 1px 0 rgba(255, 255, 255, 0.045),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.04);
-    padding: 0.7rem;
-    isolation: isolate;
-  }
-
-  .wpbox-minimal-login-bar::before {
-    content: "";
-    position: absolute;
-    inset: -2px;
-    z-index: -1;
-    border-radius: inherit;
-    background: linear-gradient(90deg, #ff58f7 0%, #805dff 46%, #5167ff 100%);
-    filter: blur(4px);
-    opacity: 0.82;
-  }
-
-  .wpbox-minimal-login-input {
-    min-width: 0;
-    height: 100%;
-    border: 0;
-    background: transparent;
-    padding: 0 clamp(1rem, 4vw, 2rem);
-    color: #f7f7ff;
-    font-size: clamp(1.55rem, 4vw, 2.35rem);
-    font-weight: 400;
-    letter-spacing: -0.04em;
-  }
-
-  .wpbox-minimal-login-input::placeholder {
-    color: rgba(247, 247, 255, 0.92);
-  }
-
-  .wpbox-minimal-login-input:focus {
-    outline: none;
-  }
-
-  .wpbox-minimal-login-submit {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: clamp(58px, 9vw, 78px);
-    height: clamp(58px, 9vw, 78px);
-    border-radius: 1.35rem;
-    border: 1px solid rgba(150, 134, 255, 0.46);
-    background:
-      radial-gradient(circle at 40% 24%, rgba(117, 95, 255, 0.62), transparent 58%),
-      linear-gradient(145deg, rgba(16, 12, 64, 0.98), rgba(8, 5, 48, 0.98));
-    color: #ffffff;
-    box-shadow:
-      0 0 28px rgba(71, 89, 255, 0.28),
-      inset 0 1px 0 rgba(255, 255, 255, 0.18);
-    transition: transform 0.16s ease, filter 0.16s ease, opacity 0.16s ease;
-  }
-
-  .wpbox-minimal-login-submit:hover {
-    transform: translateY(-1px);
-    filter: brightness(1.08);
-  }
-
-  .wpbox-minimal-login-submit:disabled {
-    cursor: not-allowed;
-    opacity: 0.72;
-  }
-
-  .wpbox-minimal-login-error {
-    color: rgba(247, 247, 255, 0.72);
-    font-size: 0.92rem;
-    width: min(100%, 640px);
+  .wpbox-auth-form__brand {
     text-align: center;
-    color: #ffd7f7;
+    color: #f8fafc;
+  }
+
+  .wpbox-auth-form__logo {
+    height: 40px;
+    width: auto;
+    margin: 0 auto 1rem;
+  }
+
+  .wpbox-auth-form__brand-name {
+    font-family: 'Google Sans', sans-serif;
+    font-size: clamp(2.4rem, 7vw, 3.25rem);
+    font-weight: 700;
+    letter-spacing: -0.045em;
+    line-height: 1;
+    color: #ffffff;
+  }
+
+  .wpbox-auth-form__brand-tagline {
+    margin-top: 0.35rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(248, 250, 252, 0.55);
+  }
+
+  .wpbox-auth-form__brand-message {
+    margin-top: 0.85rem;
+    font-size: 1rem;
+    font-weight: 400;
+    color: rgba(248, 250, 252, 0.78);
+  }
+
+  .wpbox-auth-form__panel {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1.25rem;
+    background: rgba(255, 255, 255, 0.97);
+    padding: 1.75rem 1.5rem 1.5rem;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.28);
+  }
+
+  @media (min-width: 640px) {
+    .wpbox-auth-form__panel {
+      padding: 2rem;
+    }
+  }
+
+  .dark .wpbox-auth-form__panel {
+    background: hsl(var(--card));
+    border-color: hsl(var(--border));
   }
 
   .wpbox-ambient-hero {
