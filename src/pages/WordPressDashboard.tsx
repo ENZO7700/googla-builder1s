@@ -26,6 +26,8 @@ import InquiryFormBuilder from '@/components/wordpress/content/InquiryFormBuilde
 import WPCLIManager from '@/components/wordpress/WPCLIManager';
 import WPRestRunner from '@/components/wordpress/WPRestRunner';
 import WPReadinessPanel from '@/components/wordpress/WPReadinessPanel';
+import WPAgentPanel from '@/components/wordpress/WPAgentPanel';
+import WPAgentRuns from '@/components/wordpress/WPAgentRuns';
 
 interface WPSite {
   id: string;
