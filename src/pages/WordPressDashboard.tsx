@@ -164,6 +164,10 @@ export default function WordPressDashboard() {
                   <TabsContent value="wpcli"><WPCLIManager siteId={selectedSite.id} /></TabsContent>
                   <TabsContent value="rest"><WPRestRunner siteId={selectedSite.id} /></TabsContent>
                   <TabsContent value="readiness"><WPReadinessPanel siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="agent" className="pt-4">
+                    <WPAgentPanel siteId={selectedSite.id} onRunLogged={() => qc.invalidateQueries({ queryKey: ['wp_agent_runs', selectedSite.id] })} />
+                  </TabsContent>
+                  <TabsContent value="agentruns"><WPAgentRuns siteId={selectedSite.id} /></TabsContent>
                 </Tabs>
               </>
             )}
