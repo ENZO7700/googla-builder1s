@@ -40,6 +40,7 @@ export default function WordPressDashboard() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAdminAuth();
   
+  const qc = useQueryClient();
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [showAddSite, setShowAddSite] = useState(false);
 
