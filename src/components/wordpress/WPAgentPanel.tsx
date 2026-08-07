@@ -31,13 +31,15 @@ export default function WPAgentPanel({ siteId, onRunLogged }: Props) {
   const [userId, setUserId] = useState<string | null>(null);
   const [applying, setApplying] = useState<string | null>(null);
   const correlationRef = useRef<string | null>(null);
+  const tokenRef = useRef<string | null>(null);
   const runIdRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      setToken(data.session?.access_token ?? null);
+      tokenRef.current = data.session?.access_token ?? null;
+      setToken(tokenRef.current);
       setUserId(data.session?.user?.id ?? null);
     });
   }, []);
@@ -47,13 +49,13 @@ export default function WPAgentPanel({ siteId, onRunLogged }: Props) {
       new DefaultChatTransport({
         api: AGENT_URL,
         headers: () => ({
-          Authorization: `Bearer ${token ?? ""}`,
+          Authorization: `Bearer ${tokenRef.current ?? ""}`,
           "Content-Type": "application/json",
           "x-correlation-id": correlationRef.current ?? "",
         }),
         body: () => ({ siteId }),
       }),
-    [token, siteId],
+    [siteId],
   );
 
   const { messages, sendMessage, status, error, addToolResult } = useChat({
@@ -135,14 +137,13 @@ export default function WPAgentPanel({ siteId, onRunLogged }: Props) {
     if (!authToken) {
       const { data } = await supabase.auth.getSession();
       authToken = data.session?.access_token ?? null;
+      tokenRef.current = authToken;
       setToken(authToken);
       setUserId(data.session?.user?.id ?? null);
       if (!authToken) {
         toast.error("Nie si prihlásený — prihlás sa a skús znova.");
         return;
       }
-      // wait one tick so the transport memo picks up the new token
-      await new Promise((r) => setTimeout(r, 0));
     }
     setInput("");
     await startRun(text);
