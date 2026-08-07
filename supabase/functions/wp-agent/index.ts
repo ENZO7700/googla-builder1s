@@ -94,6 +94,33 @@ Deno.serve(async (req) => {
     const { messages, siteId }: { messages: UIMessage[]; siteId?: string } =
       await req.json();
 
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return json({ error: "messages required", correlationId }, 400, baseHeaders);
+    }
+
+    // Verify site ownership up-front so tools never run against foreign sites.
+    let siteContext = "";
+    if (siteId) {
+      const { data: site, error: siteErr } = await supabase
+        .from("wp_sites")
+        .select("id, label, base_url, site_type, ssh_host, username")
+        .eq("id", siteId)
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      if (siteErr || !site) {
+        return json({ error: "Site not found", correlationId }, 404, baseHeaders);
+      }
+      siteContext = [
+        `\n\nActive site:`,
+        `- siteId: ${site.id}`,
+        `- label: ${site.label}`,
+        `- base_url: ${site.base_url}`,
+        `- type: ${site.site_type === "com" ? "WordPress.com (connector gateway)" : "self-hosted (REST + Basic auth)"}`,
+        `- REST auth configured: ${site.username ? "yes" : "no"}`,
+        `- SSH/WP-CLI configured: ${site.ssh_host ? "yes" : "no — wp_cli_read and wp_ssh_test will fail; tell the user to fill SSH in the WP-CLI tab"}`,
+      ].join("\n");
+    }
+
     const mistral = createOpenAICompatible({
       name: "mistral",
       baseURL: "https://api.mistral.ai/v1",
@@ -182,7 +209,7 @@ Deno.serve(async (req) => {
 
     const result = streamText({
       model: mistral("mistral-large-latest"),
-      system: siteId ? `${SYSTEM_PROMPT}\n\nActive siteId: ${siteId}` : SYSTEM_PROMPT,
+      system: `${SYSTEM_PROMPT}${siteContext}`,
       messages: convertToModelMessages(messages),
       tools,
       stopWhen: stepCountIs(50),
