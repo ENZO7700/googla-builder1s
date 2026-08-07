@@ -1,14 +1,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.0";
+import { normalizeWpBaseUrl, wpComSiteHost } from "../_shared/wp-url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 interface ProxyRequest {
   siteId: string;
-  method: "GET" | "POST" | "PATCH" | "DELETE";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   path: string;
   body?: Record<string, unknown>;
   query?: Record<string, string>;
@@ -58,7 +59,7 @@ function isValidRequest(b: unknown): b is ProxyRequest {
   return (
     typeof r.siteId === "string" &&
     typeof r.method === "string" &&
-    ["GET", "POST", "PATCH", "DELETE"].includes(r.method) &&
+    ["GET", "POST", "PUT", "PATCH", "DELETE"].includes(r.method) &&
     typeof r.path === "string" &&
     !r.path.startsWith("/") &&
     !r.path.includes("..")
@@ -105,7 +106,7 @@ Deno.serve(async (req) => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
 
     if (site.site_type === "self") {
-      const base = String(site.base_url).replace(/\/+$/, "");
+      const base = normalizeWpBaseUrl(String(site.base_url));
       targetUrl = `${base}/wp-json/wp/v2/${path}`;
       if (site.username && site.app_password_encrypted) {
         const appPassword = await decryptCred(site.app_password_encrypted);
@@ -122,7 +123,7 @@ Deno.serve(async (req) => {
           503,
         );
       }
-      const host = String(site.base_url).replace(/^https?:\/\//, "").replace(/\/+$/, "");
+      const host = wpComSiteHost(String(site.base_url));
       // Map standard /wp/v2 path to wp.com REST v1.1 site-scoped paths.
       // Most resources align: posts, pages, media, comments, users, settings, plugins.
       targetUrl = `https://connector-gateway.lovable.dev/wordpress_com/rest/v1.1/sites/${encodeURIComponent(host)}/${path}`;
