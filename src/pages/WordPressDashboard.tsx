@@ -148,6 +148,8 @@ export default function WordPressDashboard() {
                     <TabsTrigger value="wpcli">WP-CLI</TabsTrigger>
                     <TabsTrigger value="rest">REST Runner</TabsTrigger>
                     <TabsTrigger value="readiness">Readiness</TabsTrigger>
+                    <TabsTrigger value="agent">AI Agent</TabsTrigger>
+                    <TabsTrigger value="agentruns">Agent História</TabsTrigger>
                   </TabsList>
                   <TabsContent value="company"><CompanyInfoEditor siteId={selectedSite.id} /></TabsContent>
                   <TabsContent value="about"><AboutEditor siteId={selectedSite.id} /></TabsContent>
