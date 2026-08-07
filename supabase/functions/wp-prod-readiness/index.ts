@@ -2,6 +2,7 @@
 // parallel via existing edge functions (wordpress-proxy, wordpress-cli,
 // wp-ssh-test) plus a handful of direct fetches, returns a 0-100 scorecard.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.0";
+import { normalizeWpBaseUrl } from "../_shared/wp-url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,7 +75,7 @@ Deno.serve(async (req) => {
       .select("id").single();
     const runId = runRow?.id as string;
 
-    const base = String(site.base_url).replace(/\/+$/, "");
+    const base = normalizeWpBaseUrl(String(site.base_url));
     const results: CheckResult[] = [];
 
     const sshCheck = timed(async () => callInternal("wp-ssh-test", auth, { siteId: body.siteId }, 20_000));

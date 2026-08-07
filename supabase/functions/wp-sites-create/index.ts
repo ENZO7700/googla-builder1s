@@ -1,6 +1,7 @@
 // Create or update a WP site row with server-side AES-256-GCM encryption
 // of credentials (app password, SSH password, SSH private key).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { normalizeWpBaseUrl } from "../_shared/wp-url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,14 +75,14 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "label length invalid" }, 400);
     }
     if (body.base_url !== undefined) {
-      try { const u = new URL(body.base_url); if (!/^https?:$/.test(u.protocol)) throw new Error("scheme"); }
+      try { const u = new URL(normalizeWpBaseUrl(body.base_url)); if (!/^https?:$/.test(u.protocol) || !u.hostname.includes(".")) throw new Error("scheme"); }
       catch { return jsonResponse({ error: "base_url must be a valid http(s) URL" }, 400); }
     }
     if (body.site_type && !["com", "self"].includes(body.site_type)) {
       return jsonResponse({ error: "site_type invalid" }, 400);
     }
 
-    const baseUrlClean = body.base_url ? body.base_url.replace(/\/+$/, "") : undefined;
+    const baseUrlClean = body.base_url ? normalizeWpBaseUrl(body.base_url) : undefined;
     const update: Record<string, unknown> = { user_id: user.id };
     if (body.label !== undefined) update.label = body.label;
     if (baseUrlClean !== undefined) update.base_url = baseUrlClean;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Send, Bot, User, Check, X, Wrench, ShieldAlert } from "lucide-react";
@@ -31,13 +31,15 @@ export default function WPAgentPanel({ siteId, onRunLogged }: Props) {
   const [userId, setUserId] = useState<string | null>(null);
   const [applying, setApplying] = useState<string | null>(null);
   const correlationRef = useRef<string | null>(null);
+  const tokenRef = useRef<string | null>(null);
   const runIdRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      setToken(data.session?.access_token ?? null);
+      tokenRef.current = data.session?.access_token ?? null;
+      setToken(tokenRef.current);
       setUserId(data.session?.user?.id ?? null);
     });
   }, []);
@@ -47,18 +49,21 @@ export default function WPAgentPanel({ siteId, onRunLogged }: Props) {
       new DefaultChatTransport({
         api: AGENT_URL,
         headers: () => ({
-          Authorization: `Bearer ${token ?? ""}`,
+          Authorization: `Bearer ${tokenRef.current ?? ""}`,
           "Content-Type": "application/json",
           "x-correlation-id": correlationRef.current ?? "",
         }),
         body: () => ({ siteId }),
       }),
-    [token, siteId],
+    [siteId],
   );
 
   const { messages, sendMessage, status, error, addToolResult } = useChat({
     id: `wp-agent-${siteId}`,
     transport,
+    // After the user approves/rejects wp_apply we submit the tool result back
+    // automatically so the agent can continue instead of stalling.
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onError: (e) => {
       toast.error(`Agent zlyhal: ${e.message}`);
       void finishRun("error", null, e.message);
@@ -127,6 +132,19 @@ export default function WPAgentPanel({ siteId, onRunLogged }: Props) {
   async function submit() {
     const text = input.trim();
     if (!text || busy) return;
+    // Make sure we have a fresh access token before the first request.
+    let authToken = token;
+    if (!authToken) {
+      const { data } = await supabase.auth.getSession();
+      authToken = data.session?.access_token ?? null;
+      tokenRef.current = authToken;
+      setToken(authToken);
+      setUserId(data.session?.user?.id ?? null);
+      if (!authToken) {
+        toast.error("Nie si prihlásený — prihlás sa a skús znova.");
+        return;
+      }
+    }
     setInput("");
     await startRun(text);
     await sendMessage({ text });
