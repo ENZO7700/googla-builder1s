@@ -188,6 +188,59 @@ export type Database = {
           },
         ]
       }
+      wp_agent_runs: {
+        Row: {
+          correlation_id: string
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          prompt: string | null
+          result_json: Json | null
+          site_id: string
+          status: string
+          tool_calls: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          correlation_id: string
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          prompt?: string | null
+          result_json?: Json | null
+          site_id: string
+          status?: string
+          tool_calls?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          correlation_id?: string
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          prompt?: string | null
+          result_json?: Json | null
+          site_id?: string
+          status?: string
+          tool_calls?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_agent_runs_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "wp_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wp_audit_log: {
         Row: {
           action: string

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdminAuth } from '@/lib/admin';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   FileText, Plus, ArrowLeft, RefreshCw
 } from 'lucide-react';
@@ -26,6 +26,8 @@ import InquiryFormBuilder from '@/components/wordpress/content/InquiryFormBuilde
 import WPCLIManager from '@/components/wordpress/WPCLIManager';
 import WPRestRunner from '@/components/wordpress/WPRestRunner';
 import WPReadinessPanel from '@/components/wordpress/WPReadinessPanel';
+import WPAgentPanel from '@/components/wordpress/WPAgentPanel';
+import WPAgentRuns from '@/components/wordpress/WPAgentRuns';
 
 interface WPSite {
   id: string;
@@ -38,6 +40,7 @@ export default function WordPressDashboard() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAdminAuth();
   
+  const qc = useQueryClient();
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [showAddSite, setShowAddSite] = useState(false);
 
@@ -146,6 +149,8 @@ export default function WordPressDashboard() {
                     <TabsTrigger value="wpcli">WP-CLI</TabsTrigger>
                     <TabsTrigger value="rest">REST Runner</TabsTrigger>
                     <TabsTrigger value="readiness">Readiness</TabsTrigger>
+                    <TabsTrigger value="agent">AI Agent</TabsTrigger>
+                    <TabsTrigger value="agentruns">Agent História</TabsTrigger>
                   </TabsList>
                   <TabsContent value="company"><CompanyInfoEditor siteId={selectedSite.id} /></TabsContent>
                   <TabsContent value="about"><AboutEditor siteId={selectedSite.id} /></TabsContent>
@@ -160,6 +165,10 @@ export default function WordPressDashboard() {
                   <TabsContent value="wpcli"><WPCLIManager siteId={selectedSite.id} /></TabsContent>
                   <TabsContent value="rest"><WPRestRunner siteId={selectedSite.id} /></TabsContent>
                   <TabsContent value="readiness"><WPReadinessPanel siteId={selectedSite.id} /></TabsContent>
+                  <TabsContent value="agent" className="pt-4">
+                    <WPAgentPanel siteId={selectedSite.id} onRunLogged={() => qc.invalidateQueries({ queryKey: ['wp_agent_runs', selectedSite.id] })} />
+                  </TabsContent>
+                  <TabsContent value="agentruns"><WPAgentRuns siteId={selectedSite.id} /></TabsContent>
                 </Tabs>
               </>
             )}
