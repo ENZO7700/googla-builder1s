@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Send, Bot, User, Check, X, Wrench, ShieldAlert } from "lucide-react";
@@ -59,6 +59,9 @@ export default function WPAgentPanel({ siteId, onRunLogged }: Props) {
   const { messages, sendMessage, status, error, addToolResult } = useChat({
     id: `wp-agent-${siteId}`,
     transport,
+    // After the user approves/rejects wp_apply we submit the tool result back
+    // automatically so the agent can continue instead of stalling.
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onError: (e) => {
       toast.error(`Agent zlyhal: ${e.message}`);
       void finishRun("error", null, e.message);
@@ -127,6 +130,20 @@ export default function WPAgentPanel({ siteId, onRunLogged }: Props) {
   async function submit() {
     const text = input.trim();
     if (!text || busy) return;
+    // Make sure we have a fresh access token before the first request.
+    let authToken = token;
+    if (!authToken) {
+      const { data } = await supabase.auth.getSession();
+      authToken = data.session?.access_token ?? null;
+      setToken(authToken);
+      setUserId(data.session?.user?.id ?? null);
+      if (!authToken) {
+        toast.error("Nie si prihlásený — prihlás sa a skús znova.");
+        return;
+      }
+      // wait one tick so the transport memo picks up the new token
+      await new Promise((r) => setTimeout(r, 0));
+    }
     setInput("");
     await startRun(text);
     await sendMessage({ text });
