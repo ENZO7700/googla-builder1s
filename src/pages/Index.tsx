@@ -9,6 +9,9 @@ import ToastContainer, { Toast } from '@/components/workspace/ToastContainer';
 import SettingsPanel from '@/components/workspace/SettingsPanel';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { BLUEPRINT_SYSTEM_PROMPT, buildBlueprintPrompt, type BlueprintCriteria } from '@/lib/blueprintPrompts';
+
+
 
 const AnalyzerView = lazy(() => import('@/components/workspace/AnalyzerView'));
 const GeneratorView = lazy(() => import('@/components/workspace/GeneratorView'));
