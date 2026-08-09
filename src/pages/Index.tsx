@@ -759,7 +759,12 @@ export default function Index() {
       case 'files':
         return (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
-            <AnalyzerView onAnalyze={handleAnalyzeLogs} />
+            <AnalyzerView
+              onAnalyze={handleAnalyzeLogs}
+              onGenerateBlueprint={handleGenerateBlueprint}
+              onSendToChat={(p) => { setInputValue(p); setCurrentView('tasks'); showToast('Prompt vložený do chatu', 'info'); }}
+            />
+
           </Suspense>
         );
       case 'skills':
