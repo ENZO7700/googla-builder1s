@@ -9,6 +9,9 @@ import ToastContainer, { Toast } from '@/components/workspace/ToastContainer';
 import SettingsPanel from '@/components/workspace/SettingsPanel';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { BLUEPRINT_SYSTEM_PROMPT, buildBlueprintPrompt, type BlueprintCriteria } from '@/lib/blueprintPrompts';
+
+
 
 const AnalyzerView = lazy(() => import('@/components/workspace/AnalyzerView'));
 const GeneratorView = lazy(() => import('@/components/workspace/GeneratorView'));
@@ -506,6 +509,23 @@ export default function Index() {
     }
   };
 
+  const handleGenerateBlueprint = async (criteria: BlueprintCriteria): Promise<string> => {
+    addLog('[API] Generujem startovací blueprint...');
+    try {
+      const msgs: Message[] = [{ role: 'user', content: buildBlueprintPrompt(criteria) }];
+      const result = await callAIStreaming(msgs, BLUEPRINT_SYSTEM_PROMPT);
+      addLog(`[API] Blueprint hotový (${criteria.depth} promptov).`);
+      showToast('Blueprint vygenerovaný', 'success');
+      return result;
+    } catch {
+      addLog('[ERROR] Generovanie blueprintu zlyhalo.');
+      showToast('Chyba generovania', 'error');
+      return '⚠️ Generovanie blueprintu zlyhalo.';
+    }
+  };
+
+
+
   const handleGenerateSkill = async (desc: string): Promise<string> => {
     addLog('[API] Generujem Cloud funkciu...');
     try {
@@ -739,7 +759,12 @@ export default function Index() {
       case 'files':
         return (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
-            <AnalyzerView onAnalyze={handleAnalyzeLogs} />
+            <AnalyzerView
+              onAnalyze={handleAnalyzeLogs}
+              onGenerateBlueprint={handleGenerateBlueprint}
+              onSendToChat={(p) => { setInputValue(p); setCurrentView('tasks'); showToast('Prompt vložený do chatu', 'info'); }}
+            />
+
           </Suspense>
         );
       case 'skills':
