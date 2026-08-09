@@ -1,15 +1,20 @@
 import { useState } from 'react';
-import { ShieldAlert, Loader2, CheckCircle2, Shield } from 'lucide-react';
+import { ShieldAlert, Loader2, CheckCircle2, Compass } from 'lucide-react';
 import { MarkdownRenderer } from '@/lib/formatMarkdown';
+import BlueprintStarter from './BlueprintStarter';
+import type { BlueprintCriteria } from '@/lib/blueprintPrompts';
 
 interface AnalyzerViewProps {
   onAnalyze: (logs: string) => Promise<string>;
+  onGenerateBlueprint?: (criteria: BlueprintCriteria) => Promise<string>;
+  onSendToChat?: (prompt: string) => void;
 }
 
-export default function AnalyzerView({ onAnalyze }: AnalyzerViewProps) {
+export default function AnalyzerView({ onAnalyze, onGenerateBlueprint, onSendToChat }: AnalyzerViewProps) {
   const [rawLogs, setRawLogs] = useState('');
   const [logAnalysis, setLogAnalysis] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [tab, setTab] = useState<'blueprint' | 'logs'>(onGenerateBlueprint ? 'blueprint' : 'logs');
 
   const handleAnalyze = async () => {
     if (!rawLogs.trim()) return;
@@ -26,22 +31,51 @@ export default function AnalyzerView({ onAnalyze }: AnalyzerViewProps) {
   return (
     <div className="flex-1 flex flex-col p-6 lg:p-12 overflow-y-auto w-full relative z-10 scrollbar-hide bg-card m-4 rounded-2xl shadow-sm border border-border">
       <div className="max-w-4xl mx-auto w-full">
-        <div className="mb-8">
-          <h2 className="text-2xl font-normal text-foreground">Analyzátor Logov</h2>
-          <p className="text-muted-foreground text-sm mt-1">Nahrajte systémové logy pre automatickú analýzu hrozieb.</p>
+        <div className="mb-6">
+          <h2 className="text-2xl font-normal text-foreground">
+            {tab === 'blueprint' ? 'Startovací Blueprint' : 'Analyzátor Logov'}
+          </h2>
+          <p className="text-muted-foreground text-sm mt-1">
+            {tab === 'blueprint'
+              ? 'Zadajte kritériá a AI vygeneruje blueprint plus prompty od A po Z.'
+              : 'Nahrajte systémové logy pre automatickú analýzu hrozieb.'}
+          </p>
         </div>
 
-        {!rawLogs && !logAnalysis && !isAnalyzing && (
-          <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
-            <div className="w-20 h-20 rounded-2xl bg-accent border border-border flex items-center justify-center mb-6">
-              <Shield size={36} className="text-primary" />
-            </div>
-            <h3 className="text-lg font-medium text-foreground mb-2">Žiadne logy na analýzu</h3>
-            <p className="text-sm text-muted-foreground max-w-md">
-              Vložte systémové logy, prístupové záznamy alebo bezpečnostné udalosti do textového poľa nižšie. AI identifikuje potenciálne hrozby a anomálie.
-            </p>
+        {onGenerateBlueprint && (
+          <div className="flex gap-2 mb-8">
+            <button
+              onClick={() => setTab('blueprint')}
+              aria-pressed={tab === 'blueprint'}
+              className={`px-4 py-2 rounded-full text-sm border transition-colors flex items-center gap-2 ${
+                tab === 'blueprint'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              <Compass size={15} /> Blueprint
+            </button>
+            <button
+              onClick={() => setTab('logs')}
+              aria-pressed={tab === 'logs'}
+              className={`px-4 py-2 rounded-full text-sm border transition-colors flex items-center gap-2 ${
+                tab === 'logs'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              <ShieldAlert size={15} /> Analýza logov
+            </button>
           </div>
         )}
+
+        {tab === 'blueprint' && onGenerateBlueprint && (
+          <BlueprintStarter onGenerate={onGenerateBlueprint} onSendToChat={onSendToChat} />
+        )}
+
+        {tab === 'logs' && (
+        <>
+
 
         <div className="flex flex-col gap-6">
           <textarea
