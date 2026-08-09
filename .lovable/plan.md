@@ -1,78 +1,56 @@
-# Plán: dokončenie WP-Ops (A + C + B) s Mistral agentom
+# Plán: Blueprint Starter namiesto prázdneho stavu analyzátora
 
-Skratky: **A** = Dry-run + Rollback, **C** = Mistral chat agent s WP tools + manuálny approve, **B** = Production Readiness Suite. Poradie implementácie: A → C → B (C potrebuje A ako mutation backbone, B ich obe volá).
+Prázdny stav „Žiadne logy na analýzu" nahradíme **Startovacím Blueprintom** — krátky formulár kritérií, ktorý z AI vygeneruje kompletný projektový blueprint plus sadu promptov od A po Z (3 / 6 / 9 / 13 promptov podľa hĺbky).
 
-## 1. Databáza (jedna migrácia)
+## 1. Nová obrazovka: Blueprint Starter
 
-```text
-wp_action_snapshots
-  id uuid pk, site_id uuid → wp_sites, user_id uuid (auth.uid()),
-  scope text  ('rest'|'cli'), target text (napr. 'posts/42', 'plugin/akismet'),
-  before_json jsonb, planned_patch jsonb, planned_call jsonb,
-  proceed_token text unique, token_expires_at timestamptz,
-  status text ('planned'|'applied'|'rolled_back'|'failed'|'expired'),
-  applied_at timestamptz, rolled_back_at timestamptz,
-  result_json jsonb, error text,
-  created_at timestamptz default now()
+Nový komponent `src/components/workspace/BlueprintStarter.tsx`, zobrazený v `AnalyzerView` namiesto prázdneho stavu (analyzátor logov zostáva dostupný ako druhá karta/tab „Analýza logov").
 
-wp_readiness_runs
-  id uuid pk, site_id uuid, user_id uuid,
-  score int, breakdown jsonb, pdf_path text,
-  started_at, finished_at, status text
-```
+Formulár kritérií (všetko voliteľné, s rozumnými defaultmi):
 
-RLS: `user_id = auth.uid()` pre select/insert/update; explicit `service_role` GRANT. GRANT block per pravidlá projektu. Bucket `wp-readiness-reports` (private) pre PDF.
+- **Názov / cieľ projektu** (text)
+- **Typ**: Web app / WordPress stránka / API + backend / AI agent / Automatizácia
+- **Stack**: React+Tailwind (default), WordPress, Node/Edge funkcie, iné (free text)
+- **Cieľová skupina / jazyk výstupu**: SK (default) / EN
+- **Priority** (multi-chip): Rýchlosť, SEO, Bezpečnosť, Škálovanie, Dizajn, Náklady
+- **Hĺbka promptov**: prepínač **3 · 6 · 9 · 13**
+- **Voliteľné poznámky / obmedzenia** (textarea)
 
-## 2. Edge funkcie (nové)
+Tlačidlá: „Vytvoriť blueprint", „Náhodné kritériá" (vyplní ukážkový scenár), „Vymazať".
 
-- `wp-plan-dryrun` — vstup `{siteId, scope, target, method?, path?, body?, command?}`. Načíta „before" (GET zdroja cez `wordpress-proxy` alebo `wp option get`/`plugin list` cez `wordpress-cli`), vypočíta JSON-patch diff, zapíše snapshot, vráti `{snapshotId, proceedToken (TTL 60s), diff, risk}`.
-- `wp-plan-apply` — prijme `proceedToken`, revalidne TTL/vlastníka, vykoná mutáciu cez `wordpress-proxy` / `wordpress-cli`. Pri HTTP ≥ 400 alebo `exit_code ≠ 0` automaticky vráti `before_json` (PATCH späť, `plugin (de)activate`, `option update`, …). Loguje do `wp_audit_log` s `details.rollback=true`.
-- `wp-prod-readiness` — orchestrátor 12 probov (SSH, core-check, plugin/theme, cron, db-size, settings, REST TTFB z 3 regiónov, security probes, backup, SEO, AI smoke test cez A, Playwright hook). Vypočíta scorecard 0–100, uloží run, vygeneruje PDF (re-use `src/lib/launch/pdfReport.ts`).
-- `chat` — refactor na **AI SDK + `@ai-sdk/openai-compatible`** proti Mistral endpointu (`https://api.mistral.ai/v1`, `MISTRAL_API_KEY`, model `mistral-large-latest`). Registruje 5 toolov cez `tool()` + Zod:
-  - `wp_ssh_test` (read)
-  - `wp_rest_read` (GET only, žiadny approve)
-  - `wp_cli_read` (whitelist read príkazov: core-version, cron-status, plugin-list, theme-list, db-size, plugin-status)
-  - `wp_plan` (volá `wp-plan-dryrun`) — bez approve
-  - `wp_apply` (volá `wp-plan-apply`) — **`needsApproval: true`**
-  - `wp_cli_mutation` a `wp_rest_write` sú zakázané mimo `wp_apply` (agent musí ísť cez plan→apply)
-  - `stopWhen: stepCountIs(50)`, system prompt = MEGA prompt z `.lovable/plan.md`.
+## 2. Výstup
 
-## 3. Frontend
-
-- `src/components/wordpress/WPPlanDialog.tsx` — modal s diff viewerom (react-diff-viewer-continued alebo vlastný `<pre>` split), risk badge, „Vykonať" / „Zrušiť", zobrazenie výsledku a auto-rollback banner.
-- `src/components/wordpress/WPRestRunner.tsx` — inline form (path, method, body) → plan → dialog.
-- `WPCLIManager.tsx` — mutation príkazy (cache-flush, rewrite-flush, maint-on/off, transient-del) prejdú cez plan→dialog namiesto priameho `wp_cli`.
-- `src/components/workspace/ChatView.tsx` — render `message.parts` vrátane `tool-invocation` častí; pri `state==="call"` a `needsApproval` zobrazí Approve/Deny tlačidlá (posielajú `addToolResult` cez `useChat`).
-- `src/pages/WordPressReadiness.tsx` + route `/wordpress/readiness` + tab v `WordPressDashboard.tsx` — „Spustiť readiness check" button, live progress, scorecard s 12 kartami, Download PDF, história `wp_readiness_runs`.
-
-## 4. Testy
-
-- `supabase/functions/wp-plan-apply/apply_test.ts` — Deno test: úspešný apply, forced-failure → rollback path zavolaný.
-- `tests/wp-readiness.spec.ts` — Playwright: otvoriť readiness page, spustiť run proti demo site, čakať na scorecard, overiť PDF download.
-- `tests/chat-tools.spec.ts` — Playwright: user prompt „aktivuj plugin X" → assistant vygeneruje `wp_plan` → v UI sa objaví diff → klik Approve → `wp_apply` beží → success správa.
-
-## 5. Poradie súborov (implementačné kroky)
+AI vráti štruktúrovaný markdown, ktorý sa vyrenderuje cez existujúci `MarkdownRenderer`:
 
 ```text
-1. migration: wp_action_snapshots, wp_readiness_runs, bucket, RLS+GRANT
-2. edge: wp-plan-dryrun/index.ts
-3. edge: wp-plan-apply/index.ts   (+ apply_test.ts)
-4. front: WPPlanDialog + WPRestRunner + úprava WPCLIManager
-5. edge: chat/index.ts refactor → AI SDK + Mistral + 5 tools + needsApproval
-6. front: ChatView tool-parts renderer + approval UI
-7. edge: wp-prod-readiness/index.ts
-8. front: WordPressReadiness page + route + tab
-9. tests: chat-tools.spec.ts, wp-readiness.spec.ts
-10. config.toml: pridať tri nové fn (verify_jwt=true), deploy
+1. Executive summary (3 vety)
+2. Rozsah: čo je in-scope / out-of-scope
+3. Architektúra (bloky + dátový tok, ASCII diagram)
+4. Dátový model (tabuľky + kľúčové polia)
+5. Milestony M1–M4 s odhadom
+6. Riziká + mitigácie
+7. Definition of Done / akceptačné kritériá
+8. PROMPT PACK A–Z (presne N promptov)
 ```
+
+Prompt pack: každý prompt má **označenie A, B, C…**, názov kroku, jednu vetu „prečo" a samotný prompt v code bloku pripravený na copy-paste. Počet = zvolená hĺbka:
+
+- **3** — Základ: A) Scaffold + design system, B) Hlavná funkcionalita, C) Nasadenie + QA
+- **6** — pridá: dátový model & backend, auth & roly, polish/responzivita
+- **9** — pridá: integrácie/API, testy (unit + e2e), SEO & výkon
+- **13** — plné A–M: pridá observabilitu/logy, bezpečnostné hardening, obsah & copy, admin/dashboard, launch checklist
+
+Každý prompt má tlačidlo **Kopírovať**, plus „Kopírovať všetky" a „Poslať do chatu" (naplní chat input a prepne na Chat view).
+
+## 3. Zapojenie
+
+- `src/pages/Index.tsx`: nový handler `handleGenerateBlueprint(criteria)` — postaví prompt zo kritérií a zavolá existujúce `callAIStreaming` so systémovým fokusom „Blueprint architect". Logy a toasty rovnako ako u `handleAnalyzeLogs`. Prop sa predá do `AnalyzerView`.
+- `AnalyzerView` dostane nový prop `onGenerateBlueprint` a interný prepínač kariet: **Blueprint** (default) / **Logy**.
+- Bez zmien v DB a edge funkciách — beží cez existujúci `chat` endpoint.
 
 ## Technické poznámky
 
-- Mistral cez `createOpenAICompatible({ name:"mistral", baseURL:"https://api.mistral.ai/v1", headers:{ Authorization:`Bearer ${MISTRAL_API_KEY}` } })`. Prompt/CORS/correlation ID reusujeme z existujúceho `chat/index.ts`.
-- `needsApproval` cez AI SDK: tool má `execute` len keď je approval potvrdené; medzitým sa v UI streamuje `tool-invocation` part v state `"call"`.
-- Rollback stratégia per resource: `posts/pages/media` → PATCH s `before_json`; `settings` → PATCH options; `plugins` → `plugin activate/deactivate` cez CLI; `theme` → `theme activate` predchádzajúcej témy; ak nie je invertovateľné (`transient-del`, `cache-flush`) → snapshot označíme `rollback:not_applicable` a mutáciu povolíme len s explicit user ackom v diff dialogu.
-- PDF re-use `pdfReport.ts` (rozšíriť o `renderReadiness(run)`).
-- Proceed token: `crypto.randomUUID()`, TTL 60 s, single-use (mark applied on first apply).
-- Všetky nové edge funkcie logujú štruktúrovane s `correlationId` (rovnaký helper ako v `chat`).
-
-Po schválení začnem krokom 1 a idem postupne 1→10, s deploymentom edge funkcií po každom bloku.
+- Šablóna promptu pre model je jeden zdroj pravdy v `src/lib/blueprintPrompts.ts`: mapovanie hĺbka → seznam krokov (A–M) a builder finálneho user promptu z kritérií.
+- Počet promptov vynucujeme v texte promptu a po vygenerovaní iba renderujeme (žiadne schema bounds).
+- Copy funkcia cez `navigator.clipboard` s fallbackom, toast potvrdenie.
+- Štýl podľa existujúceho dizajnu (`bg-card`, `border-border`, chip tlačidlá ako v `WPCLIManager`), žiadne hardcoded farby.
