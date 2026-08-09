@@ -105,7 +105,10 @@ export default function AnalyzerView({ onAnalyze, onGenerateBlueprint, onSendToC
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
     </div>
+
   );
 }
