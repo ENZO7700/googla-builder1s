@@ -506,6 +506,23 @@ export default function Index() {
     }
   };
 
+  const handleGenerateBlueprint = async (criteria: BlueprintCriteria): Promise<string> => {
+    addLog('[API] Generujem startovací blueprint...');
+    try {
+      const msgs: Message[] = [{ role: 'user', content: buildBlueprintPrompt(criteria) }];
+      const result = await callAIStreaming(msgs, BLUEPRINT_SYSTEM_PROMPT);
+      addLog(`[API] Blueprint hotový (${criteria.depth} promptov).`);
+      showToast('Blueprint vygenerovaný', 'success');
+      return result;
+    } catch {
+      addLog('[ERROR] Generovanie blueprintu zlyhalo.');
+      showToast('Chyba generovania', 'error');
+      return '⚠️ Generovanie blueprintu zlyhalo.';
+    }
+  };
+
+
+
   const handleGenerateSkill = async (desc: string): Promise<string> => {
     addLog('[API] Generujem Cloud funkciu...');
     try {
