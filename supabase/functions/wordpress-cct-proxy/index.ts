@@ -10,6 +10,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.0";
 import { decryptSecret, encodeBasicAuth } from "../_shared/wordpress-credentials.ts";
+import { jsonInternalError } from "../_shared/safe-error.ts";
 
 // ==================== CONSTANTS ====================
 
@@ -294,8 +295,6 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("wordpress-cct-proxy error:", err);
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return jsonError(message, 500);
+    return jsonInternalError(err, corsHeaders, "wordpress-cct-proxy");
   }
 });

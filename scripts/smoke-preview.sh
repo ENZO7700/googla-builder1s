@@ -13,6 +13,16 @@ URL="${URL%/}"
 
 printf 'Smoke-testing %s\n' "$URL"
 
+# Health / ready probes (Vercel serverless routes)
+for probe in health ready; do
+  probe_code=$(curl -sS -o /dev/null -w '%{http_code}' "${URL}/${probe}")
+  if [[ "$probe_code" == "200" ]]; then
+    pass "GET /${probe} → HTTP 200"
+  else
+    fail "GET /${probe} → HTTP ${probe_code} (expected 200)"
+  fi
+done
+
 start_ms=$(($(date +%s%N 2>/dev/null || python3 -c 'import time;print(int(time.time()*1e9))') / 1000000))
 
 resp=$(curl -sS -w '\nHTTP_CODE:%{http_code}\nTIME_TOTAL:%{time_total}' "$URL/")

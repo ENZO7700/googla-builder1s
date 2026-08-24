@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.0";
 import { Client } from "npm:ssh2@1.15.0";
+import { jsonInternalError } from "../_shared/safe-error.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -185,7 +186,6 @@ Deno.serve(async (req) => {
       stderr: result?.stderr ?? "",
     });
   } catch (e) {
-    console.error("wordpress-cli error:", e);
-    return jsonResponse({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
+    return jsonInternalError(e, corsHeaders, "wordpress-cli");
   }
 });

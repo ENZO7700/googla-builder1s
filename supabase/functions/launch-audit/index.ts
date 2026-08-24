@@ -2,6 +2,8 @@
 // Performs network probes against a target URL and returns a Scan-shaped JSON.
 // Note: this is NOT a Lighthouse replacement — no headless browser, no Core Web Vitals.
 
+import { jsonInternalError } from "../_shared/safe-error.ts";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -290,19 +292,18 @@ Deno.serve(async (req) => {
     let resp: Response | null = null;
     let html: string | null = null;
     let htmlBytes = 0;
-    let networkError: string | null = null;
     try {
       resp = await fetchWithTimeout(url, { headers: { 'User-Agent': 'LaunchReadinessBot/1.0 (+lovable)' } }, 12_000);
       html = await resp.text();
       htmlBytes = new TextEncoder().encode(html).length;
-    } catch (e) {
-      networkError = (e as Error).message;
+    } catch {
+      // Network failure handled below via !resp check
     }
     const ttfbMs = Date.now() - t0;
 
     if (!resp) {
       return new Response(JSON.stringify({
-        error: `Could not reach ${url}: ${networkError ?? 'unknown error'}`,
+        error: `Could not reach ${url}`,
       }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
@@ -343,8 +344,6 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {
-    return new Response(JSON.stringify({ error: (e as Error).message }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonInternalError(e, corsHeaders, "launch-audit");
   }
 });

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.0";
 import { decryptSecret, encodeBasicAuth } from "../_shared/wordpress-credentials.ts";
+import { jsonInternalError } from "../_shared/safe-error.ts";
 import { normalizeRequestPath } from "./path.ts";
 
 const corsHeaders = {
@@ -155,8 +156,6 @@ Deno.serve(async (req) => {
       headers: responseHeaders,
     });
   } catch (err) {
-    console.error("wordpress-proxy error:", err);
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return jsonResponse({ error: message }, 500);
+    return jsonInternalError(err, corsHeaders, "wordpress-proxy");
   }
 });
