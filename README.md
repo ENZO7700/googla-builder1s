@@ -1,56 +1,92 @@
 # wpBOX Elite
 
-wpBOX Elite je komplexná cloudová platforma a vývojové prostredie pre správu, analýzu a nasadzovanie WordPress projektov a repozitárov. Je postavená na modernom stacku a exkluzívne využíva **Mistral API** pre AI analýzu a generovanie kódu.
+wpBOX Elite is a cloud workspace for managing, analyzing, and deploying WordPress projects. Built with React, Supabase, Firebase Auth, and Mistral AI via Supabase Edge Functions.
 
-## 🚀 Kľúčové Vlastnosti
+## Quick start
 
-1. **WordPress Manager:**
-   - Priame napojenie cez REST API na produkčné weby.
-   - Správa FSE (Full Site Editing) Blueprints.
-   - Správa Headless (Next.js/React) architektúr.
-   - Integrovaný WP-CLI manažér s podporou SSH a PEM kľúčov.
-2. **Mistral AI Integrácia:**
-   - Plne integrované modely od Mistral AI (`mistral-large`, `codestral`, atď.).
-   - Analýza chýb z logov, code reviews a generovanie komplexných skriptov.
-3. **Deploy Pipeline:**
-   - Možnosť jedným kliknutím nasadiť vygenerovaný HTML/Block kód priamo z chatu do pripojeného WordPressu (ako Draft stránku).
-4. **Nezničiteľná Architektúra:**
-   - Aplikácia je chránená globálnymi `Error Boundaries`.
-   - Všetky požiadavky na API majú zabudovaný `Exponential Backoff` (automatické opakovanie pri zlyhaní) a prísne časové limity (`AbortController`).
-   - Prísna validácia JSON dát cez Edge Funkcie.
+```bash
+git clone https://github.com/ENZO7700/googla-builder1s.git
+cd googla-builder1s
+npm install
+cp .env.example .env   # fill in values locally — never commit .env
+npm run dev            # http://localhost:8080
+```
 
-## 🛠️ Stack
+### Verify locally
 
-- **Frontend:** React (Vite), Tailwind CSS, Framer Motion, TypeScript
-- **Backend / Databáza:** Supabase (PostgreSQL), Edge Functions (Deno)
-- **AI Integrácia:** Mistral API (via Supabase Edge Functions)
-- **Testovanie:** Vitest, Testing Library, vitest-axe (a11y)
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+```
 
-## 📦 Inštalácia & Lokálny Vývoj
+## Environment variables
 
-1. Klonovanie repozitára:
-   ```bash
-   git clone https://github.com/ENZO7700/googla-builder1s.git
-   cd googla-builder1s
-   ```
-2. Inštalácia závislostí:
-   ```bash
-   npm install
-   ```
-3. Nastavenie `.env` podľa vzoru `.env.example`.
-4. Spustenie vývojového servera:
-   ```bash
-   npm run dev
-   ```
+Copy `.env.example` → `.env`. **Key names only** — set values in Vercel or your local shell; never commit secrets.
 
-## ☁️ Deployment na Vercel (Zero-Error Guide)
+| Key | Required | Where used |
+|-----|----------|------------|
+| `VITE_SUPABASE_URL` | yes | Frontend |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | yes | Frontend |
+| `VITE_SUPABASE_PROJECT_ID` | yes | Frontend |
+| `VITE_SUPABASE_JWKS_URL` | yes | JWT verification |
+| `VITE_FIREBASE_API_KEY` | yes | Firebase Auth |
+| `VITE_FIREBASE_AUTH_DOMAIN` | yes | Firebase Auth |
+| `VITE_FIREBASE_PROJECT_ID` | yes | Firebase Auth |
+| `VITE_FIREBASE_STORAGE_BUCKET` | yes | Firebase Auth |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | yes | Firebase Auth |
+| `VITE_FIREBASE_APP_ID` | yes | Firebase Auth |
+| `WPBOX_EMAIL` | healthcheck only | `npm run healthcheck` |
+| `WPBOX_PASSWORD` | healthcheck only | `npm run healthcheck` |
+| `WP_APP_USER` | healthcheck only | WordPress live tests |
+| `WP_APP_PASSWORD` | healthcheck only | WordPress live tests |
+| `WPBOX_PROD_URL` | optional | Smoke / healthcheck target URL |
+| `WP_HEALTH_WEB24` | optional | WordPress healthcheck URL |
+| `WP_HEALTH_ROOT` | optional | WordPress healthcheck URL |
 
-1. Prepoj Vercel projekt s týmto GitHub repozitárom.
-2. Nastav v záložke **Environment Variables** všetky `VITE_SUPABASE_*` premenné.
-3. Skontroluj, že máš v Supabase Authentication pridanú produkčnú doménu medzi **Redirect URLs** (vrátane dvojitých hviezdičiek: `https://tvojadomena.vercel.app/**`).
-4. Uisti sa, že tvoje Supabase Edge Funkcie sú nasadené a obsahujú tajný kľúč `MISTRAL_API_KEY`.
-5. Klikni na **Deploy** vo Verceli.
+Edge function secrets (`MISTRAL_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GITHUB_TOKEN`, etc.) are configured in the **Supabase dashboard**, not in `.env`.
 
-## 🔒 Lokálne Testovanie (Dev-Free-Entry)
+## Health endpoints (Vercel)
 
-Ak spúšťaš aplikáciu lokálne (`import.meta.env.DEV`), na prihlasovacej obrazovke nájdeš modré tlačidlo **"Dev-Free-Entry"**. Toto tlačidlo ťa pustí priamo do aplikácie pod lokálnym demo účtom bez nutnosti reálnej registrácie. Poznámka: V demo režime sú operácie s reálnou databázou a úložiskom v E2E testoch bezpečne preskočené.
+| Path | Purpose |
+|------|---------|
+| `GET /health` | Liveness probe — returns `{ "status": "ok" }` |
+| `GET /ready` | Readiness probe — returns `{ "status": "ready" }` |
+
+## Deployment (Vercel)
+
+1. Connect the GitHub repo to a Vercel project.
+2. Set all `VITE_*` environment variables in Vercel project settings.
+3. Add the production domain to Supabase Auth **Redirect URLs**.
+4. Deploy Supabase Edge Functions separately (`supabase functions deploy <name>`).
+5. Deploy via Vercel (push to `main` or manual deploy).
+
+## Stack
+
+| Layer | Tech |
+|-------|------|
+| Frontend | React 18, Vite, TypeScript, Tailwind, shadcn/ui |
+| Auth | Firebase Google Sign-In |
+| Backend | Supabase (Postgres, RLS, Edge Functions) |
+| AI | Mistral API (edge functions only) |
+| Tests | Vitest, Playwright |
+
+See [AGENTS.md](./AGENTS.md) for architecture details, routes, and conventions.
+
+## Local WordPress (optional)
+
+```bash
+scripts/wpbox-workspace.sh start   # Docker WordPress on :18090
+```
+
+Dev credentials (`admin` / `admin123`) are for local use only.
+
+---
+
+## Kľúčové vlastnosti (SK)
+
+1. **WordPress Manager** — REST API, FSE Blueprints, headless setups, WP-CLI over SSH.
+2. **Mistral AI** — log analysis, code review, script generation via edge functions.
+3. **Deploy Pipeline** — push generated HTML/blocks to WordPress as drafts from chat.
+4. **Resilience** — global Error Boundaries, exponential backoff, strict JSON validation.

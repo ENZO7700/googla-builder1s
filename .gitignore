@@ -13,7 +13,19 @@ dist-ssr
 supabase/.temp
 *.local
 .env
+.env.*
+!.env.example
+.env.local
 .env.*.local
+credentials/
+credentials.json
+*.pem
+*.key
+*.p12
+*.pfx
+serviceAccount*.json
+google-services.json
+GoogleService-Info.plist
 .wpbox/
 googla-builder1s-main.zip
 

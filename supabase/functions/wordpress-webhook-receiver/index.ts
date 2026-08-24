@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.0";
+import { jsonInternalError } from "../_shared/safe-error.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -190,6 +191,6 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ ok: true, table: updatedTable, id: recordId }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (e) {
-    return new Response(JSON.stringify({ error: (e as Error).message }), { status: 500, headers: corsHeaders });
+    return jsonInternalError(e, corsHeaders, "wordpress-webhook-receiver");
   }
 });

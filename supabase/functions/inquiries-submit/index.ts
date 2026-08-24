@@ -1,5 +1,6 @@
 /* eslint-disable no-useless-escape */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.0";
+import { jsonInternalError } from "../_shared/safe-error.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -111,11 +112,13 @@ Deno.serve(async (req) => {
         contentType: file.type || 'application/octet-stream',
         upsert: false,
       });
-      if (upErr) return new Response(JSON.stringify({ error: upErr.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      if (upErr) {
+        return new Response(JSON.stringify({ error: "Upload failed" }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
 
       return new Response(JSON.stringify({ ok: true, path, name: file.name, size: file.size, mime: file.type }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     } catch (e) {
-      return new Response(JSON.stringify({ error: (e as Error).message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return jsonInternalError(e, corsHeaders, "inquiries-submit upload");
     }
   }
 
@@ -164,10 +167,12 @@ Deno.serve(async (req) => {
       ip_hash: ipHash,
       user_agent: req.headers.get('user-agent') ?? null,
     });
-    if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (error) {
+      return new Response(JSON.stringify({ error: "Could not save inquiry" }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
 
     return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (e) {
-    return new Response(JSON.stringify({ error: (e as Error).message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return jsonInternalError(e, corsHeaders, "inquiries-submit");
   }
 });

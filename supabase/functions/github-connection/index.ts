@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.0";
 import { encryptSecret, decryptSecret } from "../_shared/wordpress-credentials.ts";
+import { jsonInternalError } from "../_shared/safe-error.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -283,7 +284,7 @@ serve(async (req) => {
         .single();
 
       if (dbErr || !connection) {
-        return jsonResponse({ error: dbErr?.message ?? "Nepodarilo sa uložiť pripojenie." }, 500);
+        return jsonResponse({ error: "Nepodarilo sa uložiť pripojenie." }, 500);
       }
 
       // Zápis do audit logu
@@ -649,7 +650,7 @@ serve(async (req) => {
         .limit(50);
 
       if (logsErr) {
-        return jsonResponse({ error: logsErr.message }, 500);
+        return jsonResponse({ error: "Internal server error" }, 500);
       }
 
       return jsonResponse(logs || []);
@@ -657,7 +658,6 @@ serve(async (req) => {
 
     return jsonResponse({ error: "Neznáma akcia" }, 400);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Neznáma chyba";
-    return jsonResponse({ error: message }, 500);
+    return jsonInternalError(error, corsHeaders, "github-connection");
   }
 });

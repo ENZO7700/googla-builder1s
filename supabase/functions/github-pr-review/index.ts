@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { jsonInternalError } from "../_shared/safe-error.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -180,8 +181,8 @@ serve(async (req) => {
     // Real webhook path: signature is mandatory.
     if (!webhookSecret) {
       console.error("GITHUB_WEBHOOK_SECRET not configured");
-      return new Response(JSON.stringify({ error: "Webhook secret not configured" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(JSON.stringify({ error: "Service unavailable" }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const sigOk = await verifySignature(webhookSecret, rawBody, req.headers.get("x-hub-signature-256"));
@@ -206,8 +207,8 @@ serve(async (req) => {
 
     if (!githubToken) {
       console.error("GITHUB_TOKEN not configured");
-      return new Response(JSON.stringify({ error: "GitHub token not configured" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(JSON.stringify({ error: "Service unavailable" }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -239,10 +240,6 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error("github-pr-review error:", e);
-    return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return jsonInternalError(e, corsHeaders, "github-pr-review");
   }
 });

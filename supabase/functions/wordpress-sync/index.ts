@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.0";
 import { decryptSecret, encodeBasicAuth } from "../_shared/wordpress-credentials.ts";
+import { jsonInternalError } from "../_shared/safe-error.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -87,6 +88,6 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ wp_post_id: newId }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (e) {
-    return new Response(JSON.stringify({ error: (e as Error).message }), { status: 500, headers: corsHeaders });
+    return jsonInternalError(e, corsHeaders, "wordpress-sync");
   }
 });

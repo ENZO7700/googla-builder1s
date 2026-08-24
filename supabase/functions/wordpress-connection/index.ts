@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.0";
 import { encodeBasicAuth, encryptSecret } from "../_shared/wordpress-credentials.ts";
+import { jsonInternalError } from "../_shared/safe-error.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -216,7 +217,7 @@ Deno.serve(async (req) => {
 
     const { data: site, error: siteError } = await query;
     if (siteError || !site) {
-      return jsonResponse({ error: siteError?.message ?? "Could not save WordPress site" }, 500);
+      return jsonResponse({ error: "Could not save WordPress site" }, 500);
     }
 
     await supabase.from("wp_audit_log").insert({
@@ -240,7 +241,6 @@ Deno.serve(async (req) => {
       wpUser: validation.user,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return jsonResponse({ error: message }, 500);
+    return jsonInternalError(error, corsHeaders, "wordpress-connection");
   }
 });

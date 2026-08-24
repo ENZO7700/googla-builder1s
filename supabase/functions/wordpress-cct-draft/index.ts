@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { jsonInternalError } from "../_shared/safe-error.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -75,8 +76,8 @@ Deno.serve(async (req: Request) => {
     const mistralKey = Deno.env.get("MISTRAL_API_KEY");
     if (!mistralKey) {
       return new Response(
-        JSON.stringify({ ok: false, error: "MISTRAL_API_KEY is not configured" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ ok: false, error: "AI service unavailable" }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -151,10 +152,10 @@ Brief requirements: ${brief}`;
     });
 
     if (!response.ok) {
-      const errText = await response.text();
+      console.error("Mistral API error:", response.status, await response.text());
       return new Response(
-        JSON.stringify({ ok: false, error: "Mistral API error", details: errText }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ ok: false, error: "AI service error" }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -243,10 +244,6 @@ Brief requirements: ${brief}`;
     );
 
   } catch (err) {
-    console.error("wordpress-cct-draft error:", err);
-    return new Response(
-      JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonInternalError(err, corsHeaders, "wordpress-cct-draft");
   }
 });
