@@ -83,7 +83,7 @@ jobs:
           WPBOX_EMAIL: ${{ secrets.WPBOX_EMAIL }}
           WPBOX_PASSWORD: ${{ secrets.WPBOX_PASSWORD }}
           WPBOX_PROD_URL: ${{ steps.url.outputs.deploy_url }}
-          WP_HEALTH_WEB24: ${{ vars.WP_HEALTH_WEB24 || 'https://larsenevans.com/web24' }}
+          WP_HEALTH_WEB24: ${{ vars.WP_HEALTH_WEB24 || 'https://larsenevans.com' }}
           WP_HEALTH_ROOT: ${{ vars.WP_HEALTH_ROOT || 'https://larsenevans.com' }}
 
       - name: Open issue on failure

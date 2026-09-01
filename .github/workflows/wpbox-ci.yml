@@ -89,10 +89,10 @@ jobs:
 
       - run: npm ci
 
-      - name: Live WordPress API contract (web24)
+      - name: Live WordPress API contract
         run: npm run test:live
         env:
-          WP_HEALTH_WEB24: ${{ vars.WP_HEALTH_WEB24 || 'https://larsenevans.com/web24' }}
+          WP_HEALTH_WEB24: ${{ vars.WP_HEALTH_WEB24 || 'https://larsenevans.com' }}
           WP_APP_USER: ${{ secrets.WP_APP_USER }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
 
@@ -105,5 +105,5 @@ jobs:
           WPBOX_EMAIL: ${{ secrets.WPBOX_EMAIL }}
           WPBOX_PASSWORD: ${{ secrets.WPBOX_PASSWORD }}
           WPBOX_PROD_URL: ${{ vars.WPBOX_PROD_URL || 'https://larsenevans-wpbox.vercel.app' }}
-          WP_HEALTH_WEB24: ${{ vars.WP_HEALTH_WEB24 || 'https://larsenevans.com/web24' }}
+          WP_HEALTH_WEB24: ${{ vars.WP_HEALTH_WEB24 || 'https://larsenevans.com' }}
           WP_HEALTH_ROOT: ${{ vars.WP_HEALTH_ROOT || 'https://larsenevans.com' }}
