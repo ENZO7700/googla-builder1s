@@ -13,6 +13,10 @@ URL="${URL%/}"
 
 printf 'Smoke-testing %s\n' "$URL"
 
+FAIL=0
+pass() { printf '\033[32m✓ PASS\033[0m %s\n' "$1"; }
+fail() { FAIL=$((FAIL + 1)); printf '\033[31m✗ FAIL\033[0m %s\n' "$1"; }
+
 # Health / ready probes (Vercel serverless routes)
 for probe in health ready; do
   probe_code=$(curl -sS -o /dev/null -w '%{http_code}' "${URL}/${probe}")
@@ -32,10 +36,6 @@ body=$(printf '%s' "$resp" | grep -v '^HTTP_CODE:\|^TIME_TOTAL:')
 
 end_ms=$(($(date +%s%N 2>/dev/null || python3 -c 'import time;print(int(time.time()*1e9))') / 1000000))
 dur_ms=$((end_ms - start_ms))
-
-FAIL=0
-pass() { printf '\033[32m✓ PASS\033[0m %s\n' "$1"; }
-fail() { FAIL=$((FAIL + 1)); printf '\033[31m✗ FAIL\033[0m %s\n' "$1"; }
 
 if [[ "$http_code" == "200" ]]; then
   pass "HTTP 200 (${time_total}s)"
