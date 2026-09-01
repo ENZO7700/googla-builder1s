@@ -196,9 +196,9 @@ export default function ChatView({
   }, []);
 
   return (
-    <>
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Header */}
-      <header className="h-16 border-b border-border bg-background flex items-center justify-between px-4 lg:px-6 shrink-0 z-30">
+      <header className="z-10 flex h-16 shrink-0 items-center justify-between border-b border-border bg-background px-4 lg:px-6">
         <div className="flex items-center gap-3">
           {onToggleMobileMenu && (
             <button onClick={onToggleMobileMenu} className="lg:hidden rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
@@ -230,11 +230,11 @@ export default function ChatView({
       )}
 
       {/* Messages */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 pt-8 pb-48 scrollbar-hide relative flex flex-col lg:px-20">
+      <div ref={scrollContainerRef} className="relative flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pt-8 pb-4 scrollbar-hide lg:px-20">
         {!autoScroll && isLoading && (
           <button
             onClick={() => { setAutoScroll(true); messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
-            className="fixed bottom-40 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:opacity-90"
+            className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-primary px-3 py-1.5 text-xs text-primary-foreground shadow-lg hover:opacity-90"
           >
             ↓ Skočiť na koniec
           </button>
@@ -301,8 +301,8 @@ export default function ChatView({
         </div>
       </div>
 
-      {/* Input area */}
-      <div className="absolute bottom-0 left-0 right-0 z-40 bg-gradient-to-t from-background via-background to-transparent p-3 lg:px-20 lg:pb-8">
+      {/* Input area — in-flow footer so it stays inside the main pane, not over the sidebar rail */}
+      <div className="shrink-0 bg-gradient-to-t from-background via-background to-transparent p-3 lg:px-20 lg:pb-8">
         <div className="mx-auto w-full max-w-3xl relative">
           {attachments.length > 0 && (
             <div className="absolute -top-16 left-0 flex gap-2 w-full overflow-x-auto pb-2 scrollbar-hide z-30">
@@ -389,6 +389,6 @@ export default function ChatView({
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
