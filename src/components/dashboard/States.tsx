@@ -28,6 +28,34 @@ export function LoadingState({ label = 'Načítavam...' }: { label?: string }) {
   );
 }
 
+export function ForbiddenState({
+  title,
+  description,
+  backLabel = 'Späť na workspace',
+  onBack,
+}: {
+  title: string;
+  description: string;
+  backLabel?: string;
+  onBack: () => void;
+}) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <div className="max-w-md w-full text-center bg-card border border-border rounded-2xl p-8 shadow-sm">
+        <p className="text-lg font-semibold text-foreground">{title}</p>
+        <p className="text-sm text-muted-foreground mt-2">{description}</p>
+        <button
+          type="button"
+          onClick={onBack}
+          className="mt-6 px-6 py-2.5 bg-primary text-primary-foreground rounded-full text-sm font-medium hover:bg-google-blue-hover transition-colors"
+        >
+          {backLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center text-center py-10 px-6">

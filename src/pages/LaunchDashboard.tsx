@@ -7,7 +7,7 @@ import {
 import { toast } from 'sonner';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import StatusBadge from '@/components/dashboard/StatusBadge';
-import { EmptyState, ErrorState, LoadingState } from '@/components/dashboard/States';
+import { EmptyState, ErrorState, LoadingState, ForbiddenState } from '@/components/dashboard/States';
 import { CircularScore } from '@/components/launch/CircularScore';
 import { FindingCard } from '@/components/launch/FindingCard';
 import { ScanTimeline } from '@/components/launch/ScanTimeline';
@@ -54,12 +54,22 @@ export default function LaunchDashboard() {
   }, [authLoading, user, isAdmin, navigate]);
 
   if (authLoading) return <LoadingState label="Overujem oprávnenia…" />;
-  if (!user) return null;
+  if (!user) {
+    return (
+      <ForbiddenState
+        title="Prihlásenie je potrebné"
+        description="Launch Readiness dashboard vyžaduje prihlásený účet. Prihláste sa v hlavnom workspace."
+        onBack={() => navigate('/')}
+      />
+    );
+  }
   if (!isAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-background">
-        <ErrorState message="Launch Readiness dashboard je dostupný len pre adminov. Pridaj svoj email do whitelistu v src/lib/admin.ts." />
-      </div>
+      <ForbiddenState
+        title="Prístup zamietnutý"
+        description="Launch Readiness dashboard je dostupný len pre administrátorov. Ak si myslíte, že ide o chybu, kontaktujte vlastníka workspace-u."
+        onBack={() => navigate('/')}
+      />
     );
   }
 

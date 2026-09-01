@@ -147,6 +147,7 @@ interface ChatViewProps {
   onRemoveAttachment: (i: number) => void;
   isRecording: boolean;
   onMicClick: () => void;
+  micSupported?: boolean;
   isDragging: boolean;
   tokenCount: string;
   onCopyCode: () => void;
@@ -157,7 +158,7 @@ interface ChatViewProps {
 export default function ChatView({
   messages, isLoading, isStreaming, inputValue, onInputChange, onSend,
   attachments, onFileUpload, onRemoveAttachment,
-  isRecording, onMicClick, isDragging, tokenCount, onCopyCode, onDeployCode, onToggleMobileMenu
+  isRecording, onMicClick, micSupported = true, isDragging, tokenCount, onCopyCode, onDeployCode, onToggleMobileMenu
 }: ChatViewProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -371,7 +372,25 @@ export default function ChatView({
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={onMicClick} className={`p-2 rounded-full transition-colors ${isRecording ? 'bg-destructive/10 text-destructive' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}>
+                <button
+                  type="button"
+                  onClick={onMicClick}
+                  disabled={!micSupported}
+                  title={
+                    !micSupported
+                      ? 'Rozpoznávanie reči nie je v tomto prehliadači dostupné'
+                      : isRecording
+                        ? 'Zastaviť nahrávanie'
+                        : 'Hlasový vstup (SK/EN)'
+                  }
+                  className={`p-2 rounded-full transition-colors ${
+                    !micSupported
+                      ? 'text-muted-foreground/40 cursor-not-allowed'
+                      : isRecording
+                        ? 'bg-destructive/10 text-destructive'
+                        : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                  }`}
+                >
                   <Mic size={18} />
                 </button>
                 <button
