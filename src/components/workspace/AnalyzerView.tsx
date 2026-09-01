@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ArrowLeft, Menu, ShieldAlert, Loader2, CheckCircle2, Shield } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { ArrowLeft, Menu, ShieldAlert, Loader2, CheckCircle2, Shield, Upload } from 'lucide-react';
 import { MarkdownRenderer } from '@/lib/formatMarkdown';
 
 interface AnalyzerViewProps {
@@ -12,6 +12,7 @@ export default function AnalyzerView({ onAnalyze, onBack, onOpenMobileMenu }: An
   const [rawLogs, setRawLogs] = useState('');
   const [logAnalysis, setLogAnalysis] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAnalyze = async () => {
     if (!rawLogs.trim()) return;
@@ -23,6 +24,22 @@ export default function AnalyzerView({ onAnalyze, onBack, onOpenMobileMenu }: An
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.toLowerCase();
+    if (!/\.(log|txt|json)$/.test(ext)) {
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setRawLogs(typeof reader.result === 'string' ? reader.result : '');
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   return (
@@ -68,6 +85,25 @@ export default function AnalyzerView({ onAnalyze, onBack, onOpenMobileMenu }: An
         )}
 
         <div className="flex flex-col gap-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".log,.txt,.json"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-border text-foreground rounded-full text-sm font-medium hover:bg-accent transition-colors shadow-sm"
+            >
+              <Upload size={16} />
+              Nahrať súbor (.log, .txt, .json)
+            </button>
+            <span className="text-xs text-muted-foreground">alebo vložte logy nižšie</span>
+          </div>
+
           <textarea
             value={rawLogs}
             onChange={(e) => setRawLogs(e.target.value)}

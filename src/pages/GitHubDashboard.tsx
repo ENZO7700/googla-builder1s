@@ -16,7 +16,7 @@ import type {
 } from '@/lib/github/types';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import StatusBadge from '@/components/dashboard/StatusBadge';
-import { EmptyState, LoadingState, ErrorState } from '@/components/dashboard/States';
+import { EmptyState, LoadingState, ErrorState, ForbiddenState } from '@/components/dashboard/States';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -207,26 +207,23 @@ export default function GitHubDashboard() {
     );
   }
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <ForbiddenState
+        title="Prihlásenie je potrebné"
+        description="GitHub dashboard vyžaduje prihlásený účet. Prihláste sa v hlavnom workspace."
+        onBack={() => navigate('/')}
+      />
+    );
+  }
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-6">
-        <div className="max-w-md w-full text-center bg-card border border-border rounded-2xl p-8 shadow-sm">
-          <Shield size={32} className="text-warning mx-auto mb-3" />
-          <h1 className="text-lg font-semibold text-foreground">Prístup zamietnutý</h1>
-          <p className="text-sm text-muted-foreground mt-2">
-            Tento dashboard je dostupný iba administrátorom. Ak si myslíte, že ide o chybu,
-            kontaktujte vlastníka workspace-u.
-          </p>
-          <button
-            onClick={() => navigate('/')}
-            className="mt-6 px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-medium"
-          >
-            Späť do aplikácie
-          </button>
-        </div>
-      </div>
+      <ForbiddenState
+        title="Prístup zamietnutý"
+        description="Tento dashboard je dostupný iba administrátorom. Ak si myslíte, že ide o chybu, kontaktujte vlastníka workspace-u."
+        onBack={() => navigate('/')}
+      />
     );
   }
 

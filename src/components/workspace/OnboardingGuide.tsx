@@ -86,6 +86,15 @@ export default function OnboardingGuide({ onNavigate }: OnboardingGuideProps) {
             Tvoja nová cloudová základňa pre vývoj, analýzu a nasadzovanie WordPress projektov. 
             Nasleduj tieto tri kroky k tvojmu prvému AI deployu.
           </p>
+          <button
+            type="button"
+            onClick={() => onNavigate('tasks')}
+            className="mt-6 inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary text-primary-foreground rounded-full text-sm font-semibold shadow-lg shadow-primary/20 hover:bg-google-blue-hover transition-colors"
+          >
+            <MessageSquareCode size={18} />
+            Prejsť do Chatu
+            <ArrowRight size={16} />
+          </button>
         </motion.div>
 
         {/* Steps Grid */}

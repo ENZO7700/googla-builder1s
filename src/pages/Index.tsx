@@ -8,7 +8,6 @@ import SidebarNav, { Session } from '@/components/workspace/SidebarNav';
 import SystemMonitor, { StreamDiagnostics } from '@/components/workspace/SystemMonitor';
 import ChatView from '@/components/workspace/ChatView';
 import WorkflowRibbon from '@/components/workspace/WorkflowRibbon';
-import ToastContainer, { Toast } from '@/components/workspace/ToastContainer';
 import SettingsPanel from '@/components/workspace/SettingsPanel';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -167,7 +166,6 @@ export default function Index() {
   const [isDragging, setIsDragging] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [latestGeneratedCode, setLatestGeneratedCode] = useState('');
-  const [toasts, setToasts] = useState<Toast[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
@@ -176,6 +174,7 @@ export default function Index() {
   const [diagnostics, setDiagnostics] = useState<StreamDiagnostics | null>(null);
   const [workflowRun, setWorkflowRun] = useState<WorkflowRun | null>(null);
   const recognitionRef = useRef<any>(null);
+  const [micSupported, setMicSupported] = useState(false);
   const [logs, setLogs] = useState([
     '[SYSTEM] Inicializácia inštancie LarsenEvans-wpBOX...',
     '[AUTH] IAM politiky úspešne overené.',
@@ -268,10 +267,15 @@ export default function Index() {
     } catch { /* ignore */ }
   }, [user]);
 
-  const showToast = useCallback((message: string, type: Toast['type'] = 'info') => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+  const showToast = useCallback((message: string, type: 'info' | 'success' | 'error' = 'info') => {
+    if (type === 'error') toast.error(message);
+    else if (type === 'success') toast.success(message);
+    else toast.info(message);
+  }, []);
+
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    setMicSupported(!!SpeechRecognition);
   }, []);
 
   const addLog = useCallback((msg: string) => {
@@ -1013,61 +1017,66 @@ export default function Index() {
     setAttachments(prev => prev.filter((_, idx) => idx !== i));
   };
 
-  // Real Web Speech API
+  // Web Speech API with Slovak primary + English fallback
   const handleMicClick = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      showToast('Rozpoznávanie reči nie je podporované v tomto prehliadači.', 'error');
-      return;
-    }
+    if (!SpeechRecognition) return;
 
     if (isRecording && recognitionRef.current) {
       recognitionRef.current.stop();
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'sk-SK';
-    recognition.interimResults = true;
-    recognition.continuous = false;
-    recognitionRef.current = recognition;
+    const startRecognition = (lang: string) => {
+      const recognition = new SpeechRecognition();
+      recognition.lang = lang;
+      recognition.interimResults = true;
+      recognition.continuous = false;
+      recognitionRef.current = recognition;
 
-    let finalTranscript = '';
+      let finalTranscript = '';
 
-    recognition.onstart = () => {
-      setIsRecording(true);
-      addLog('[AUDIO] Počúvam...');
-    };
+      recognition.onstart = () => {
+        setIsRecording(true);
+        addLog(`[AUDIO] Počúvam (${lang})...`);
+      };
 
-    recognition.onresult = (event: any) => {
-      let interim = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-        } else {
-          interim += event.results[i][0].transcript;
+      recognition.onresult = (event: any) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interim += event.results[i][0].transcript;
+          }
         }
-      }
-      setInputValue(finalTranscript + interim);
+        setInputValue(finalTranscript + interim);
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+        recognitionRef.current = null;
+        if (finalTranscript) {
+          addLog('[AUDIO] Hlasový vstup spracovaný.');
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        setIsRecording(false);
+        recognitionRef.current = null;
+        if (event.error === 'language-not-supported' && lang !== 'en-US') {
+          startRecognition('en-US');
+          return;
+        }
+        if (event.error !== 'no-speech' && event.error !== 'aborted') {
+          showToast(`Chyba rozpoznávania: ${event.error}`, 'error');
+        }
+      };
+
+      recognition.start();
     };
 
-    recognition.onend = () => {
-      setIsRecording(false);
-      recognitionRef.current = null;
-      if (finalTranscript) {
-        addLog('[AUDIO] Hlasový vstup spracovaný.');
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      setIsRecording(false);
-      recognitionRef.current = null;
-      if (event.error !== 'no-speech') {
-        showToast(`Chyba rozpoznávania: ${event.error}`, 'error');
-      }
-    };
-
-    recognition.start();
+    startRecognition(navigator.language.startsWith('sk') ? 'sk-SK' : 'en-US');
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -1188,6 +1197,7 @@ export default function Index() {
           onRemoveAttachment={removeAttachment}
           isRecording={isRecording}
           onMicClick={handleMicClick}
+          micSupported={micSupported}
           isDragging={isDragging}
           tokenCount={tokenCount}
           onCopyCode={() => { addLog('[SYSTEM] Kód skopírovaný do schránky.'); showToast('Skopírované', 'success'); }}
@@ -1198,6 +1208,8 @@ export default function Index() {
     }
   };
 
+  const isDemoUser = user.id === LOCAL_USER_ID;
+
   return (
     <div
       className="flex h-screen bg-background overflow-hidden relative"
@@ -1205,7 +1217,14 @@ export default function Index() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <ToastContainer toasts={toasts} />
+      {isDemoUser && (
+        <div
+          className="absolute top-0 left-0 right-0 z-50 bg-warning/10 border-b border-warning/20 px-4 py-1.5 text-center text-xs text-warning pointer-events-none"
+          role="status"
+        >
+          Demo režim — údaje nie sú prepojené s reálnym účtom. Pre plný AI backend sa prihláste.
+        </div>
+      )}
       <SettingsPanel
         open={showSettings}
         onOpenChange={setShowSettings}
@@ -1257,7 +1276,7 @@ export default function Index() {
         />
       </div>
 
-      <main className="relative z-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <main className={`relative z-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${isDemoUser ? 'pt-8' : ''}`}>
         <WorkflowRibbon workflowRun={workflowRun} />
         <AnimatePresence mode="wait">
           <motion.div
