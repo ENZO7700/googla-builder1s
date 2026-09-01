@@ -2,10 +2,15 @@ import { ReactNode, useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, LayoutGrid, ShieldAlert, Code2, Plug, Layout,
-  Settings, History, LogOut, Sun, Moon, Trash2, Search, Pencil, Check, X, Github, Rocket, FileText
+  Settings, History, LogOut, Sun, Moon, Trash2, Search, Pencil, Check, X, Github, Rocket, FileText,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isAdminEmail } from '@/lib/admin';
+import { cn } from '@/lib/utils';
+
+const SIDEBAR_WIDTH_PX = 280;
+const SIDEBAR_COLLAPSED_KEY = 'wpbox.sidebarCollapsed';
 
 interface SidebarItemProps {
   icon: ReactNode;
@@ -55,6 +60,8 @@ interface SidebarNavProps {
   userEmail?: string;
   onLogout?: () => void;
   sessionsLoading?: boolean;
+  /** Desktop shell: slide in/out with edge toggle; preference persisted in localStorage */
+  collapsible?: boolean;
 }
 
 function groupByDate(sessions: Session[]): Record<string, Session[]> {
@@ -90,9 +97,12 @@ function groupByDate(sessions: Session[]): Record<string, Session[]> {
 export default function SidebarNav({
   currentView, onViewChange, onNewSession,
   sessions, activeSessionId, onLoadSession, onDeleteSession, onRenameSession,
-  hasPreviewCode, onOpenSettings, userEmail, onLogout, sessionsLoading
+  hasPreviewCode, onOpenSettings, userEmail, onLogout, sessionsLoading, collapsible = false,
 }: SidebarNavProps) {
   const navigate = useNavigate();
+  const [collapsed, setCollapsed] = useState(
+    () => collapsible && localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true',
+  );
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -102,6 +112,12 @@ export default function SidebarNav({
     document.documentElement.classList.toggle('dark', dark);
     localStorage.setItem('theme', dark ? 'dark' : 'light');
   }, [dark]);
+
+  useEffect(() => {
+    if (collapsible) {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+    }
+  }, [collapsed, collapsible]);
 
   const filteredSessions = useMemo(() => {
     if (!searchQuery.trim()) return sessions;
@@ -119,8 +135,8 @@ export default function SidebarNav({
     setEditingId(null);
   };
 
-  return (
-    <aside className="w-[280px] bg-sidebar border-r border-sidebar-border flex flex-col shrink-0 z-20">
+  const sidebarContent = (
+    <>
       {/* Logo */}
       <div className="border-b border-sidebar-border px-5 py-5">
         <div className="flex items-center gap-3">
@@ -341,6 +357,57 @@ export default function SidebarNav({
           <Settings size={16} className="text-muted-foreground" />
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  if (!collapsible) {
+    return (
+      <aside className="flex h-full w-[280px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar z-20">
+        {sidebarContent}
+      </aside>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        'relative shrink-0 transition-[width] duration-300 ease-in-out',
+        collapsed ? 'w-0' : 'w-[280px]',
+      )}
+      data-sidebar-collapsed={collapsed}
+    >
+      <aside
+        id="wpbox-sidebar"
+        className={cn(
+          'fixed inset-y-0 left-0 z-20 flex flex-col border-r border-sidebar-border bg-sidebar',
+          'transition-transform duration-300 ease-in-out',
+          collapsed ? '-translate-x-full' : 'translate-x-0',
+        )}
+        style={{ width: SIDEBAR_WIDTH_PX }}
+        aria-hidden={collapsed}
+      >
+        {sidebarContent}
+      </aside>
+
+      <button
+        type="button"
+        onClick={() => setCollapsed((prev) => !prev)}
+        aria-expanded={!collapsed}
+        aria-controls="wpbox-sidebar"
+        aria-label={collapsed ? 'Rozbaliť bočnú navigáciu' : 'Zbaliť bočnú navigáciu'}
+        title={collapsed ? 'Rozbaliť navigáciu' : 'Zbaliť navigáciu'}
+        className={cn(
+          'fixed z-30 flex h-8 w-8 items-center justify-center rounded-full',
+          'border border-border bg-card text-muted-foreground shadow-md',
+          'transition-all duration-300 ease-in-out',
+          'hover:bg-accent hover:text-foreground',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          collapsed ? 'left-2 top-6' : 'top-6 -translate-x-1/2',
+        )}
+        style={collapsed ? undefined : { left: SIDEBAR_WIDTH_PX }}
+      >
+        {collapsed ? <ChevronRight size={16} aria-hidden /> : <ChevronLeft size={16} aria-hidden />}
+      </button>
+    </div>
   );
 }

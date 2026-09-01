@@ -1238,8 +1238,9 @@ export default function Index() {
       )}
 
       {/* Desktop sidebar */}
-      <div className="hidden lg:block">
+      <div className="hidden lg:block shrink-0">
         <SidebarNav
+          collapsible
           currentView={currentView}
           onViewChange={setCurrentView}
           onNewSession={handleNewSession}
