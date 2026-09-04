@@ -1,7 +1,8 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Sun, Moon, Cpu, Stethoscope, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { runE2ETest } from '@/lib/e2eTest';
+import { runE2ETest, type E2EResult } from '@/lib/e2eTest';
+import DiagnosticsChecklist from '@/components/workspace/DiagnosticsChecklist';
 
 const AI_MODELS = [
   { id: 'mistral-large-latest', label: 'Mistral Large', desc: 'Vlajková loď, najlepší reasoning' },
@@ -18,11 +19,22 @@ interface SettingsPanelProps {
   onOpenChange: (open: boolean) => void;
   dark: boolean;
   onToggleDark: () => void;
+  onE2EResults?: (results: E2EResult[]) => void;
 }
 
-export default function SettingsPanel({ open, onOpenChange, dark, onToggleDark }: SettingsPanelProps) {
+export default function SettingsPanel({ open, onOpenChange, dark, onToggleDark, onE2EResults }: SettingsPanelProps) {
   const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('ai-model') || 'mistral-large-latest');
   const [running, setRunning] = useState(false);
+  const [e2eResults, setE2eResults] = useState<E2EResult[] | null>(() => {
+    try {
+      const raw = sessionStorage.getItem('wpbox.e2eResults');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { results?: E2EResult[] };
+      return parsed.results ?? null;
+    } catch {
+      return null;
+    }
+  });
 
   useEffect(() => {
     localStorage.setItem('ai-model', selectedModel);
@@ -30,8 +42,11 @@ export default function SettingsPanel({ open, onOpenChange, dark, onToggleDark }
 
   const handleRunTest = async () => {
     setRunning(true);
+    setE2eResults(null);
     try {
-      await runE2ETest();
+      const results = await runE2ETest();
+      setE2eResults(results);
+      onE2EResults?.(results);
     } finally {
       setRunning(false);
     }
@@ -95,12 +110,15 @@ export default function SettingsPanel({ open, onOpenChange, dark, onToggleDark }
             <button
               onClick={handleRunTest}
               disabled={running}
+              aria-busy={running}
               className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-border bg-card hover:bg-accent text-sm font-medium text-foreground transition-all disabled:opacity-50"
             >
               {running ? <><Loader2 size={16} className="animate-spin" /> Spúšťam test...</> : 'Spustiť E2E test'}
             </button>
+            <DiagnosticsChecklist results={e2eResults} running={running} className="mt-3" />
             <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-              Overí auth, databázu, AI streaming, storage a voice API. Výsledky uvidíte v konzole prehliadača (F12).
+              Overí auth, databázu, AI streaming, storage, voice API, health, WordPress proxy a inquiries endpoint.
+              Podrobnosti sú aj v konzole prehliadača (F12).
             </p>
           </div>
 

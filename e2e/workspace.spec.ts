@@ -242,3 +242,82 @@ test.describe("wpBOX E2E - Main Workspace Shell (19 Tests)", () => {
     }
   });
 });
+
+test.describe("Diagnostika E2E panel", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("wpbox.localAccess", "true");
+    });
+
+    await page.route("**/auth/v1/session**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          access_token: "mocked-access-token",
+          token_type: "bearer",
+          expires_in: 3600,
+          user: { id: "user-123", email: "erik.babcan@example.com" },
+        }),
+      });
+    });
+
+    await page.route("**/auth/v1/user**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ id: "user-123", email: "erik.babcan@example.com" }),
+      });
+    });
+
+    await page.route("**/api/health", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "ok", service: "larsenevans-wpbox" }),
+      });
+    });
+
+    await page.route("**/functions/v1/chat", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: 'data: {"choices":[{"delta":{"content":"PONG"}}]}\n\n',
+      });
+    });
+
+    await page.route("**/functions/v1/wordpress-proxy", async (route) => {
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Unauthorized" }),
+      });
+    });
+
+    await page.route("**/functions/v1/inquiries-submit**", async (route) => {
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "siteId required" }),
+      });
+    });
+  });
+
+  test("opens settings and shows Diagnostika checklist after E2E run", async ({ page }) => {
+    await page.goto("/");
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    await page.getByRole("button", { name: "Otvoriť nastavenia" }).click();
+    await expect(page.getByRole("heading", { name: "Nastavenia" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Diagnostika" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Spustiť E2E test" }).click();
+    await expect(page.getByRole("status")).toContainText("E2E test:", { timeout: 15000 });
+
+    for (const step of ["Auth", "DB CRUD", "Streaming AI", "Storage", "Health API", "WordPress Proxy", "Inquiries API"]) {
+      await expect(
+        page.getByLabel("E2E diagnostické kroky").locator("li").filter({ hasText: step }),
+      ).toBeVisible();
+    }
+  });
+});

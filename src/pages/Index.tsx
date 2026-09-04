@@ -9,6 +9,7 @@ import SystemMonitor, { StreamDiagnostics } from '@/components/workspace/SystemM
 import ChatView from '@/components/workspace/ChatView';
 import WorkflowRibbon from '@/components/workspace/WorkflowRibbon';
 import SettingsPanel from '@/components/workspace/SettingsPanel';
+import { E2E_RESULTS_EVENT, type E2EResult } from '@/lib/e2eTest';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
@@ -163,6 +164,16 @@ export default function Index() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [e2eResults, setE2eResults] = useState<E2EResult[] | null>(() => {
+    try {
+      const raw = sessionStorage.getItem('wpbox.e2eResults');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { results?: E2EResult[] };
+      return parsed.results ?? null;
+    } catch {
+      return null;
+    }
+  });
   const [isDragging, setIsDragging] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [latestGeneratedCode, setLatestGeneratedCode] = useState('');
@@ -181,6 +192,15 @@ export default function Index() {
     '[NET] Pripojenie k VPC nadviazané.',
     '[AGENT] Cloud AI agent pripravený.',
   ]);
+
+  useEffect(() => {
+    const onE2E = (event: Event) => {
+      const detail = (event as CustomEvent<E2EResult[]>).detail;
+      if (Array.isArray(detail)) setE2eResults(detail);
+    };
+    window.addEventListener(E2E_RESULTS_EVENT, onE2E);
+    return () => window.removeEventListener(E2E_RESULTS_EVENT, onE2E);
+  }, []);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -1230,6 +1250,7 @@ export default function Index() {
         onOpenChange={setShowSettings}
         dark={dark}
         onToggleDark={() => setDark(!dark)}
+        onE2EResults={setE2eResults}
       />
 
       {/* Mobile sidebar overlay */}
@@ -1301,6 +1322,7 @@ export default function Index() {
         workflowRun={workflowRun}
         attachments={attachments.map(({ name, progress, uploading, error, url }) => ({ name, progress, uploading, error, url }))}
         hasPreviewCode={!!latestGeneratedCode}
+        e2eResults={e2eResults}
       />
     </div>
   );
