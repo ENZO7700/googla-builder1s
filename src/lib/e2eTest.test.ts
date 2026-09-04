@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ALLOWED_AI_MODELS,
+  E2E_STEP_DISPLAY_LABELS,
   E2E_STEP_LABELS,
   formatE2ESummaryLine,
-  getSelectedAiModel,
   summarizeE2EResults,
-  validateAiModel,
   type E2EResult,
 } from './e2eTest';
+import { getSelectedAiModel, validateAiModel, ALLOWED_AI_MODELS } from './aiModels';
 
 describe('e2eTest helpers', () => {
   it('summarizes passed, skipped, and failed steps', () => {
@@ -45,16 +44,12 @@ describe('e2eTest helpers', () => {
     expect(getSelectedAiModel()).toBe('mistral-large-latest');
   });
 
-  it('lists all Diagnostika steps in stable order', () => {
-    expect(E2E_STEP_LABELS).toEqual([
-      'Auth',
-      'DB CRUD',
-      'Streaming AI',
-      'Storage',
-      'Voice API',
-      'Health API',
-      'WordPress Proxy',
-      'Inquiries API',
-    ]);
+  it('lists all Diagnostika steps with Slovak display labels', () => {
+    expect(E2E_STEP_LABELS.length).toBe(19);
+    for (const step of E2E_STEP_LABELS) {
+      expect(E2E_STEP_DISPLAY_LABELS[step]).toBeTruthy();
+    }
+    expect(E2E_STEP_DISPLAY_LABELS['Generátor']).toBe('Generátor / Skills');
+    expect(E2E_STEP_DISPLAY_LABELS['Launch Handoff']).toBe('Launch Audit handoff');
   });
 });

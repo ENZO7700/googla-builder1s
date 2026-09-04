@@ -301,9 +301,17 @@ test.describe("Diagnostika E2E panel", () => {
         body: JSON.stringify({ error: "siteId required" }),
       });
     });
+
+    await page.route("**/functions/v1/github-connection**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ connected: false, error: "not connected" }),
+      });
+    });
   });
 
-  test("opens settings and shows Diagnostika checklist after E2E run", async ({ page }) => {
+  test("opens settings and shows full Diagnostika checklist after E2E run", async ({ page }) => {
     await page.goto("/");
     await page.setViewportSize({ width: 1440, height: 900 });
 
@@ -312,12 +320,24 @@ test.describe("Diagnostika E2E panel", () => {
     await expect(page.getByRole("heading", { name: "Diagnostika" })).toBeVisible();
 
     await page.getByRole("button", { name: "Spustiť E2E test" }).click();
-    await expect(page.getByRole("status")).toContainText("E2E test:", { timeout: 15000 });
+    await expect(page.getByRole("status")).toContainText("E2E test:", { timeout: 20000 });
 
-    for (const step of ["Auth", "DB CRUD", "Streaming AI", "Storage", "Health API", "WordPress Proxy", "Inquiries API"]) {
-      await expect(
-        page.getByLabel("E2E diagnostické kroky").locator("li").filter({ hasText: step }),
-      ).toBeVisible();
+    const checklist = page.getByLabel("E2E diagnostické kroky");
+    for (const step of [
+      "Auth",
+      "DB CRUD",
+      "Relácie (Sessions)",
+      "Streaming AI",
+      "Storage",
+      "Pravidlá súborov",
+      "WordPress Proxy",
+      "WP Deploy (dry-run)",
+      "Generátor / Skills",
+      "Analyzátor logov",
+      "Launch Audit handoff",
+      "Workflow ribbon",
+    ]) {
+      await expect(checklist.locator("li").filter({ hasText: step })).toBeVisible();
     }
   });
 });

@@ -117,7 +117,7 @@ export default function SettingsPanel({ open, onOpenChange, dark, onToggleDark, 
             </button>
             <DiagnosticsChecklist results={e2eResults} running={running} className="mt-3" />
             <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-              Overí auth, databázu, AI streaming, storage, voice API, health, WordPress proxy a inquiries endpoint.
+              Overí auth, databázu, relácie, AI streaming, storage, WordPress, moduly workspace (Generátor, Analyzátor, Náhľad, GitHub, Launch) a nastavenia.
               Podrobnosti sú aj v konzole prehliadača (F12).
             </p>
           </div>

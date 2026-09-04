@@ -49,9 +49,10 @@ interface Attachment {
   error?: string;
 }
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
-const MAX_FILES = 10;
-const ALLOWED_EXT = /\.(txt|md|json|csv|js|ts|tsx|jsx|py|html|css|xml|yml|yaml|log|pdf|png|jpg|jpeg|webp|gif|svg)$/i;
+import { validateAttachmentFile, MAX_FILES } from '@/lib/attachmentValidation';
+import { sanitizeGeneratedHtmlForWordPress } from '@/lib/wpDeploy';
+import { extractHtmlFromMarkdown } from '@/lib/previewExtract';
+import { consumeBuilderPrompt } from '@/lib/builderPrompt';
 const WORDPRESS_HTML_DEPLOY_SYSTEM_HINT = [
   'For WordPress page, section, block, landing page, services, CTA, or layout generation, return exactly one ```html code block.',
   'The html block must contain deployable WordPress Gutenberg/FSE-compatible HTML and CSS only.',
@@ -137,21 +138,6 @@ function buildLocalDemoResponse(msgs: Message[], systemOverride?: string): strin
 
 function isLocalSessionId(sessionId: string | null | undefined): boolean {
   return typeof sessionId === 'string' && sessionId.startsWith('local_');
-}
-
-function placeholderImageDataUri(label = 'wpBOX Preview'): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#0a0a0a"/><stop offset="1" stop-color="#d4af37"/></linearGradient></defs><rect width="1200" height="800" fill="url(#g)"/><text x="60" y="420" fill="#fff" font-family="Arial, sans-serif" font-size="56" font-weight="700">${label}</text></svg>`;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-}
-
-function sanitizeGeneratedHtmlForWordPress(html: string): string {
-  const safeImage = placeholderImageDataUri();
-  return html
-    .replace(/\s(src|poster)=(['"])\{\{[^}]+\}\}\2/gi, ` $1="$${'SAFE_IMAGE'}"`)
-    .replace(/\s(srcset)=(['"])[^'"]*\{\{[^}]+\}\}[^'"]*\2/gi, ` $1="$${'SAFE_IMAGE'}"`)
-    .replace(/\s(href|action)=(['"])\{\{[^}]+\}\}\2/gi, ' $1="#"')
-    .replace(/url\((['"]?)\{\{[^}]+\}\}\1\)/gi, 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 55%, #3a2f12 100%)')
-    .replace(/\$SAFE_IMAGE/g, safeImage);
 }
 
 export default function Index() {
@@ -269,22 +255,16 @@ export default function Index() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // Pickup builder prompt handed off from Launch Audit dashboard.
   useEffect(() => {
     if (!user) return;
-    try {
-      const stored = sessionStorage.getItem('builderPrompt');
-      const src = sessionStorage.getItem('builderPromptSource');
-      if (stored) {
-        setCurrentView('tasks');
-        setInputValue(stored);
-        sessionStorage.removeItem('builderPrompt');
-        sessionStorage.removeItem('builderPromptSource');
-        toast.success(`Prompt načítaný z modulu ${src ?? 'Launch Audit'}`, {
-          description: 'Skontroluj ho a stlač Send pre spustenie generovania.',
-        });
-      }
-    } catch { /* ignore */ }
+    const handoff = consumeBuilderPrompt();
+    if (handoff) {
+      setCurrentView('tasks');
+      setInputValue(handoff.prompt);
+      toast.success(`Prompt načítaný z modulu ${handoff.source ?? 'Launch Audit'}`, {
+        description: 'Skontroluj ho a stlač Send pre spustenie generovania.',
+      });
+    }
   }, [user]);
 
   const showToast = useCallback((message: string, type: 'info' | 'success' | 'error' = 'info') => {
@@ -330,22 +310,14 @@ export default function Index() {
   const extractCodeForPreview = (text: string) => {
     if (!text) return;
     setWorkflowStep('preview', { status: 'running', detail: 'Hľadám HTML blok pre náhľad', progress: 35 });
-    let foundPreview = false;
     try {
-      const parts = text.split('```');
-      for (let i = 1; i < parts.length; i += 2) {
-        const block = parts[i];
-        if (block.toLowerCase().startsWith('html') || block.toLowerCase().startsWith('xml')) {
-          const code = block.substring(block.indexOf('\n') + 1);
-          setLatestGeneratedCode(code);
-          foundPreview = true;
-          setWorkflowStep('preview', { status: 'done', detail: 'HTML náhľad pripravený', progress: 100 });
-          addLog('[UI] Vizuálny kód exportovaný do Sandboxu.');
-          showToast('Live Náhľad aktualizovaný', 'success');
-          break;
-        }
-      }
-      if (!foundPreview) {
+      const code = extractHtmlFromMarkdown(text);
+      if (code) {
+        setLatestGeneratedCode(code);
+        setWorkflowStep('preview', { status: 'done', detail: 'HTML náhľad pripravený', progress: 100 });
+        addLog('[UI] Vizuálny kód exportovaný do Sandboxu.');
+        showToast('Live Náhľad aktualizovaný', 'success');
+      } else {
         setWorkflowStep('preview', { status: 'skipped', detail: 'Bez HTML náhľadu', progress: 100 });
       }
     } catch {
@@ -394,14 +366,8 @@ export default function Index() {
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: trimmed } : s));
   };
 
-  // Validate single file before accepting
-  const validateFile = (f: File): string | null => {
-    if (f.size > MAX_FILE_SIZE) return `Súbor "${f.name}" je príliš veľký (max 20 MB).`;
-    if (!ALLOWED_EXT.test(f.name) && !f.type.startsWith('text/') && !f.type.startsWith('image/')) {
-      return `Súbor "${f.name}" má nepovolený typ.`;
-    }
-    return null;
-  };
+  const validateFile = (f: File): string | null =>
+    validateAttachmentFile({ name: f.name, size: f.size, type: f.type });
 
   // Upload one file immediately, updating progress in state
   const uploadOne = async (att: Attachment, index: number) => {
