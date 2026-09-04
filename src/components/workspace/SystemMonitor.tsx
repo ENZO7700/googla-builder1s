@@ -1,7 +1,8 @@
-import { Activity, AlertCircle, Bot, CheckCircle2, Globe2, Loader2, PanelsTopLeft, UploadCloud, Zap } from 'lucide-react';
+import { Activity, AlertCircle, Bot, CheckCircle2, Globe2, Loader2, MinusCircle, PanelsTopLeft, UploadCloud, XCircle, Zap } from 'lucide-react';
 import { useRef, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import type { WorkflowRun, WorkflowStepStatus } from '@/lib/workflow';
+import type { E2EResult } from '@/lib/e2eTest';
 
 export interface StreamDiagnostics {
   ttft: number;
@@ -21,6 +22,7 @@ interface SystemMonitorProps {
   workflowRun?: WorkflowRun | null;
   attachments?: Array<{ name: string; progress?: number; uploading?: boolean; error?: string; url?: string }>;
   hasPreviewCode?: boolean;
+  e2eResults?: E2EResult[] | null;
 }
 
 export default function SystemMonitor({
@@ -32,12 +34,27 @@ export default function SystemMonitor({
   workflowRun,
   attachments = [],
   hasPreviewCode,
+  e2eResults,
 }: SystemMonitorProps) {
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
+
+  const wpE2E = e2eResults?.find(r => r.step === 'WordPress Proxy');
+  const wpStatus = wpE2E
+    ? wpE2E.passed
+      ? wpE2E.skipped ? 'waiting' : 'done'
+      : 'error'
+    : 'waiting';
+  const wpValue = wpE2E
+    ? wpE2E.skipped ? 'Preskočené' : wpE2E.passed ? 'OK' : 'Chyba'
+    : 'Proxy ready';
+  const wpDetail = wpE2E?.detail ?? 'wordpress-proxy + wp-json/wp/v2';
+  const wpProgress = wpE2E
+    ? wpE2E.passed ? (wpE2E.skipped ? 40 : 100) : 8
+    : 28;
 
   return (
     <aside className="w-[300px] bg-card border-l border-border flex flex-col hidden xl:flex shrink-0 z-10">
@@ -79,12 +96,36 @@ export default function SystemMonitor({
         <WorkCard
           icon={<Globe2 size={14} />}
           title="WordPress"
-          status="waiting"
-          value="Proxy ready"
-          detail="wordpress-proxy + wp-json/wp/v2"
-          progress={28}
+          status={wpStatus}
+          value={wpValue}
+          detail={wpDetail}
+          progress={wpProgress}
         />
       </div>
+
+      {/* E2E snapshot (compact on xl screens) */}
+      {e2eResults && e2eResults.length > 0 && (
+        <div className="px-6 py-4 border-b border-border">
+          <h4 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-2 uppercase tracking-wide">
+            <CheckCircle2 size={12} className="text-primary" /> Diagnostika
+          </h4>
+          <ul className="space-y-1 text-[11px]">
+            {e2eResults.slice(0, 4).map(r => (
+              <li key={r.step} className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground truncate">{r.step}</span>
+                {!r.passed ? (
+                  <XCircle size={12} className="text-destructive shrink-0" />
+                ) : r.skipped ? (
+                  <MinusCircle size={12} className="text-warning shrink-0" />
+                ) : (
+                  <CheckCircle2 size={12} className="text-success shrink-0" />
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[10px] text-muted-foreground">Úplný zoznam v Nastaveniach → Diagnostika.</p>
+        </div>
+      )}
 
       {/* Streaming diagnostics */}
       <div className="px-6 py-5 border-b border-border">

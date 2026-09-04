@@ -341,6 +341,7 @@ export default function SidebarNav({
         </div>
         <button
           onClick={onOpenSettings}
+          aria-label="Otvoriť nastavenia"
           className="flex w-full cursor-pointer items-center justify-between rounded-2xl p-2 transition-colors hover:bg-accent"
         >
           <div className="flex items-center gap-3">
