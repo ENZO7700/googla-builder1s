@@ -1,26 +1,48 @@
 import { useState, useRef } from 'react';
-import { ArrowLeft, Menu, ShieldAlert, Loader2, CheckCircle2, Shield, Upload } from 'lucide-react';
+import { ArrowLeft, Menu, ShieldAlert, Loader2, Shield, Upload, FileText } from 'lucide-react';
 import { MarkdownRenderer } from '@/lib/formatMarkdown';
+import AiErrorBanner from '@/components/workspace/AiErrorBanner';
+import type { AiErrorCopy } from '@/lib/aiErrorCopy';
+
+const SAMPLE_LOG = `[2026-03-04 14:22:01] WARN  auth: failed login user=admin ip=203.0.113.44
+[2026-03-04 14:22:03] WARN  auth: failed login user=admin ip=203.0.113.44
+[2026-03-04 14:22:05] WARN  auth: failed login user=root ip=203.0.113.44
+[2026-03-04 14:22:08] ERROR wp-json: GET /wp/v2/users?per_page=100 → 401 Unauthorized
+[2026-03-04 14:22:12] INFO  nginx: 203.0.113.44 - "POST /xmlrpc.php" 403
+[2026-03-04 14:22:15] WARN  auth: brute-force pattern detected ip=203.0.113.44 (6 attempts / 30s)`;
 
 interface AnalyzerViewProps {
   onAnalyze: (logs: string) => Promise<string>;
   onBack: () => void;
   onOpenMobileMenu?: () => void;
+  aiError?: AiErrorCopy | null;
+  onOpenSettings?: () => void;
 }
 
-export default function AnalyzerView({ onAnalyze, onBack, onOpenMobileMenu }: AnalyzerViewProps) {
+export default function AnalyzerView({
+  onAnalyze,
+  onBack,
+  onOpenMobileMenu,
+  aiError,
+  onOpenSettings,
+}: AnalyzerViewProps) {
   const [rawLogs, setRawLogs] = useState('');
   const [logAnalysis, setLogAnalysis] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisFailed, setAnalysisFailed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAnalyze = async () => {
     if (!rawLogs.trim()) return;
     setIsAnalyzing(true);
     setLogAnalysis('');
+    setAnalysisFailed(false);
     try {
       const result = await onAnalyze(rawLogs);
       setLogAnalysis(result);
+    } catch {
+      setAnalysisFailed(true);
+      setLogAnalysis('');
     } finally {
       setIsAnalyzing(false);
     }
@@ -40,6 +62,12 @@ export default function AnalyzerView({ onAnalyze, onBack, onOpenMobileMenu }: An
     };
     reader.readAsText(file);
     e.target.value = '';
+  };
+
+  const loadSample = () => {
+    setRawLogs(SAMPLE_LOG);
+    setLogAnalysis('');
+    setAnalysisFailed(false);
   };
 
   return (
@@ -72,19 +100,31 @@ export default function AnalyzerView({ onAnalyze, onBack, onOpenMobileMenu }: An
           </div>
         </div>
 
-        {!rawLogs && !logAnalysis && !isAnalyzing && (
+        {!rawLogs && !logAnalysis && !isAnalyzing && !analysisFailed && (
           <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
             <div className="w-20 h-20 rounded-2xl bg-accent border border-border flex items-center justify-center mb-6">
               <Shield size={36} className="text-primary" />
             </div>
             <h3 className="text-lg font-medium text-foreground mb-2">Žiadne logy na analýzu</h3>
-            <p className="text-sm text-muted-foreground max-w-md">
-              Vložte systémové logy, prístupové záznamy alebo bezpečnostné udalosti do textového poľa nižšie. AI identifikuje potenciálne hrozby a anomálie.
+            <p className="text-sm text-muted-foreground max-w-md mb-4">
+              Vložte systémové logy, prístupové záznamy alebo bezpečnostné udalosti. AI identifikuje potenciálne hrozby a anomálie.
             </p>
+            <button
+              type="button"
+              onClick={loadSample}
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-accent transition-colors"
+            >
+              <FileText size={16} />
+              Načítať ukážkový log
+            </button>
           </div>
         )}
 
         <div className="flex flex-col gap-6">
+          {aiError && (analysisFailed || !isAnalyzing) && (
+            <AiErrorBanner error={aiError} onOpenSettings={onOpenSettings} />
+          )}
+
           <div className="flex flex-wrap items-center gap-3">
             <input
               ref={fileInputRef}
@@ -101,13 +141,21 @@ export default function AnalyzerView({ onAnalyze, onBack, onOpenMobileMenu }: An
               <Upload size={16} />
               Nahrať súbor (.log, .txt, .json)
             </button>
+            <button
+              type="button"
+              onClick={loadSample}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-border text-muted-foreground rounded-full text-sm font-medium hover:bg-accent hover:text-foreground transition-colors shadow-sm"
+            >
+              <FileText size={16} />
+              Ukážka logu
+            </button>
             <span className="text-xs text-muted-foreground">alebo vložte logy nižšie</span>
           </div>
 
           <textarea
             value={rawLogs}
             onChange={(e) => setRawLogs(e.target.value)}
-            placeholder="Vložte text logov..."
+            placeholder={SAMPLE_LOG.split('\n')[0] + '…'}
             className="w-full h-64 bg-accent border border-border rounded-xl p-4 text-[14px] font-mono text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none"
           />
 
@@ -120,10 +168,10 @@ export default function AnalyzerView({ onAnalyze, onBack, onOpenMobileMenu }: An
             Spustiť Analýzu
           </button>
 
-          {logAnalysis && (
+          {logAnalysis && !analysisFailed && (
             <div className="mt-8 p-6 bg-card border border-border rounded-xl shadow-sm">
               <h3 className="text-foreground font-medium mb-4 flex items-center gap-2 text-lg">
-                <CheckCircle2 size={20} className="text-success" /> Výsledok analýzy
+                <Shield size={20} className="text-success" /> Výsledok analýzy
               </h3>
               <div className="text-foreground text-sm">
                 <MarkdownRenderer content={logAnalysis} />

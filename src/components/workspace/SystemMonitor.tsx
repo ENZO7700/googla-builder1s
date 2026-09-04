@@ -1,8 +1,10 @@
-import { Activity, AlertCircle, Bot, CheckCircle2, Globe2, Loader2, MinusCircle, PanelsTopLeft, UploadCloud, XCircle, Zap } from 'lucide-react';
+import { Activity, AlertCircle, Bot, CheckCircle2, Globe2, Loader2, PanelsTopLeft, UploadCloud, Zap } from 'lucide-react';
 import { useRef, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import type { WorkflowRun, WorkflowStepStatus } from '@/lib/workflow';
 import type { E2EResult } from '@/lib/e2eTest';
+import DiagnosticsChecklist from '@/components/workspace/DiagnosticsChecklist';
+import { getAiErrorCopyFromError } from '@/lib/aiErrorCopy';
 
 export interface StreamDiagnostics {
   ttft: number;
@@ -23,6 +25,9 @@ interface SystemMonitorProps {
   attachments?: Array<{ name: string; progress?: number; uploading?: boolean; error?: string; url?: string }>;
   hasPreviewCode?: boolean;
   e2eResults?: E2EResult[] | null;
+  e2eRanAt?: number | null;
+  e2eRunning?: boolean;
+  onRerunDiagnostics?: () => void;
 }
 
 export default function SystemMonitor({
@@ -35,6 +40,9 @@ export default function SystemMonitor({
   attachments = [],
   hasPreviewCode,
   e2eResults,
+  e2eRanAt,
+  e2eRunning = false,
+  onRerunDiagnostics,
 }: SystemMonitorProps) {
   const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -103,27 +111,20 @@ export default function SystemMonitor({
         />
       </div>
 
-      {/* E2E snapshot (compact on xl screens) */}
-      {e2eResults && e2eResults.length > 0 && (
-        <div className="px-6 py-4 border-b border-border">
-          <h4 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-2 uppercase tracking-wide">
+      {/* E2E diagnostics — persistent report */}
+      {(e2eResults?.length || e2eRunning) && (
+        <div className="px-4 py-4 border-b border-border max-h-[42%] flex flex-col overflow-hidden shrink-0">
+          <h4 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-2 uppercase tracking-wide shrink-0">
             <CheckCircle2 size={12} className="text-primary" /> Diagnostika
           </h4>
-          <ul className="space-y-1 text-[11px]">
-            {e2eResults.slice(0, 4).map(r => (
-              <li key={r.step} className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground truncate">{r.step}</span>
-                {!r.passed ? (
-                  <XCircle size={12} className="text-destructive shrink-0" />
-                ) : r.skipped ? (
-                  <MinusCircle size={12} className="text-warning shrink-0" />
-                ) : (
-                  <CheckCircle2 size={12} className="text-success shrink-0" />
-                )}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-[10px] text-muted-foreground">Úplný zoznam v Nastaveniach → Diagnostika.</p>
+          <DiagnosticsChecklist
+            results={e2eResults}
+            running={e2eRunning}
+            ranAt={e2eRanAt}
+            onRerun={onRerunDiagnostics}
+            compact
+            className="min-h-0 overflow-hidden"
+          />
         </div>
       )}
 
@@ -138,10 +139,12 @@ export default function SystemMonitor({
             <DiagRow label="Celkový čas" value={`${(diagnostics.total / 1000).toFixed(2)} s`} />
             <DiagRow label="Chunkov" value={String(diagnostics.chunks)} />
             <DiagRow label="Model" value={diagnostics.model.split('/').pop() || diagnostics.model} mono />
-            <div className="flex justify-between pt-1.5 mt-1.5 border-t border-border">
-              <span className="text-muted-foreground">Status</span>
+            <div className="flex justify-between pt-1.5 mt-1.5 border-t border-border gap-2">
+              <span className="text-muted-foreground shrink-0">Status</span>
               {diagnostics.error ? (
-                <span className="text-destructive font-medium">❌ {diagnostics.error.substring(0, 30)}</span>
+                <span className="text-destructive font-medium text-right text-[11px] leading-snug" title={diagnostics.error}>
+                  ❌ {formatStreamError(diagnostics.error)}
+                </span>
               ) : (
                 <span className="text-success font-medium">✅ OK</span>
               )}
@@ -179,6 +182,12 @@ export default function SystemMonitor({
       </div>
     </aside>
   );
+}
+
+function formatStreamError(error: string): string {
+  const copy = getAiErrorCopyFromError(new Error(error));
+  if (copy.kind !== 'unknown') return copy.title;
+  return error.length > 48 ? `${error.slice(0, 48)}…` : error;
 }
 
 function DiagRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {

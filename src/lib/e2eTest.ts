@@ -14,6 +14,7 @@ import {
   probeWpDeployDryRun,
 } from '@/lib/e2eProbes';
 import { githubService } from '@/lib/github/githubService';
+import { formatStreamingAiDiagnosticDetail } from '@/lib/aiErrorCopy';
 
 export interface E2EResult {
   step: string;
@@ -438,7 +439,11 @@ export async function runE2ETest(): Promise<E2EResult[]> {
           model: selectedModel,
         }),
       });
-      if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
+      if (!resp.ok || !resp.body) {
+        const errBody = await resp.json().catch(() => ({}));
+        const bodyMsg = typeof errBody?.error === 'string' ? errBody.error : undefined;
+        throw new Error(formatStreamingAiDiagnosticDetail(resp.status, bodyMsg));
+      }
 
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();

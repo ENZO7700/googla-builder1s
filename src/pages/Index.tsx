@@ -9,7 +9,13 @@ import SystemMonitor, { StreamDiagnostics } from '@/components/workspace/SystemM
 import ChatView from '@/components/workspace/ChatView';
 import WorkflowRibbon from '@/components/workspace/WorkflowRibbon';
 import SettingsPanel from '@/components/workspace/SettingsPanel';
-import { E2E_RESULTS_EVENT, type E2EResult } from '@/lib/e2eTest';
+import { E2E_RESULTS_EVENT, runE2ETest, type E2EResult } from '@/lib/e2eTest';
+import {
+  formatAiErrorForChat,
+  getAiErrorCopy,
+  getAiErrorCopyFromError,
+  type AiErrorCopy,
+} from '@/lib/aiErrorCopy';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
@@ -160,6 +166,18 @@ export default function Index() {
       return null;
     }
   });
+  const [e2eRanAt, setE2eRanAt] = useState<number | null>(() => {
+    try {
+      const raw = sessionStorage.getItem('wpbox.e2eResults');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { at?: number };
+      return parsed.at ?? null;
+    } catch {
+      return null;
+    }
+  });
+  const [e2eRunning, setE2eRunning] = useState(false);
+  const [lastAiError, setLastAiError] = useState<AiErrorCopy | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [latestGeneratedCode, setLatestGeneratedCode] = useState('');
@@ -182,10 +200,27 @@ export default function Index() {
   useEffect(() => {
     const onE2E = (event: Event) => {
       const detail = (event as CustomEvent<E2EResult[]>).detail;
-      if (Array.isArray(detail)) setE2eResults(detail);
+      if (Array.isArray(detail)) {
+        setE2eResults(detail);
+        setE2eRanAt(Date.now());
+      }
     };
     window.addEventListener(E2E_RESULTS_EVENT, onE2E);
     return () => window.removeEventListener(E2E_RESULTS_EVENT, onE2E);
+  }, []);
+
+  const handleRunE2E = useCallback(async () => {
+    setE2eRunning(true);
+    setE2eResults(null);
+    setE2eRanAt(null);
+    try {
+      const results = await runE2ETest();
+      const ranAt = Date.now();
+      setE2eResults(results);
+      setE2eRanAt(ranAt);
+    } finally {
+      setE2eRunning(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -423,6 +458,7 @@ export default function Index() {
     let chunks = 0;
 
     setDiagnostics(null);
+    setLastAiError(null);
     setWorkflowStep('ai', { status: 'running', detail: 'Odosielam request do AI Core', progress: 30 });
 
     if (user?.id === LOCAL_USER_ID || !session?.access_token) {
@@ -479,10 +515,13 @@ export default function Index() {
         lastError = err;
         const isAbort = err.name === 'AbortError';
         if (attempt === MAX_RETRIES - 1) {
-          const errMsg = isAbort ? 'Časový limit spojenia vypršal' : (err.message || 'Network error');
+          const copy = getAiErrorCopyFromError(err);
+          const errMsg = isAbort ? copy.message : (err.message || copy.message);
+          setLastAiError(copy);
+          toast.error(copy.title, { description: copy.action });
           setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: errMsg, timestamp: new Date() });
-          setWorkflowStep('ai', { status: 'error', detail: errMsg, progress: 100 });
-          finishWorkflow('error', 'AI request zlyhal');
+          setWorkflowStep('ai', { status: 'error', detail: copy.title, progress: 100 });
+          finishWorkflow('error', copy.title);
           throw err;
         }
         // Exponential backoff
@@ -496,13 +535,14 @@ export default function Index() {
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      if (response.status === 429) toast.error('Rate limit – skúste to o chvíľu.');
-      else if (response.status === 402) toast.error('Nedostatok kreditov.');
-      const msg = errData.error || `HTTP ${response.status}`;
-      setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: msg, timestamp: new Date() });
-      setWorkflowStep('ai', { status: 'error', detail: msg, progress: 100 });
-      finishWorkflow('error', 'AI Core vrátil chybu');
-      throw new Error(msg);
+      const copy = getAiErrorCopy({ status: response.status, message: errData.error });
+      setLastAiError(copy);
+      toast.error(copy.title, { description: copy.action });
+      const msg = errData.error || copy.message;
+      setDiagnostics({ ttft: 0, total: performance.now() - startTime, chunks: 0, model, error: `${copy.title}: ${msg}`, timestamp: new Date() });
+      setWorkflowStep('ai', { status: 'error', detail: copy.title, progress: 100 });
+      finishWorkflow('error', copy.title);
+      throw Object.assign(new Error(msg), { status: response.status });
     }
 
     const reader = response.body?.getReader();
@@ -714,22 +754,18 @@ export default function Index() {
       }
       finishWorkflow('done', 'Workflow dokončený');
     } catch (err: any) {
-      addLog(`[ERROR] ${err.message || 'Spojenie prerušené.'}`);
-      finishWorkflow('error', err.message || 'Spojenie prerušené');
-      // Only add error message if streaming didn't already add one
+      const copy = getAiErrorCopyFromError(err);
+      setLastAiError(copy);
+      addLog(`[ERROR] ${copy.title}`);
+      finishWorkflow('error', copy.title);
       setMessages(prev => {
+        const errorContent = formatAiErrorForChat(copy);
         const last = prev[prev.length - 1];
         if (last?.role === 'model' && !last.content) {
-          return prev.slice(0, -1).concat({
-            role: 'model',
-            content: '⚠️ **Chyba servera:** Nepodarilo sa nadviazať spojenie s jadrom. Skontrolujte pripojenie a skúste to znova.',
-          });
+          return prev.slice(0, -1).concat({ role: 'model', content: errorContent });
         }
         if (last?.role === 'user') {
-          return [...prev, {
-            role: 'model',
-            content: '⚠️ **Chyba servera:** Nepodarilo sa nadviazať spojenie s jadrom.',
-          }];
+          return [...prev, { role: 'model', content: errorContent }];
         }
         return prev;
       });
@@ -758,11 +794,13 @@ export default function Index() {
       addLog('[API] Analýza úspešne dokončená (200 OK).');
       showToast('Analýza hrozieb hotová', 'success');
       return result;
-    } catch {
-      finishWorkflow('error', 'Analýza zlyhala');
-      addLog('[ERROR] Analýza zlyhala.');
-      showToast('Chyba pripojenia', 'error');
-      return '⚠️ Zlyhalo pripojenie k AI backendu.';
+    } catch (err) {
+      const copy = getAiErrorCopyFromError(err);
+      setLastAiError(copy);
+      finishWorkflow('error', copy.title);
+      addLog(`[ERROR] ${copy.title}`);
+      toast.error(copy.title, { description: copy.action });
+      throw copy;
     }
   };
 
@@ -786,11 +824,13 @@ export default function Index() {
       setWorkflowStep('save', { status: 'skipped', detail: 'Generátor bez DB zápisu', progress: 100 });
       finishWorkflow('done', 'Generovanie dokončené');
       return text;
-    } catch {
-      finishWorkflow('error', 'Generovanie zlyhalo');
-      addLog('[ERROR] Generovanie zlyhalo.');
-      showToast('Chyba generovania', 'error');
-      return '⚠️ Generovanie zlyhalo.';
+    } catch (err) {
+      const copy = getAiErrorCopyFromError(err);
+      setLastAiError(copy);
+      finishWorkflow('error', copy.title);
+      addLog(`[ERROR] ${copy.title}`);
+      toast.error(copy.title, { description: copy.action });
+      throw copy;
     }
   };
 
@@ -1130,6 +1170,8 @@ export default function Index() {
               onAnalyze={handleAnalyzeLogs}
               onBack={() => setCurrentView('tasks')}
               onOpenMobileMenu={() => setMobileMenuOpen(true)}
+              aiError={lastAiError}
+              onOpenSettings={() => setShowSettings(true)}
             />
           </Suspense>
         );
@@ -1140,6 +1182,8 @@ export default function Index() {
               onGenerate={handleGenerateSkill}
               onBack={() => setCurrentView('tasks')}
               onOpenMobileMenu={() => setMobileMenuOpen(true)}
+              aiError={lastAiError}
+              onOpenSettings={() => setShowSettings(true)}
             />
           </Suspense>
         );
@@ -1157,6 +1201,10 @@ export default function Index() {
               onInputChange={setInputValue}
               onSend={handleSendMessage}
               onGenerateDemo={() => handleSendMessage('Vytvor moderný login formulár v HTML a Tailwind CSS. Použi Google Material Design štýl.')}
+              aiError={lastAiError}
+              onOpenSettings={() => setShowSettings(true)}
+              onNavigateToChat={() => setCurrentView('tasks')}
+              onNavigateToGenerator={() => setCurrentView('skills')}
             />
           </Suspense>
         );
@@ -1189,6 +1237,8 @@ export default function Index() {
           onCopyCode={() => { addLog('[SYSTEM] Kód skopírovaný do schránky.'); showToast('Skopírované', 'success'); }}
           onDeployCode={handleDeployCode}
           onToggleMobileMenu={() => setMobileMenuOpen(true)}
+          aiError={lastAiError}
+          onOpenSettings={() => setShowSettings(true)}
           />
         );
     }
@@ -1216,7 +1266,14 @@ export default function Index() {
         onOpenChange={setShowSettings}
         dark={dark}
         onToggleDark={() => setDark(!dark)}
-        onE2EResults={setE2eResults}
+        onE2EResults={(results, ranAt) => {
+          setE2eResults(results);
+          setE2eRanAt(ranAt);
+        }}
+        e2eResults={e2eResults}
+        e2eRanAt={e2eRanAt}
+        e2eRunning={e2eRunning}
+        onRunE2E={handleRunE2E}
       />
 
       {/* Mobile sidebar overlay */}
@@ -1289,6 +1346,9 @@ export default function Index() {
         attachments={attachments.map(({ name, progress, uploading, error, url }) => ({ name, progress, uploading, error, url }))}
         hasPreviewCode={!!latestGeneratedCode}
         e2eResults={e2eResults}
+        e2eRanAt={e2eRanAt}
+        e2eRunning={e2eRunning}
+        onRerunDiagnostics={handleRunE2E}
       />
     </div>
   );

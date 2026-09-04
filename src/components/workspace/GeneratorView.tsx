@@ -12,6 +12,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { MarkdownRenderer } from '@/lib/formatMarkdown';
+import AiErrorBanner from '@/components/workspace/AiErrorBanner';
+import type { AiErrorCopy } from '@/lib/aiErrorCopy';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -19,6 +21,8 @@ interface GeneratorViewProps {
   onGenerate: (desc: string) => Promise<string>;
   onBack: () => void;
   onOpenMobileMenu?: () => void;
+  aiError?: AiErrorCopy | null;
+  onOpenSettings?: () => void;
 }
 
 type StackId = 'python' | 'bash' | 'wp-plugin' | 'rest' | 'node';
@@ -131,7 +135,7 @@ function formatSessionTime(ts: number): string {
   return new Intl.DateTimeFormat('sk-SK', { hour: '2-digit', minute: '2-digit' }).format(ts);
 }
 
-export default function GeneratorView({ onGenerate, onBack, onOpenMobileMenu }: GeneratorViewProps) {
+export default function GeneratorView({ onGenerate, onBack, onOpenMobileMenu, aiError, onOpenSettings }: GeneratorViewProps) {
   const [description, setDescription] = useState('');
   const [selectedStack, setSelectedStack] = useState<StackId | null>(null);
   const [result, setResult] = useState('');
@@ -179,6 +183,8 @@ export default function GeneratorView({ onGenerate, onBack, onOpenMobileMenu }: 
         };
         setSessionHistory((prev) => [entry, ...prev].slice(0, 12));
         setActiveSessionId(entry.id);
+      } catch {
+        setResult('');
       } finally {
         setIsGenerating(false);
       }
@@ -331,6 +337,10 @@ export default function GeneratorView({ onGenerate, onBack, onOpenMobileMenu }: 
         )}
 
         <div className="flex flex-col gap-5">
+          {aiError && !isGenerating && (
+            <AiErrorBanner error={aiError} onOpenSettings={onOpenSettings} />
+          )}
+
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
               Stack / jazyk
