@@ -123,6 +123,7 @@ export default function SystemMonitor({
             ranAt={e2eRanAt}
             onRerun={onRerunDiagnostics}
             compact
+            listAriaLabel="E2E diagnostické kroky — monitor"
             className="min-h-0 overflow-hidden"
           />
         </div>

@@ -14,6 +14,7 @@ interface DiagnosticsChecklistProps {
   ranAt?: number | null;
   onRerun?: () => void;
   compact?: boolean;
+  listAriaLabel?: string;
   className?: string;
 }
 
@@ -58,6 +59,7 @@ export default function DiagnosticsChecklist({
   ranAt,
   onRerun,
   compact = false,
+  listAriaLabel = 'E2E diagnostické kroky',
   className,
 }: DiagnosticsChecklistProps) {
   const summary: E2ESummary | null = results?.length ? summarizeE2EResults(results) : null;
@@ -90,7 +92,7 @@ export default function DiagnosticsChecklist({
           'overflow-y-auto grid gap-x-3 gap-y-1.5 pr-1',
           compact ? 'max-h-[220px] grid-cols-1' : 'max-h-[280px] grid-cols-1 sm:grid-cols-2',
         )}
-        aria-label="E2E diagnostické kroky"
+        aria-label={listAriaLabel}
       >
         {E2E_STEP_LABELS.map(step => {
           const result = resultForStep(results, step);

@@ -155,6 +155,7 @@ export default function SettingsPanel({
               running={running}
               ranAt={e2eRanAt}
               onRerun={handleRunTest}
+              listAriaLabel="E2E diagnostické kroky — nastavenia"
               className="mt-3"
             />
             <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
