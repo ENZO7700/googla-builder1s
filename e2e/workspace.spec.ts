@@ -322,7 +322,7 @@ test.describe("Diagnostika E2E panel", () => {
     await page.getByRole("button", { name: "Spustiť E2E test" }).click();
     await expect(page.getByRole("status")).toContainText("E2E test:", { timeout: 20000 });
 
-    const checklist = page.getByLabel("E2E diagnostické kroky");
+    const checklist = page.getByLabel("E2E diagnostické kroky — nastavenia");
     for (const step of [
       "Auth",
       "DB CRUD",
@@ -337,7 +337,12 @@ test.describe("Diagnostika E2E panel", () => {
       "Launch Audit handoff",
       "Workflow ribbon",
     ]) {
-      await expect(checklist.locator("li").filter({ hasText: step })).toBeVisible();
+      const stepLabel = new RegExp(`^${step.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+      await expect(
+        checklist.locator("li", {
+          has: page.locator("span.block.truncate").getByText(stepLabel),
+        }),
+      ).toBeVisible();
     }
   });
 });

@@ -4,6 +4,17 @@ import { useState, useEffect } from 'react';
 import { runE2ETest, type E2EResult } from '@/lib/e2eTest';
 import DiagnosticsChecklist from '@/components/workspace/DiagnosticsChecklist';
 
+function loadStoredE2E(): { results: E2EResult[] | null; ranAt: number | null } {
+  try {
+    const raw = sessionStorage.getItem('wpbox.e2eResults');
+    if (!raw) return { results: null, ranAt: null };
+    const parsed = JSON.parse(raw) as { results?: E2EResult[]; at?: number };
+    return { results: parsed.results ?? null, ranAt: parsed.at ?? null };
+  } catch {
+    return { results: null, ranAt: null };
+  }
+}
+
 const AI_MODELS = [
   { id: 'mistral-large-latest', label: 'Mistral Large', desc: 'Vlajková loď, najlepší reasoning' },
   { id: 'mistral-medium', label: 'Mistral Medium', desc: 'Vysoký výkon, multilingválny' },
@@ -19,36 +30,54 @@ interface SettingsPanelProps {
   onOpenChange: (open: boolean) => void;
   dark: boolean;
   onToggleDark: () => void;
-  onE2EResults?: (results: E2EResult[]) => void;
+  onE2EResults?: (results: E2EResult[], ranAt: number) => void;
+  e2eResults?: E2EResult[] | null;
+  e2eRanAt?: number | null;
+  e2eRunning?: boolean;
+  onRunE2E?: () => Promise<void>;
 }
 
-export default function SettingsPanel({ open, onOpenChange, dark, onToggleDark, onE2EResults }: SettingsPanelProps) {
+export default function SettingsPanel({
+  open,
+  onOpenChange,
+  dark,
+  onToggleDark,
+  onE2EResults,
+  e2eResults: e2eResultsProp,
+  e2eRanAt: e2eRanAtProp,
+  e2eRunning: e2eRunningProp,
+  onRunE2E,
+}: SettingsPanelProps) {
+  const stored = loadStoredE2E();
   const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('ai-model') || 'mistral-large-latest');
-  const [running, setRunning] = useState(false);
-  const [e2eResults, setE2eResults] = useState<E2EResult[] | null>(() => {
-    try {
-      const raw = sessionStorage.getItem('wpbox.e2eResults');
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as { results?: E2EResult[] };
-      return parsed.results ?? null;
-    } catch {
-      return null;
-    }
-  });
+  const [runningLocal, setRunningLocal] = useState(false);
+  const [e2eResultsLocal, setE2eResultsLocal] = useState<E2EResult[] | null>(stored.results);
+  const [e2eRanAtLocal, setE2eRanAtLocal] = useState<number | null>(stored.ranAt);
+
+  const e2eResults = e2eResultsProp ?? e2eResultsLocal;
+  const e2eRanAt = e2eRanAtProp ?? e2eRanAtLocal;
+  const running = e2eRunningProp ?? runningLocal;
 
   useEffect(() => {
     localStorage.setItem('ai-model', selectedModel);
   }, [selectedModel]);
 
   const handleRunTest = async () => {
-    setRunning(true);
-    setE2eResults(null);
+    if (onRunE2E) {
+      await onRunE2E();
+      return;
+    }
+    setRunningLocal(true);
+    setE2eResultsLocal(null);
+    setE2eRanAtLocal(null);
     try {
       const results = await runE2ETest();
-      setE2eResults(results);
-      onE2EResults?.(results);
+      const ranAt = Date.now();
+      setE2eResultsLocal(results);
+      setE2eRanAtLocal(ranAt);
+      onE2EResults?.(results, ranAt);
     } finally {
-      setRunning(false);
+      setRunningLocal(false);
     }
   };
 
@@ -113,9 +142,22 @@ export default function SettingsPanel({ open, onOpenChange, dark, onToggleDark, 
               aria-busy={running}
               className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-border bg-card hover:bg-accent text-sm font-medium text-foreground transition-all disabled:opacity-50"
             >
-              {running ? <><Loader2 size={16} className="animate-spin" /> Spúšťam test...</> : 'Spustiť E2E test'}
+              {running ? (
+                <><Loader2 size={16} className="animate-spin" /> Spúšťam test...</>
+              ) : e2eResults?.length ? (
+                'Spustiť znova'
+              ) : (
+                'Spustiť E2E test'
+              )}
             </button>
-            <DiagnosticsChecklist results={e2eResults} running={running} className="mt-3" />
+            <DiagnosticsChecklist
+              results={e2eResults}
+              running={running}
+              ranAt={e2eRanAt}
+              onRerun={handleRunTest}
+              listAriaLabel="E2E diagnostické kroky — nastavenia"
+              className="mt-3"
+            />
             <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
               Overí auth, databázu, relácie, AI streaming, storage, WordPress, moduly workspace (Generátor, Analyzátor, Náhľad, GitHub, Launch) a nastavenia.
               Podrobnosti sú aj v konzole prehliadača (F12).

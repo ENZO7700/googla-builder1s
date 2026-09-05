@@ -5,6 +5,8 @@ import {
   FileText, X, Search, Menu, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import { MarkdownRenderer } from '@/lib/formatMarkdown';
+import AiErrorBanner from '@/components/workspace/AiErrorBanner';
+import type { AiErrorCopy } from '@/lib/aiErrorCopy';
 
 interface Message {
   role: string;
@@ -153,12 +155,15 @@ interface ChatViewProps {
   onCopyCode: () => void;
   onDeployCode?: (code: string, language: string) => void;
   onToggleMobileMenu?: () => void;
+  aiError?: AiErrorCopy | null;
+  onOpenSettings?: () => void;
 }
 
 export default function ChatView({
   messages, isLoading, isStreaming, inputValue, onInputChange, onSend,
   attachments, onFileUpload, onRemoveAttachment,
-  isRecording, onMicClick, micSupported = true, isDragging, tokenCount, onCopyCode, onDeployCode, onToggleMobileMenu
+  isRecording, onMicClick, micSupported = true, isDragging, tokenCount, onCopyCode, onDeployCode, onToggleMobileMenu,
+  aiError, onOpenSettings,
 }: ChatViewProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -232,6 +237,11 @@ export default function ChatView({
 
       {/* Messages */}
       <div ref={scrollContainerRef} className="relative flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pt-8 pb-4 scrollbar-hide lg:px-20">
+        {aiError && (
+          <div className="mx-auto w-full max-w-4xl mb-4">
+            <AiErrorBanner error={aiError} onOpenSettings={onOpenSettings} />
+          </div>
+        )}
         {!autoScroll && isLoading && (
           <button
             onClick={() => { setAutoScroll(true); messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }}

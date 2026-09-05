@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, Loader2, MinusCircle, XCircle } from 'lucide-react';
+import { CheckCircle2, Circle, Loader2, MinusCircle, RefreshCw, XCircle } from 'lucide-react';
 import type { E2EResult, E2ESummary } from '@/lib/e2eTest';
 import {
   E2E_STEP_DISPLAY_LABELS,
@@ -11,6 +11,10 @@ import { cn } from '@/lib/utils';
 interface DiagnosticsChecklistProps {
   results: E2EResult[] | null;
   running: boolean;
+  ranAt?: number | null;
+  onRerun?: () => void;
+  compact?: boolean;
+  listAriaLabel?: string;
   className?: string;
 }
 
@@ -39,38 +43,73 @@ function displayLabel(step: string, result?: E2EResult): string {
   return result?.skipped ? `${base} (preskočené)` : base;
 }
 
-export default function DiagnosticsChecklist({ results, running, className }: DiagnosticsChecklistProps) {
+function formatRanAt(ts: number): string {
+  return new Intl.DateTimeFormat('sk-SK', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(ts));
+}
+
+export default function DiagnosticsChecklist({
+  results,
+  running,
+  ranAt,
+  onRerun,
+  compact = false,
+  listAriaLabel = 'E2E diagnostické kroky',
+  className,
+}: DiagnosticsChecklistProps) {
   const summary: E2ESummary | null = results?.length ? summarizeE2EResults(results) : null;
   const completedCount = results?.length ?? 0;
 
   return (
     <div className={cn('space-y-3', className)}>
       {summary && (
-        <p
-          className={cn(
-            'text-xs font-medium',
-            summary.failed === 0 ? 'text-success' : 'text-destructive',
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p
+            className={cn(
+              'text-xs font-medium',
+              summary.failed === 0 ? 'text-success' : 'text-destructive',
+            )}
+            role="status"
+            aria-live="polite"
+          >
+            {formatE2ESummaryLine(summary)}
+          </p>
+          {ranAt && (
+            <span className="text-[10px] text-muted-foreground shrink-0">
+              {formatRanAt(ranAt)}
+            </span>
           )}
-          role="status"
-          aria-live="polite"
-        >
-          {formatE2ESummaryLine(summary)}
-        </p>
+        </div>
       )}
 
       <ul
-        className="max-h-[280px] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1.5 pr-1"
-        aria-label="E2E diagnostické kroky"
+        className={cn(
+          'overflow-y-auto grid gap-x-3 gap-y-1.5 pr-1',
+          compact ? 'max-h-[220px] grid-cols-1' : 'max-h-[280px] grid-cols-1 sm:grid-cols-2',
+        )}
+        aria-label={listAriaLabel}
       >
         {E2E_STEP_LABELS.map(step => {
           const result = resultForStep(results, step);
           const pending = running && completedCount > 0 && !result;
           return (
-            <li key={step} className="flex items-center gap-2 text-xs text-foreground min-w-0">
-              {statusIcon(result, pending || (running && !results?.length))}
-              <span className={cn('truncate', !result && 'text-muted-foreground')} title={result?.detail}>
-                {displayLabel(step, result)}
-              </span>
+            <li key={step} className="flex items-start gap-2 text-xs text-foreground min-w-0">
+              <span className="mt-0.5">{statusIcon(result, pending || (running && !results?.length))}</span>
+              <div className="min-w-0 flex-1">
+                <span className={cn('block truncate', !result && 'text-muted-foreground')}>
+                  {displayLabel(step, result)}
+                </span>
+                {result?.detail && !compact && (
+                  <span className="block truncate text-[10px] text-muted-foreground" title={result.detail}>
+                    {result.detail}
+                  </span>
+                )}
+              </div>
             </li>
           );
         })}
@@ -104,6 +143,17 @@ export default function DiagnosticsChecklist({ results, running, className }: Di
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           Niektoré kroky boli preskočené (Local Demo, chýbajúca WP stránka alebo neprepojený GitHub) — to je očakávané.
         </p>
+      )}
+
+      {onRerun && results?.length && !running && (
+        <button
+          type="button"
+          onClick={onRerun}
+          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-medium text-foreground hover:bg-accent transition-colors"
+        >
+          <RefreshCw size={12} />
+          Spustiť znova
+        </button>
       )}
     </div>
   );
