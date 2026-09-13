@@ -10,6 +10,7 @@ import SettingsPanel from '@/components/workspace/SettingsPanel';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { BLUEPRINT_SYSTEM_PROMPT, buildBlueprintPrompt, type BlueprintCriteria } from '@/lib/blueprintPrompts';
+import { readZipFile, isZipFile, buildArchiveContext, type ArchiveFile } from '@/lib/archive/zipWorkspace';
 
 
 
@@ -36,7 +37,7 @@ interface Attachment {
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 const MAX_FILES = 10;
-const ALLOWED_EXT = /\.(txt|md|json|csv|js|ts|tsx|jsx|py|html|css|xml|yml|yaml|log|pdf|png|jpg|jpeg|webp|gif|svg)$/i;
+const ALLOWED_EXT = /\.(txt|md|json|csv|js|ts|tsx|jsx|py|html|css|xml|yml|yaml|log|pdf|png|jpg|jpeg|webp|gif|svg|zip)$/i;
 
 export default function Index() {
   const [user, setUser] = useState<User | null>(null);
@@ -58,6 +59,9 @@ export default function Index() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
   const [diagnostics, setDiagnostics] = useState<StreamDiagnostics | null>(null);
+  const [archiveName, setArchiveName] = useState('');
+  const [archiveFiles, setArchiveFiles] = useState<ArchiveFile[]>([]);
+  const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
   const [logs, setLogs] = useState([
     '[SYSTEM] Inicializácia inštancie H4CK3D Enterprise...',
@@ -425,6 +429,10 @@ export default function Index() {
 
     let finalPrompt = textToProcess;
 
+    if (archiveFiles.length) {
+      finalPrompt = `${buildArchiveContext(archiveName, archiveFiles)}\n\n${finalPrompt}`;
+    }
+
     // Use already-uploaded URLs
     const ready = attachments.filter(a => a.url);
     if (ready.length > 0) {
@@ -618,7 +626,31 @@ export default function Index() {
   };
 
   // Accept files: validate, add as uploading, then upload immediately
+  // Unpack a ZIP archive directly in the browser
+  const acceptZip = async (file: File) => {
+    try {
+      const { files: unpacked, skipped, truncated } = await readZipFile(file);
+      if (!unpacked.length) {
+        toast.error(`Archív "${file.name}" neobsahuje použiteľné súbory.`);
+        return;
+      }
+      setArchiveName(file.name);
+      setArchiveFiles(unpacked);
+      setActiveFilePath(unpacked.find(f => f.isText)?.path ?? unpacked[0].path);
+      setCurrentView('preview');
+      addLog(`[ZIP] ${file.name}: ${unpacked.length} súborov rozbalených (${skipped.length} preskočených)`);
+      showToast(`Archív rozbalený: ${unpacked.length} súborov${truncated ? ' (limit dosiahnutý)' : ''}`, 'success');
+    } catch (e) {
+      toast.error(`Archív sa nepodarilo rozbaliť: ${file.name}`);
+      addLog(`[ERROR] ZIP: ${(e as Error).message}`);
+    }
+  };
+
   const acceptFiles = (files: File[]) => {
+    if (!files.length) return;
+    const zips = files.filter(isZipFile);
+    zips.forEach(z => { void acceptZip(z); });
+    files = files.filter(f => !isZipFile(f));
     if (!files.length) return;
     if (attachments.length + files.length > MAX_FILES) {
       toast.error(`Max ${MAX_FILES} súborov naraz.`);
@@ -754,6 +786,17 @@ export default function Index() {
 
   const tokenCount = messages.length > 0 ? (8.1 + messages.length * 0.3).toFixed(1) : '8.1';
 
+  // Last fenced code block from the newest assistant message
+  const extractLatestAiCode = (): string | null => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') continue;
+      const blocks = [...messages[i].content.matchAll(/```[a-zA-Z0-9]*\n([\s\S]*?)```/g)];
+      if (blocks.length) return blocks[blocks.length - 1][1].replace(/\n$/, '');
+      return null;
+    }
+    return null;
+  };
+
   const viewContent = () => {
     switch (currentView) {
       case 'files':
@@ -785,6 +828,31 @@ export default function Index() {
               onInputChange={setInputValue}
               onSend={handleSendMessage}
               onGenerateDemo={() => handleSendMessage('Vytvor moderný login formulár v HTML a Tailwind CSS. Použi Google Material Design štýl.')}
+              onBack={() => setCurrentView('tasks')}
+              archiveName={archiveName}
+              archiveFiles={archiveFiles}
+              activeFilePath={activeFilePath}
+              onSelectFile={setActiveFilePath}
+              onToggleFileSelected={(path) => setArchiveFiles(prev => prev.map(f => f.path === path ? { ...f, selected: !f.selected } : f))}
+              onToggleAllFiles={(selected) => setArchiveFiles(prev => prev.map(f => f.isText ? { ...f, selected } : f))}
+              onChangeFileContent={(path, content) => setArchiveFiles(prev => prev.map(f => f.path === path ? { ...f, content, dirty: true } : f))}
+              onAskAgentAboutFile={(path) => {
+                const f = archiveFiles.find(x => x.path === path);
+                if (!f) return;
+                handleSendMessage(`Uprav tento súbor z archívu "${archiveName}".\n\nSúbor: ${path}\n\n\`\`\`\n${f.content.slice(0, 24000)}\n\`\`\`\n\nVráť celý upravený obsah súboru v jednom code blocku.`);
+              }}
+              onApplyAiCodeToFile={(path) => {
+                const code = extractLatestAiCode();
+                if (!code) { showToast('V odpovedi AI nie je žiadny kód.', 'error'); return; }
+                setArchiveFiles(prev => prev.map(f => f.path === path ? { ...f, content: code, dirty: true } : f));
+                showToast(`Kód aplikovaný do ${path}`, 'success');
+              }}
+              canApplyAiCode={!!extractLatestAiCode()}
+              onPreviewFile={(path) => {
+                const f = archiveFiles.find(x => x.path === path);
+                if (f) setLatestGeneratedCode(f.content);
+              }}
+              onClearArchive={() => { setArchiveFiles([]); setArchiveName(''); setActiveFilePath(null); showToast('Archív odstránený', 'info'); }}
             />
           </Suspense>
         );
