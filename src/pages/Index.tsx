@@ -429,6 +429,10 @@ export default function Index() {
 
     let finalPrompt = textToProcess;
 
+    if (archiveFiles.length) {
+      finalPrompt = `${buildArchiveContext(archiveName, archiveFiles)}\n\n${finalPrompt}`;
+    }
+
     // Use already-uploaded URLs
     const ready = attachments.filter(a => a.url);
     if (ready.length > 0) {
