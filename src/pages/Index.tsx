@@ -59,6 +59,9 @@ export default function Index() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
   const [diagnostics, setDiagnostics] = useState<StreamDiagnostics | null>(null);
+  const [archiveName, setArchiveName] = useState('');
+  const [archiveFiles, setArchiveFiles] = useState<ArchiveFile[]>([]);
+  const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
   const [logs, setLogs] = useState([
     '[SYSTEM] Inicializácia inštancie H4CK3D Enterprise...',
