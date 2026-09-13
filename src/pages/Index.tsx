@@ -817,6 +817,31 @@ export default function Index() {
               onInputChange={setInputValue}
               onSend={handleSendMessage}
               onGenerateDemo={() => handleSendMessage('Vytvor moderný login formulár v HTML a Tailwind CSS. Použi Google Material Design štýl.')}
+              onBack={() => setCurrentView('tasks')}
+              archiveName={archiveName}
+              archiveFiles={archiveFiles}
+              activeFilePath={activeFilePath}
+              onSelectFile={setActiveFilePath}
+              onToggleFileSelected={(path) => setArchiveFiles(prev => prev.map(f => f.path === path ? { ...f, selected: !f.selected } : f))}
+              onToggleAllFiles={(selected) => setArchiveFiles(prev => prev.map(f => f.isText ? { ...f, selected } : f))}
+              onChangeFileContent={(path, content) => setArchiveFiles(prev => prev.map(f => f.path === path ? { ...f, content, dirty: true } : f))}
+              onAskAgentAboutFile={(path) => {
+                const f = archiveFiles.find(x => x.path === path);
+                if (!f) return;
+                handleSendMessage(`Uprav tento súbor z archívu "${archiveName}".\n\nSúbor: ${path}\n\n\`\`\`\n${f.content.slice(0, 24000)}\n\`\`\`\n\nVráť celý upravený obsah súboru v jednom code blocku.`);
+              }}
+              onApplyAiCodeToFile={(path) => {
+                const code = extractLatestAiCode();
+                if (!code) { showToast('V odpovedi AI nie je žiadny kód.', 'error'); return; }
+                setArchiveFiles(prev => prev.map(f => f.path === path ? { ...f, content: code, dirty: true } : f));
+                showToast(`Kód aplikovaný do ${path}`, 'success');
+              }}
+              canApplyAiCode={!!extractLatestAiCode()}
+              onPreviewFile={(path) => {
+                const f = archiveFiles.find(x => x.path === path);
+                if (f) setLatestGeneratedCode(f.content);
+              }}
+              onClearArchive={() => { setArchiveFiles([]); setArchiveName(''); setActiveFilePath(null); showToast('Archív odstránený', 'info'); }}
             />
           </Suspense>
         );
