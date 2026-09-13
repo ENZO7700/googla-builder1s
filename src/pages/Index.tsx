@@ -786,6 +786,17 @@ export default function Index() {
 
   const tokenCount = messages.length > 0 ? (8.1 + messages.length * 0.3).toFixed(1) : '8.1';
 
+  // Last fenced code block from the newest assistant message
+  const extractLatestAiCode = (): string | null => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') continue;
+      const blocks = [...messages[i].content.matchAll(/```[a-zA-Z0-9]*\n([\s\S]*?)```/g)];
+      if (blocks.length) return blocks[blocks.length - 1][1].replace(/\n$/, '');
+      return null;
+    }
+    return null;
+  };
+
   const viewContent = () => {
     switch (currentView) {
       case 'files':
