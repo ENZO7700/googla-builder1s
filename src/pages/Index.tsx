@@ -626,7 +626,31 @@ export default function Index() {
   };
 
   // Accept files: validate, add as uploading, then upload immediately
+  // Unpack a ZIP archive directly in the browser
+  const acceptZip = async (file: File) => {
+    try {
+      const { files: unpacked, skipped, truncated } = await readZipFile(file);
+      if (!unpacked.length) {
+        toast.error(`Archív "${file.name}" neobsahuje použiteľné súbory.`);
+        return;
+      }
+      setArchiveName(file.name);
+      setArchiveFiles(unpacked);
+      setActiveFilePath(unpacked.find(f => f.isText)?.path ?? unpacked[0].path);
+      setCurrentView('preview');
+      addLog(`[ZIP] ${file.name}: ${unpacked.length} súborov rozbalených (${skipped.length} preskočených)`);
+      showToast(`Archív rozbalený: ${unpacked.length} súborov${truncated ? ' (limit dosiahnutý)' : ''}`, 'success');
+    } catch (e) {
+      toast.error(`Archív sa nepodarilo rozbaliť: ${file.name}`);
+      addLog(`[ERROR] ZIP: ${(e as Error).message}`);
+    }
+  };
+
   const acceptFiles = (files: File[]) => {
+    if (!files.length) return;
+    const zips = files.filter(isZipFile);
+    zips.forEach(z => { void acceptZip(z); });
+    files = files.filter(f => !isZipFile(f));
     if (!files.length) return;
     if (attachments.length + files.length > MAX_FILES) {
       toast.error(`Max ${MAX_FILES} súborov naraz.`);
