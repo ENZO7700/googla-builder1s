@@ -24,12 +24,15 @@ export default function GeneratorView({ onGenerate }: GeneratorViewProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col p-6 lg:p-12 overflow-y-auto w-full relative z-10 scrollbar-hide bg-card m-4 rounded-2xl shadow-sm border border-border">
-      <div className="max-w-4xl mx-auto w-full">
-        <div className="mb-8">
+    <div className="flex-1 min-h-0 flex flex-col w-full overflow-hidden bg-background">
+      <header className="shrink-0 border-b border-border bg-card px-4 py-4 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-4xl">
           <h2 className="text-2xl font-normal text-foreground">Generátor Kódu</h2>
           <p className="text-muted-foreground text-sm mt-1">Rýchla syntéza skriptov a nástrojov cez Cloud AI.</p>
         </div>
+      </header>
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-8">
+      <div className="max-w-4xl mx-auto w-full">
 
         {!description && !result && !isGenerating && (
           <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
@@ -61,7 +64,7 @@ export default function GeneratorView({ onGenerate }: GeneratorViewProps) {
           <button
             onClick={handleGenerate}
             disabled={!description.trim() || isGenerating}
-            className="self-start px-6 py-2.5 bg-primary text-primary-foreground rounded-full hover:bg-google-blue-hover transition-colors flex items-center gap-2 font-medium disabled:opacity-50 disabled:bg-muted shadow-sm"
+            className="self-start h-11 px-6 bg-primary text-primary-foreground rounded-lg hover:bg-google-blue-hover transition-colors flex items-center gap-2 font-medium disabled:opacity-50 disabled:bg-muted shadow-sm"
           >
             {isGenerating ? <Loader2 size={18} className="animate-spin" /> : <Code2 size={18} />}
             Generovať Kód
@@ -73,6 +76,7 @@ export default function GeneratorView({ onGenerate }: GeneratorViewProps) {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

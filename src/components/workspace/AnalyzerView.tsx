@@ -29,9 +29,10 @@ export default function AnalyzerView({ onAnalyze, onGenerateBlueprint, onSendToC
   };
 
   return (
-    <div className="flex-1 flex flex-col p-6 lg:p-12 overflow-y-auto w-full relative z-10 scrollbar-hide bg-card m-4 rounded-2xl shadow-sm border border-border">
-      <div className="max-w-4xl mx-auto w-full">
-        <div className="mb-6">
+    <div className="flex-1 min-h-0 flex flex-col w-full bg-background overflow-hidden">
+      <header className="shrink-0 border-b border-border bg-card px-4 py-3 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
           <h2 className="text-2xl font-normal text-foreground">
             {tab === 'blueprint' ? 'Startovací Blueprint' : 'Analyzátor Logov'}
           </h2>
@@ -40,17 +41,16 @@ export default function AnalyzerView({ onAnalyze, onGenerateBlueprint, onSendToC
               ? 'Zadajte kritériá a AI vygeneruje blueprint plus prompty od A po Z.'
               : 'Nahrajte systémové logy pre automatickú analýzu hrozieb.'}
           </p>
-        </div>
-
-        {onGenerateBlueprint && (
-          <div className="flex gap-2 mb-8">
+          </div>
+          {onGenerateBlueprint && (
+          <div className="flex h-10 shrink-0 items-center rounded-lg border border-border bg-background p-1">
             <button
               onClick={() => setTab('blueprint')}
               aria-pressed={tab === 'blueprint'}
-              className={`px-4 py-2 rounded-full text-sm border transition-colors flex items-center gap-2 ${
+              className={`flex h-8 items-center gap-2 rounded-md px-3 text-sm transition-colors ${
                 tab === 'blueprint'
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >
               <Compass size={15} /> Blueprint
@@ -58,26 +58,28 @@ export default function AnalyzerView({ onAnalyze, onGenerateBlueprint, onSendToC
             <button
               onClick={() => setTab('logs')}
               aria-pressed={tab === 'logs'}
-              className={`px-4 py-2 rounded-full text-sm border transition-colors flex items-center gap-2 ${
+              className={`flex h-8 items-center gap-2 rounded-md px-3 text-sm transition-colors ${
                 tab === 'logs'
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >
               <ShieldAlert size={15} /> Analýza logov
             </button>
           </div>
-        )}
+          )}
+        </div>
+      </header>
 
         {tab === 'blueprint' && onGenerateBlueprint && (
-          <BlueprintStarter onGenerate={onGenerateBlueprint} onSendToChat={onSendToChat} />
+          <div className="flex-1 min-h-0">
+            <BlueprintStarter onGenerate={onGenerateBlueprint} onSendToChat={onSendToChat} />
+          </div>
         )}
 
         {tab === 'logs' && (
-        <>
-
-
-        <div className="flex flex-col gap-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
           <textarea
             value={rawLogs}
             onChange={(e) => setRawLogs(e.target.value)}
@@ -88,7 +90,7 @@ export default function AnalyzerView({ onAnalyze, onGenerateBlueprint, onSendToC
           <button
             onClick={handleAnalyze}
             disabled={!rawLogs.trim() || isAnalyzing}
-            className="self-start px-6 py-2.5 bg-primary text-primary-foreground rounded-full hover:bg-google-blue-hover transition-colors flex items-center gap-2 font-medium disabled:opacity-50 disabled:bg-muted shadow-sm"
+            className="self-start h-11 px-6 bg-primary text-primary-foreground rounded-lg hover:bg-google-blue-hover transition-colors flex items-center gap-2 font-medium disabled:opacity-50 disabled:bg-muted shadow-sm"
           >
             {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : <ShieldAlert size={18} />}
             Spustiť Analýzu
@@ -105,10 +107,8 @@ export default function AnalyzerView({ onAnalyze, onGenerateBlueprint, onSendToC
             </div>
           )}
         </div>
-        </>
+        </div>
         )}
-      </div>
     </div>
-
   );
 }

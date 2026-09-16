@@ -31,14 +31,17 @@ export default function ConnectorsView({ onBack }: ConnectorsViewProps) {
   const [apiKeyInput, setApiKeyInput] = useState('');
 
   return (
-    <div className="flex-1 flex flex-col p-6 lg:p-12 overflow-y-auto scrollbar-hide animate-fade-in">
-      <div className="max-w-4xl mx-auto w-full">
-        <div className="mb-8">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-background animate-fade-in">
+      <header className="shrink-0 border-b border-border bg-card px-4 py-4 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-4xl">
           <h2 className="text-2xl font-normal text-foreground flex items-center gap-3">
             <Plug size={24} className="text-primary" /> Integrácie API
           </h2>
           <p className="text-muted-foreground text-sm mt-1">Prepojte workspace s externými službami.</p>
         </div>
+      </header>
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-8">
+      <div className="max-w-4xl mx-auto w-full">
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {integrations.map(item => (
@@ -73,10 +76,11 @@ export default function ConnectorsView({ onBack }: ConnectorsViewProps) {
 
         <button
           onClick={onBack}
-          className="mt-8 px-6 py-2.5 bg-card border border-border text-foreground hover:bg-accent rounded-full font-medium text-sm transition-colors shadow-sm"
+          className="mt-8 h-11 px-6 bg-card border border-border text-foreground hover:bg-accent rounded-lg font-medium text-sm transition-colors shadow-sm"
         >
           Späť na Workspace
         </button>
+      </div>
       </div>
 
       {/* Detail dialog */}
