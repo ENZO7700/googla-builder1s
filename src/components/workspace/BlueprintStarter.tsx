@@ -64,14 +64,14 @@ export default function BlueprintStarter({ onGenerate, onSendToChat }: Blueprint
   const hasOutput = Boolean(result) || isRunning;
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(360px,440px)_minmax(0,1fr)] items-start">
+    <div className="grid h-full min-h-0 w-full overflow-y-auto bg-background lg:grid-cols-[minmax(380px,460px)_minmax(0,1fr)] lg:overflow-hidden">
       {/* ── Left: criteria form ── */}
-      <div className="bg-accent border border-border rounded-xl overflow-hidden flex flex-col min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)]">
+      <div className="flex min-h-full min-w-0 flex-col overflow-hidden border-b border-border bg-accent lg:min-h-0 lg:border-b-0 lg:border-r">
         {/* Scrollable form body */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-6">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 [scrollbar-gutter:stable] sm:p-5">
           {!hasOutput && (
-            <div className="flex flex-col items-center text-center py-4 animate-fade-in">
-              <div className="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center mb-3">
+            <div className="flex flex-col items-center py-2 text-center animate-fade-in">
+              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card">
                 <Compass size={26} className="text-primary" />
               </div>
               <h3 className="text-base font-medium text-foreground mb-1">Startovací blueprint</h3>
@@ -83,7 +83,7 @@ export default function BlueprintStarter({ onGenerate, onSendToChat }: Blueprint
           )}
 
           {/* Group 1: basics */}
-          <section className="flex flex-col gap-4 bg-card border border-border rounded-lg p-4">
+          <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
             <GroupLabel step="1" title="Základy" />
             <Field label="Názov / cieľ projektu">
               <input
@@ -103,7 +103,7 @@ export default function BlueprintStarter({ onGenerate, onSendToChat }: Blueprint
           </section>
 
           {/* Group 2: configuration */}
-          <section className="flex flex-col gap-4 bg-card border border-border rounded-lg p-4">
+          <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
             <GroupLabel step="2" title="Konfigurácia" />
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Stack">
@@ -130,7 +130,7 @@ export default function BlueprintStarter({ onGenerate, onSendToChat }: Blueprint
           </section>
 
           {/* Group 3: notes */}
-          <section className="flex flex-col gap-4 bg-card border border-border rounded-lg p-4">
+          <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
             <GroupLabel step="3" title="Poznámky" />
             <Field label="Poznámky / obmedzenia">
               <textarea
@@ -144,7 +144,7 @@ export default function BlueprintStarter({ onGenerate, onSendToChat }: Blueprint
         </div>
 
         {/* Sticky action bar — uniform buttons, pixel-aligned */}
-        <div className="shrink-0 border-t border-border bg-card p-4">
+        <div className="sticky bottom-0 z-10 shrink-0 border-t border-border bg-card p-4 lg:static">
           <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-stretch">
             <button
               onClick={run}
@@ -182,9 +182,9 @@ export default function BlueprintStarter({ onGenerate, onSendToChat }: Blueprint
       </div>
 
       {/* ── Right: output ── */}
-      <div className="flex flex-col gap-5 min-w-0">
+      <div className="flex min-h-[320px] min-w-0 flex-col gap-4 overflow-y-auto p-4 [scrollbar-gutter:stable] sm:p-5 lg:min-h-0 lg:p-6">
         {pack.length > 0 && (
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+          <div className="bg-card border border-border rounded-lg p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
               <h3 className="text-foreground font-medium text-base">
                 Prompt pack — {pack.length} promptov
@@ -242,7 +242,7 @@ export default function BlueprintStarter({ onGenerate, onSendToChat }: Blueprint
         )}
 
         {result && (
-          <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+          <div className="bg-card border border-border rounded-lg p-6 shadow-sm">
             <h3 className="text-foreground font-medium mb-4 text-base">Blueprint</h3>
             <div className="text-foreground text-sm">
               <MarkdownRenderer content={result} />
@@ -251,7 +251,7 @@ export default function BlueprintStarter({ onGenerate, onSendToChat }: Blueprint
         )}
 
         {!result && !isRunning && (
-          <div className="hidden lg:flex flex-col items-center justify-center border border-dashed border-border rounded-xl py-20 text-center text-muted-foreground">
+          <div className="hidden min-h-full lg:flex flex-col items-center justify-center border border-dashed border-border rounded-lg py-20 text-center text-muted-foreground">
             <Compass size={28} className="mb-3 opacity-40" />
             <p className="text-sm">Tu sa zobrazí vygenerovaný blueprint a prompt pack.</p>
           </div>
