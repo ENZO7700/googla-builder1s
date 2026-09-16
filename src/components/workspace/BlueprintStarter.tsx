@@ -66,7 +66,7 @@ export default function BlueprintStarter({ onGenerate, onSendToChat }: Blueprint
   return (
     <div className="grid h-full min-h-0 w-full overflow-y-auto bg-background lg:grid-cols-[minmax(380px,460px)_minmax(0,1fr)] lg:overflow-hidden">
       {/* ── Left: criteria form ── */}
-      <div className="flex min-h-full min-w-0 flex-col overflow-hidden border-b border-border bg-accent lg:min-h-0 lg:border-b-0 lg:border-r">
+      <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-accent lg:border-b-0 lg:border-r">
         {/* Scrollable form body */}
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 [scrollbar-gutter:stable] sm:p-5">
           {!hasOutput && (
