@@ -3,6 +3,7 @@ import {
   FileCode, Folder, Save, Download, Sparkles, Wand2, Eye, Trash2, CheckSquare, Square, FileArchive,
 } from 'lucide-react';
 import { ArchiveFile, formatBytes, downloadZip, isPreviewable } from '@/lib/archive/zipWorkspace';
+import { Button } from '@/components/ui/button';
 
 interface FileCanvasProps {
   archiveName: string;
@@ -54,9 +55,9 @@ export default function FileCanvas({
   }
 
   return (
-    <div className="flex h-full w-full min-h-0">
+    <div className="flex h-full min-h-0 w-full flex-col sm:flex-row">
       {/* Tree */}
-      <div className="w-[38%] max-w-[340px] border-r border-border flex flex-col min-h-0">
+      <div className="flex h-[42%] min-h-0 w-full shrink-0 flex-col border-b border-border sm:h-full sm:w-[38%] sm:max-w-[340px] sm:border-b-0 sm:border-r">
         <div className="p-2 border-b border-border space-y-2">
           <div className="flex items-center gap-2 text-xs text-foreground font-medium truncate">
             <FileArchive size={14} className="text-primary shrink-0" />
@@ -122,20 +123,24 @@ export default function FileCanvas({
         </div>
 
         <div className="p-2 border-t border-border flex gap-2">
-          <button
+          <Button
             onClick={() => downloadZip(files, archiveName.replace(/\.zip$/i, '') + '-upraveny.zip')}
-            className="flex-1 flex items-center justify-center gap-1.5 text-[11px] px-2 py-1.5 bg-card border border-border rounded-md hover:bg-accent transition-colors"
+            variant="outline"
+            size="sm"
+            className="flex-1 text-xs"
           >
             <Download size={12} /> Stiahnuť ZIP
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={onClear}
             title="Zavrieť archív"
             aria-label="Zavrieť archív"
-            className="px-2 py-1.5 border border-border rounded-md text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
+            variant="outline"
+            size="icon"
+            className="h-9 w-9 text-muted-foreground hover:text-destructive"
           >
             <Trash2 size={12} />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -145,26 +150,31 @@ export default function FileCanvas({
           <>
             <div className="px-3 py-2 border-b border-border flex items-center gap-2 flex-wrap">
               <span className="text-[12px] font-mono text-foreground truncate flex-1 min-w-0">{active.path}</span>
-              <button
+              <Button
                 onClick={() => onAskAgent(active.path)}
-                className="flex items-center gap-1 text-[11px] px-2 py-1 bg-primary text-primary-foreground rounded-md hover:opacity-90"
+                size="sm"
+                className="h-8 px-2 text-xs"
               >
                 <Wand2 size={12} /> Poslať agentovi
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => onApplyAiCode(active.path)}
                 disabled={!canApplyAiCode}
-                className="flex items-center gap-1 text-[11px] px-2 py-1 bg-card border border-border rounded-md hover:bg-accent disabled:opacity-40"
+                variant="outline"
+                size="sm"
+                className="h-8 px-2 text-xs"
               >
                 <Sparkles size={12} /> Aplikovať návrh AI
-              </button>
+              </Button>
               {isPreviewable(active.path) && (
-                <button
+                <Button
                   onClick={() => onPreviewFile(active.path)}
-                  className="flex items-center gap-1 text-[11px] px-2 py-1 bg-card border border-border rounded-md hover:bg-accent"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2 text-xs"
                 >
                   <Eye size={12} /> Náhľad
-                </button>
+                </Button>
               )}
               {active.dirty && (
                 <span className="flex items-center gap-1 text-[11px] text-primary">

@@ -891,7 +891,7 @@ export default function Index() {
 
   return (
     <div
-      className="flex h-screen bg-background overflow-hidden relative"
+      className="relative flex h-[100dvh] min-h-0 overflow-hidden bg-background"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

@@ -3,6 +3,7 @@ import { Layout, X, Loader2, Terminal, Send, ArrowLeft, Maximize2, Minimize2, Fi
 import { MarkdownRenderer } from '@/lib/formatMarkdown';
 import FileCanvas from './FileCanvas';
 import { ArchiveFile } from '@/lib/archive/zipWorkspace';
+import { Button } from '@/components/ui/button';
 
 interface Message {
   role: string;
@@ -57,55 +58,67 @@ export default function PreviewView(props: PreviewViewProps) {
   }, [expanded]);
 
   const header = (
-    <div className="px-3 py-2 flex items-center justify-between gap-2 border-b border-border bg-accent flex-wrap">
+    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3 sm:px-4 lg:px-6">
       <div className="flex items-center gap-2 min-w-0">
-        <button
+        <Button
           onClick={onBack}
           aria-label="Späť na hlavnú stránku"
-          className="flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 bg-card border border-border rounded-md text-foreground hover:bg-accent transition-colors font-medium shadow-sm"
+          variant="outline"
+          size="sm"
+          className="shrink-0"
         >
           <ArrowLeft size={14} /> Späť
-        </button>
+        </Button>
         <div className="flex items-center gap-2 text-foreground font-medium text-sm truncate">
           <Layout size={16} className="text-muted-foreground" /> Live Sandbox
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5">
-        <div className="flex items-center rounded-md border border-border overflow-hidden bg-card">
-          <button
+      <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
+        <div className="flex h-9 shrink-0 items-center overflow-hidden rounded-md border border-border bg-background p-0.5">
+          <Button
             onClick={() => setTab('preview')}
-            className={`px-2.5 py-1.5 text-[11px] font-medium flex items-center gap-1 ${tab === 'preview' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'}`}
+            variant={tab === 'preview' ? 'default' : 'ghost'}
+            size="sm"
+            className="h-8 px-2.5 text-xs"
+            aria-pressed={tab === 'preview'}
           >
             <Layout size={12} /> Náhľad
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => setTab('files')}
-            className={`px-2.5 py-1.5 text-[11px] font-medium flex items-center gap-1 ${tab === 'files' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'}`}
+            variant={tab === 'files' ? 'default' : 'ghost'}
+            size="sm"
+            className="h-8 px-2.5 text-xs"
+            aria-pressed={tab === 'files'}
           >
             <FileArchive size={12} /> Súbory{archiveFiles.length ? ` (${archiveFiles.length})` : ''}
-          </button>
+          </Button>
         </div>
 
         {tab === 'preview' && latestCode && (
-          <button
+          <Button
             onClick={onClearCode}
-            className="text-[11px] px-2.5 py-1.5 bg-card border border-border text-muted-foreground rounded-md hover:bg-accent transition-colors font-medium flex items-center gap-1.5 shadow-sm"
+            variant="outline"
+            size="sm"
+            className="shrink-0 text-xs"
           >
             <X size={13} /> Vyčistiť
-          </button>
+          </Button>
         )}
 
-        <button
+        <Button
           onClick={() => setExpanded(v => !v)}
           aria-label={expanded ? 'Obnoviť veľkosť náhľadu' : 'Maximalizovať náhľad'}
           title={expanded ? 'Obnoviť (Esc)' : 'Maximalizovať'}
-          className="p-1.5 bg-card border border-border rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shadow-sm"
+          variant="outline"
+          size="icon"
+          className="h-9 w-9 shrink-0"
         >
           {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-        </button>
+        </Button>
       </div>
-    </div>
+    </header>
   );
 
   const body = (
@@ -141,12 +154,13 @@ export default function PreviewView(props: PreviewViewProps) {
           <p className="mt-2 text-sm max-w-sm mx-auto">
             Vygenerujte komponenty cez AI a systém ich tu automaticky vizualizuje.
           </p>
-          <button
+          <Button
             onClick={onGenerateDemo}
-            className="mt-6 px-6 py-2 bg-card border border-border text-foreground hover:bg-accent rounded-full text-[13px] font-medium shadow-sm transition-colors"
+            variant="outline"
+            className="mt-6"
           >
             Generovať demo formulár
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -154,7 +168,7 @@ export default function PreviewView(props: PreviewViewProps) {
 
   if (expanded) {
     return (
-      <div className="fixed inset-0 z-50 bg-background flex flex-col">
+      <div className="fixed inset-0 z-50 flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-background">
         {header}
         {body}
       </div>
@@ -162,10 +176,10 @@ export default function PreviewView(props: PreviewViewProps) {
   }
 
   return (
-    <div className="flex-1 flex p-4 w-full relative z-10 overflow-hidden gap-4 min-h-0">
+    <div className="relative z-10 flex h-full min-h-0 w-full flex-1 overflow-hidden bg-background">
       {/* Left chat panel */}
-      <div className="w-[30%] flex-col bg-card rounded-2xl border border-border shadow-sm overflow-hidden hidden lg:flex min-h-0">
-        <div className="p-4 border-b border-border flex items-center gap-2 bg-accent">
+      <aside className="hidden w-[340px] shrink-0 flex-col overflow-hidden border-r border-border bg-card lg:flex min-h-0">
+        <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">
           <Terminal size={18} className="text-muted-foreground" />
           <span className="font-medium text-foreground text-sm">Interakcia</span>
         </div>
@@ -201,20 +215,20 @@ export default function PreviewView(props: PreviewViewProps) {
               onChange={(e) => onInputChange(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && onSend()}
               placeholder="Upravte dizajn..."
-              className="flex-1 bg-accent border border-border rounded-full px-4 py-2 text-[13px] text-foreground outline-none focus:border-primary"
+              className="h-10 min-w-0 flex-1 rounded-md border border-border bg-accent px-3 text-[13px] text-foreground outline-none focus:border-primary"
             />
-            <button onClick={() => onSend()} aria-label="Odoslať" className="p-2 bg-primary text-primary-foreground rounded-full hover:bg-google-blue-hover">
+            <Button onClick={() => onSend()} aria-label="Odoslať" size="icon" className="h-10 w-10 shrink-0">
               <Send size={14} />
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
+      </aside>
 
       {/* Right preview */}
-      <div className="flex-1 h-full flex flex-col relative bg-card rounded-2xl shadow-sm border border-border overflow-hidden min-h-0">
+      <section className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-card">
         {header}
         {body}
-      </div>
+      </section>
     </div>
   );
 }
