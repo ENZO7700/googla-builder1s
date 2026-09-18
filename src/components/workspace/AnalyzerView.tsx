@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ShieldAlert, Loader2, CheckCircle2, Compass } from 'lucide-react';
 import { MarkdownRenderer } from '@/lib/formatMarkdown';
 import BlueprintStarter from './BlueprintStarter';
+import WorkspaceLayout from './WorkspaceLayout';
 import type { BlueprintCriteria } from '@/lib/blueprintPrompts';
 
 interface AnalyzerViewProps {
@@ -29,20 +30,12 @@ export default function AnalyzerView({ onAnalyze, onGenerateBlueprint, onSendToC
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col w-full bg-background overflow-hidden">
-      <header className="shrink-0 border-b border-border bg-card px-4 py-3 sm:px-6 lg:px-8">
-        <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-          <h2 className="text-2xl font-normal text-foreground">
-            {tab === 'blueprint' ? 'Startovací Blueprint' : 'Analyzátor Logov'}
-          </h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            {tab === 'blueprint'
-              ? 'Zadajte kritériá a AI vygeneruje blueprint plus prompty od A po Z.'
-              : 'Nahrajte systémové logy pre automatickú analýzu hrozieb.'}
-          </p>
-          </div>
-          {onGenerateBlueprint && (
+    <WorkspaceLayout
+      title={tab === 'blueprint' ? 'Startovací Blueprint' : 'Analyzátor Logov'}
+      description={tab === 'blueprint'
+        ? 'Zadajte kritériá a AI vygeneruje blueprint plus prompty od A po Z.'
+        : 'Nahrajte systémové logy pre automatickú analýzu hrozieb.'}
+      actions={onGenerateBlueprint ? (
           <div className="flex h-10 shrink-0 items-center rounded-lg border border-border bg-background p-1">
             <button
               onClick={() => setTab('blueprint')}
@@ -67,9 +60,8 @@ export default function AnalyzerView({ onAnalyze, onGenerateBlueprint, onSendToC
               <ShieldAlert size={15} /> Analýza logov
             </button>
           </div>
-          )}
-        </div>
-      </header>
+      ) : undefined}
+    >
 
         {tab === 'blueprint' && onGenerateBlueprint && (
           <div className="flex-1 min-h-0">
@@ -109,6 +101,6 @@ export default function AnalyzerView({ onAnalyze, onGenerateBlueprint, onSendToC
         </div>
         </div>
         )}
-    </div>
+    </WorkspaceLayout>
   );
 }

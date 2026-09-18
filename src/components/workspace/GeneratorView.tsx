@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Terminal, Code2, Loader2 } from 'lucide-react';
 import { MarkdownRenderer } from '@/lib/formatMarkdown';
+import WorkspaceLayout from './WorkspaceLayout';
 
 interface GeneratorViewProps {
   onGenerate: (desc: string) => Promise<string>;
@@ -24,13 +25,10 @@ export default function GeneratorView({ onGenerate }: GeneratorViewProps) {
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col w-full overflow-hidden bg-background">
-      <header className="shrink-0 border-b border-border bg-card px-4 py-4 sm:px-6 lg:px-8">
-        <div className="mx-auto w-full max-w-4xl">
-          <h2 className="text-2xl font-normal text-foreground">Generátor Kódu</h2>
-          <p className="text-muted-foreground text-sm mt-1">Rýchla syntéza skriptov a nástrojov cez Cloud AI.</p>
-        </div>
-      </header>
+    <WorkspaceLayout
+      title="Generátor Kódu"
+      description="Rýchla syntéza skriptov a nástrojov cez Cloud AI."
+    >
       <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-8">
       <div className="max-w-4xl mx-auto w-full">
 
@@ -78,6 +76,6 @@ export default function GeneratorView({ onGenerate }: GeneratorViewProps) {
         </div>
       </div>
       </div>
-    </div>
+    </WorkspaceLayout>
   );
 }
