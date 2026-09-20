@@ -37,12 +37,12 @@ export default function SettingsPanel({ open, onOpenChange, dark, onToggleDark }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[360px] sm:w-[400px] bg-card border-border overflow-y-auto">
-        <SheetHeader>
+      <SheetContent className="flex h-[100dvh] w-[360px] min-h-0 flex-col overflow-hidden border-border bg-card sm:w-[400px]">
+        <SheetHeader className="shrink-0">
           <SheetTitle className="text-foreground">Nastavenia</SheetTitle>
         </SheetHeader>
 
-        <div className="mt-6 space-y-8 pb-10">
+        <div className="mt-6 min-h-0 flex-1 space-y-8 overflow-y-auto pb-10 pr-1">
           {/* Theme */}
           <div>
             <h3 className="text-sm font-semibold text-foreground mb-3">Vzhľad</h3>

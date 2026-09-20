@@ -4,6 +4,7 @@ import { MarkdownRenderer } from '@/lib/formatMarkdown';
 import FileCanvas from './FileCanvas';
 import { ArchiveFile } from '@/lib/archive/zipWorkspace';
 import { Button } from '@/components/ui/button';
+import WorkspaceLayout from './WorkspaceLayout';
 
 interface Message {
   role: string;
@@ -57,9 +58,8 @@ export default function PreviewView(props: PreviewViewProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [expanded]);
 
-  const header = (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3 sm:px-4 lg:px-6">
-      <div className="flex items-center gap-2 min-w-0">
+  const actions = (
+      <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
         <Button
           onClick={onBack}
           aria-label="Späť na hlavnú stránku"
@@ -69,12 +69,6 @@ export default function PreviewView(props: PreviewViewProps) {
         >
           <ArrowLeft size={14} /> Späť
         </Button>
-        <div className="flex items-center gap-2 text-foreground font-medium text-sm truncate">
-          <Layout size={16} className="text-muted-foreground" /> Live Sandbox
-        </div>
-      </div>
-
-      <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
         <div className="flex h-9 shrink-0 items-center overflow-hidden rounded-md border border-border bg-background p-0.5">
           <Button
             onClick={() => setTab('preview')}
@@ -118,7 +112,6 @@ export default function PreviewView(props: PreviewViewProps) {
           {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
         </Button>
       </div>
-    </header>
   );
 
   const body = (
@@ -166,17 +159,14 @@ export default function PreviewView(props: PreviewViewProps) {
     </div>
   );
 
-  if (expanded) {
-    return (
-      <div className="fixed inset-0 z-50 flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-background">
-        {header}
-        {body}
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative z-10 flex h-full min-h-0 w-full flex-1 overflow-hidden bg-background">
+  const workspace = (
+    <WorkspaceLayout
+      title="Live Sandbox"
+      description={tab === 'files' ? 'Upravujte súbory archívu priamo v pracovnej ploche.' : 'Interaktívny náhľad vygenerovaného rozhrania.'}
+      icon={<Layout size={20} />}
+      actions={actions}
+      contentClassName="relative flex"
+    >
       {/* Left chat panel */}
       <aside className="hidden w-[340px] shrink-0 flex-col overflow-hidden border-r border-border bg-card lg:flex min-h-0">
         <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">
@@ -225,10 +215,15 @@ export default function PreviewView(props: PreviewViewProps) {
       </aside>
 
       {/* Right preview */}
-      <section className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-card">
-        {header}
+      <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-card">
         {body}
       </section>
-    </div>
+    </WorkspaceLayout>
   );
+
+  if (expanded) {
+    return <div className="fixed inset-0 z-50 flex h-[100dvh] min-h-0 overflow-hidden bg-background">{workspace}</div>;
+  }
+
+  return workspace;
 }

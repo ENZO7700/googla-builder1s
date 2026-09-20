@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { MarkdownRenderer } from '@/lib/formatMarkdown';
 import MessageActions from './MessageActions';
+import WorkspaceLayout from './WorkspaceLayout';
 
 interface Message {
   role: string;
@@ -250,30 +251,28 @@ export default function ChatView({
   const lastMsgIdx = messages.length - 1;
 
   return (
-    <div className="flex flex-col h-full min-h-0 relative">
-      {/* Header */}
-      <header className="h-14 border-b border-border bg-card flex items-center justify-between px-4 lg:px-6 shrink-0 z-30">
+    <WorkspaceLayout
+      title={(
         <div className="flex items-center gap-3">
           {onToggleMobileMenu && (
-            <button onClick={onToggleMobileMenu} className="lg:hidden p-1.5 text-muted-foreground hover:text-foreground">
+            <button onClick={onToggleMobileMenu} aria-label="Otvoriť navigáciu" className="lg:hidden p-1.5 text-muted-foreground hover:text-foreground">
               <Menu size={20} />
             </button>
           )}
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Search size={16} />
-            <span className="text-sm hidden sm:inline">Vyhľadať v projekte</span>
-          </div>
+          <span>Workspace</span>
         </div>
+      )}
+      icon={<Search size={18} />}
+      actions={(
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-success" />
             API Tokeny: {tokenCount}k
           </span>
         </div>
-      </header>
-
-      {/* Scroll + input wrapper */}
-      <div className="flex-1 flex flex-col min-h-0 relative">
+      )}
+      contentClassName="relative flex flex-col"
+    >
 
       {/* Drag overlay */}
       {isDragging && (
@@ -543,8 +542,7 @@ export default function ChatView({
           </p>
         </div>
       </div>
-      </div>
-    </div>
+    </WorkspaceLayout>
   );
 }
 

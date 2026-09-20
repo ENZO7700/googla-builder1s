@@ -120,7 +120,7 @@ export default function SidebarNav({
   };
 
   return (
-    <aside className="w-[280px] bg-sidebar border-r border-sidebar-border flex flex-col shrink-0 z-20">
+    <aside className="flex h-full min-h-0 w-[280px] shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar z-20">
       {/* Logo */}
       <div className="p-5 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
