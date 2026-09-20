@@ -26,7 +26,7 @@ export default function SystemMonitor({ isLoading, messageCount, attachmentCount
   }, [logs]);
 
   return (
-    <aside className="w-[300px] bg-card border-l border-border flex flex-col hidden xl:flex shrink-0 z-10">
+    <aside className="hidden h-full min-h-0 w-[300px] shrink-0 flex-col overflow-hidden border-l border-border bg-card xl:flex z-10">
       <div className="p-6 border-b border-border">
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
           <Activity size={16} className="text-primary" /> Stav Služieb
