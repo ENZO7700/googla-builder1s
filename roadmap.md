@@ -5,4 +5,4 @@
 - [x] Move Code Generator to the shared layout.
 - [x] Move Integrations, Chat, and Live Sandbox to the shared layout system.
 - [x] Align supporting side panels with full-height independent scrolling.
-- [ ] Verify desktop and mobile height, scrolling, and visible actions.
+- [x] Verify desktop and mobile height, scrolling, and visible actions.
