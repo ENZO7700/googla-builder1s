@@ -112,7 +112,11 @@ export default function ResetPassword() {
                   <AlertCircle size={16} /> {error}
                 </div>
               )}
-              <div className="pt-4 flex justify-end">
+              <div className="pt-4 flex items-center justify-between gap-3">
+                <button type="button" onClick={() => navigate('/')} disabled={loading}
+                  className="px-4 py-2.5 text-sm font-medium text-primary rounded-full hover:bg-muted transition-colors disabled:opacity-50">
+                  Späť na prihlásenie
+                </button>
                 <button type="submit" disabled={loading}
                   className="px-8 py-2.5 bg-primary text-primary-foreground rounded-full hover:bg-google-blue-hover transition-colors font-medium disabled:opacity-50 shadow-sm">
                   {loading ? <Loader2 size={18} className="animate-spin" /> : 'Zmeniť heslo'}

@@ -806,6 +806,7 @@ export default function Index() {
               onAnalyze={handleAnalyzeLogs}
               onGenerateBlueprint={handleGenerateBlueprint}
               onSendToChat={(p) => { setInputValue(p); setCurrentView('tasks'); showToast('Prompt vložený do chatu', 'info'); }}
+              onBack={() => setCurrentView('tasks')}
             />
 
           </Suspense>
@@ -813,7 +814,7 @@ export default function Index() {
       case 'skills':
         return (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
-            <GeneratorView onGenerate={handleGenerateSkill} />
+            <GeneratorView onGenerate={handleGenerateSkill} onBack={() => setCurrentView('tasks')} />
           </Suspense>
         );
       case 'preview':

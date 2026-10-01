@@ -5,9 +5,10 @@ import WorkspaceLayout from './WorkspaceLayout';
 
 interface GeneratorViewProps {
   onGenerate: (desc: string) => Promise<string>;
+  onBack?: () => void;
 }
 
-export default function GeneratorView({ onGenerate }: GeneratorViewProps) {
+export default function GeneratorView({ onGenerate, onBack }: GeneratorViewProps) {
   const [description, setDescription] = useState('');
   const [result, setResult] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -26,6 +27,7 @@ export default function GeneratorView({ onGenerate }: GeneratorViewProps) {
 
   return (
     <WorkspaceLayout
+      onBack={onBack}
       title="Generátor Kódu"
       description="Rýchla syntéza skriptov a nástrojov cez Cloud AI."
     >

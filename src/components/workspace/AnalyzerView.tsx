@@ -9,9 +9,10 @@ interface AnalyzerViewProps {
   onAnalyze: (logs: string) => Promise<string>;
   onGenerateBlueprint?: (criteria: BlueprintCriteria) => Promise<string>;
   onSendToChat?: (prompt: string) => void;
+  onBack?: () => void;
 }
 
-export default function AnalyzerView({ onAnalyze, onGenerateBlueprint, onSendToChat }: AnalyzerViewProps) {
+export default function AnalyzerView({ onAnalyze, onGenerateBlueprint, onSendToChat, onBack }: AnalyzerViewProps) {
   const [rawLogs, setRawLogs] = useState('');
   const [logAnalysis, setLogAnalysis] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -31,6 +32,7 @@ export default function AnalyzerView({ onAnalyze, onGenerateBlueprint, onSendToC
 
   return (
     <WorkspaceLayout
+      onBack={onBack}
       title={tab === 'blueprint' ? 'Startovací Blueprint' : 'Analyzátor Logov'}
       description={tab === 'blueprint'
         ? 'Zadajte kritériá a AI vygeneruje blueprint plus prompty od A po Z.'
